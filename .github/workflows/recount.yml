@@ -1,0 +1,29 @@
+# Manually-run action: rebuilds reply counts, last-reply times and post counts
+# from the actual posts (scripts/recount.mjs). Safe to run any time.
+# GitHub -> Actions -> "Recount forum" -> Run workflow
+name: Recount forum
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recount:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Recount
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          node scripts/recount.mjs
+          rm -f "$RUNNER_TEMP/sa.json"

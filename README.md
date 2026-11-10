@@ -30,6 +30,7 @@ Live site: https://garage-terminal-15499.web.app
 | `functions/index.js` | Cloud Functions: reply counts, last reply time, post counts |
 | `scripts/seed.mjs` | Creates the forum areas and site settings if missing (runs on deploy) |
 | `scripts/add-sysop.mjs` | Makes a member sysop (run via the "Add sysop" GitHub action) |
+| `scripts/recount.mjs` | Rebuilds reply/post counts from the actual posts ("Recount forum" GitHub action) |
 | `firestore.indexes.json` | Database indexes the thread and post lists need |
 | `firestore.rules` | **The real security.** Who can read/write what |
 | `tests/` | Rules tests and Cloud Functions tests, run on the Firestore emulator |
