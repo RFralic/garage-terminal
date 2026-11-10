@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<!--
+  Tap Drill Chart, served at /apps/tap-drill-chart.
+  Copied from the Claude artifact https://claude.ai/artifact/WmexoXTqMJ3L2T68cw6d4e
+  (styles, content and code unchanged). Garage Terminal additions: this page
+  head (title, site icons, manifest) and the small "< garage_terminal" back link.
+  If the artifact changes in Claude, copy the new version over this one.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tap Drill Chart · Garage Terminal</title>
+<meta name="description" content="Tap drills and clearance holes for inch, metric and pipe threads, plus every number, letter and fractional drill size.">
+<!-- Site icons: SVG for modern browsers, .ico/.png fallbacks, home-screen icon, web manifest -->
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Condensed:wght@400;600;700&display=swap">
+<!-- Base styles from the artifact's page wrapper -->
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<style>
+/* Layout: shop reference card — finder panel on top answers one bolt, the full chart below with the answer highlighted */
+:root{
+  --bg:#eef1f3; --panel:#ffffff; --ink:#18222b; --muted:#5b6872; --line:#d3d9de;
+  --accent:#1d5ea8; --accent-soft:#e2ecf7; --hi:#fff3c4; --hi-ink:#6b4d00; --warn:#9a5b00; --warn-soft:#fdf1dc;
+  --f-display:"IBM Plex Sans Condensed","Arial Narrow",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12171c; --panel:#1a2128; --ink:#e4e9ed; --muted:#93a0aa; --line:#2c3640;
+  --accent:#6aa6ec; --accent-soft:#1e2d3e; --hi:#3a3216; --hi-ink:#f0cf6e; --warn:#e8b25c; --warn-soft:#2e2615; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12171c; --panel:#1a2128; --ink:#e4e9ed; --muted:#93a0aa; --line:#2c3640;
+  --accent:#6aa6ec; --accent-soft:#1e2d3e; --hi:#3a3216; --hi-ink:#f0cf6e; --warn:#e8b25c; --warn-soft:#2e2615; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-display);font-size:15px;line-height:1.4;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header h1{margin:0;font-size:1.9rem;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+.lbl{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+
+/* Finder */
+.finder{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}
+.f-in{padding:16px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line);min-width:0}
+#bolt{font:600 1.4rem var(--f-mono);padding:10px 12px;border:2px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
+#bolt:focus{outline:none;border-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 .85rem var(--f-mono);border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:4px 9px;border-radius:999px;cursor:pointer}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+.chip:focus-visible,.tabs button:focus-visible,#q:focus-visible,td.size button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.f-out{min-width:0;display:flex;flex-direction:column}
+.res-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px}
+.res-head h2{margin:0;font-size:1.25rem}
+.figs{display:grid;grid-template-columns:1fr 1fr}
+.fig{padding:12px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.fig + .fig{border-left:1px solid var(--line)}
+.big{font:700 2rem var(--f-mono);color:var(--accent);line-height:1.1;overflow-wrap:anywhere}
+.big.tap{color:var(--ink);font-size:1.45rem}
+.alt{font:400 .88rem var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.step{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--panel);font:700 .7rem var(--f-display);margin-right:6px}
+.extra{padding:10px 16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 18px;font-size:.9rem;color:var(--muted)}
+.extra b{font-family:var(--f-mono);font-weight:600;color:var(--ink)}
+.tip{padding:10px 16px;background:var(--warn-soft);color:var(--warn);font-size:.9rem;border-top:1px solid var(--line);border-radius:0 0 10px 0}
+.miss{padding:16px;color:var(--muted);display:flex;flex-direction:column;gap:10px}
+.miss b{color:var(--ink)}
+.tag,.pill{display:inline-block;font:600 .7rem var(--f-display);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent)}
+@media (max-width:640px){.finder{grid-template-columns:1fr}.f-in{border-right:0;border-bottom:1px solid var(--line)}.tip{border-radius:0 0 10px 10px}}
+@media (max-width:380px){.figs{grid-template-columns:1fr}.fig + .fig{border-left:0;border-top:1px solid var(--line)}}
+
+/* Chart */
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px}
+.tabs button{font:600 .95rem var(--f-display);border:0;background:transparent;color:var(--muted);padding:7px 12px;border-radius:5px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--panel)}
+#q{font:1rem var(--f-mono);padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);width:200px;max-width:100%}
+.note{font-size:.9rem;color:var(--muted);margin:0}
+.scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{padding:7px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+thead th{background:var(--panel);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+thead tr.group th{color:var(--accent);border-bottom:0;padding-bottom:0}
+td{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.9rem}
+td.size button{font:700 1rem var(--f-display);color:var(--ink);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline dotted var(--muted);text-underline-offset:3px}
+td.size button:hover{color:var(--accent)}
+td.tapc{color:var(--accent);font-weight:600}
+td .dim,td.dim{color:var(--muted)}
+tbody tr.first td{border-top:2px solid var(--line)}
+tbody tr:hover td{background:var(--accent-soft)}
+tbody tr.match td{background:var(--hi)}
+tbody tr.match td.size button,tbody tr.match td.tapc{color:var(--hi-ink)}
+.empty{padding:20px;color:var(--muted);text-align:center}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.88rem;color:var(--muted)}
+.legend b{color:var(--ink)}
+/* Garage Terminal addition: way back to the site (installed iPhone apps have no back button) */
+.gt-back{align-self:flex-start;display:inline-flex;align-items:center;min-height:44px;font:600 .9rem var(--f-mono);color:var(--accent);text-decoration:none}
+.gt-back:hover{text-decoration:underline}
+.gt-back:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <a class="gt-back" href="/#apps">&lt; garage_terminal</a>
+
+  <header>
+    <h1>Tap Drill Chart</h1>
+    <p>Type the bolt you're using to get the drill and tap, or browse the full chart below. Tap drills are for about 75% thread.</p>
+  </header>
+
+  <section class="finder" aria-label="Find a tap drill">
+    <div class="f-in">
+      <label class="lbl" for="bolt">Bolt size</label>
+      <input id="bolt" type="text" autocomplete="off" spellcheck="false" value="1/4-20" placeholder="1/4-20, #10, M6, 1/2 NPT">
+      <div class="chips" id="quick"></div>
+    </div>
+    <div class="f-out" id="out" aria-live="polite"></div>
+  </section>
+
+  <div class="bar">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-t="inch" aria-selected="true">Inch UNC/UNF</button>
+      <button role="tab" data-t="metric" aria-selected="false">Metric</button>
+      <button role="tab" data-t="pipe" aria-selected="false">Pipe NPT</button>
+      <button role="tab" data-t="drills" aria-selected="false">Drill sizes</button>
+    </div>
+    <input id="q" type="search" placeholder="Filter chart…" aria-label="Filter chart rows">
+  </div>
+
+  <p class="note" id="note"></p>
+  <div class="scroll"><table id="tbl"></table></div>
+  <div class="legend">
+    <span><b>Highlighted row</b> matches the bolt above. Tap any size to look it up.</span>
+    <span><b>Close fit</b> tight, for accurate location</span>
+    <span><b>Free fit</b> easier assembly</span>
+  </div>
+</div>
+</div>
+
+<script>
+const LET={A:.234,B:.238,C:.242,D:.246,E:.25,F:.257,G:.261,H:.266,I:.272,J:.277,K:.281,L:.29,M:.295,N:.302,O:.316,P:.323,Q:.332,R:.339,S:.348,T:.358,U:.368,V:.377,W:.386,X:.397,Y:.404,Z:.413};
+const NUM=[0,.228,.221,.213,.209,.2055,.204,.201,.199,.196,.1935,.191,.189,.185,.182,.18,.177,.173,.1695,.166,.161,.159,.157,.154,.152,.1495,.147,.144,.1405,.136,.1285,.12,.116,.113,.111,.11,.1065,.104,.1015,.0995,.098,.096,.0935,.089,.086,.082,.081,.0785,.076,.073,.07,.067,.0635,.0595,.055,.052,.0465,.043,.042,.041,.04];
+function dec(s){
+  if(s==null)return null;
+  if(s[0]==="#")return NUM[+s.slice(1)];
+  if(LET[s]!=null)return LET[s];
+  const m=s.match(/^(?:(\d+)-)?(\d+)\/(\d+)$/); if(m)return (+(m[1]||0))+(+m[2])/(+m[3]);
+  if(/^\d+$/.test(s))return +s;
+  return null;
+}
+const f4=v=>v==null?"—":v.toFixed(4).replace(/^0/,"");
+const mm=v=>v==null?"—":(v*25.4).toFixed(2);
+const mm1=v=>(Math.round(v*25.4*10)/10).toFixed(1);
+const esc=s=>s.replace(/[<>&"]/g,"");
+
+const INCH=[
+ ["#0",80,"UNF","3/64",null,null],["#1",64,"UNC","#53",null,null],["#1",72,"UNF","#53",null,null],
+ ["#2",56,"UNC","#50",null,null],["#2",64,"UNF","#50",null,null],["#3",48,"UNC","#47",null,null],["#3",56,"UNF","#45",null,null],
+ ["#4",40,"UNC","#43","#32","#30"],["#4",48,"UNF","#42","#32","#30"],["#5",40,"UNC","#38","#30","#29"],["#5",44,"UNF","#37","#30","#29"],
+ ["#6",32,"UNC","#36","#28","#25"],["#6",40,"UNF","#33","#28","#25"],["#8",32,"UNC","#29","#19","#16"],["#8",36,"UNF","#29","#19","#16"],
+ ["#10",24,"UNC","#25","#11","#7"],["#10",32,"UNF","#21","#11","#7"],["#12",24,"UNC","#16","#2","#1"],["#12",28,"UNF","#14","#2","#1"],
+ ["1/4",20,"UNC","#7","F","H"],["1/4",28,"UNF","#3","F","H"],["5/16",18,"UNC","F","P","Q"],["5/16",24,"UNF","I","P","Q"],
+ ["3/8",16,"UNC","5/16","W","X"],["3/8",24,"UNF","Q","W","X"],["7/16",14,"UNC","U","29/64","15/32"],["7/16",20,"UNF","25/64","29/64","15/32"],
+ ["1/2",13,"UNC","27/64","33/64","17/32"],["1/2",20,"UNF","29/64","33/64","17/32"],["9/16",12,"UNC","31/64","37/64","19/32"],["9/16",18,"UNF","33/64","37/64","19/32"],
+ ["5/8",11,"UNC","17/32","41/64","21/32"],["5/8",18,"UNF","37/64","41/64","21/32"],["3/4",10,"UNC","21/32","49/64","25/32"],["3/4",16,"UNF","11/16","49/64","25/32"],
+ ["7/8",9,"UNC","49/64","57/64","29/32"],["7/8",14,"UNF","13/16","57/64","29/32"],
+ ["1",8,"UNC","7/8","1-1/64","1-1/32"],["1",12,"UNF","59/64","1-1/64","1-1/32"],["1",14,"UNS","15/16","1-1/64","1-1/32"]
+];
+const METRIC=[
+ ["M2",.4,"Coarse",1.6,2.2,2.4],["M2.5",.45,"Coarse",2.05,2.7,2.9],["M3",.5,"Coarse",2.5,3.2,3.4],["M3.5",.6,"Coarse",2.9,3.7,3.9],
+ ["M4",.7,"Coarse",3.3,4.3,4.5],["M5",.8,"Coarse",4.2,5.3,5.5],["M6",1,"Coarse",5,6.4,6.6],["M6",.75,"Fine",5.25,6.4,6.6],
+ ["M8",1.25,"Coarse",6.8,8.4,9],["M8",1,"Fine",7,8.4,9],["M10",1.5,"Coarse",8.5,10.5,11],["M10",1.25,"Fine",8.8,10.5,11],["M10",1,"Fine",9,10.5,11],
+ ["M12",1.75,"Coarse",10.2,13,13.5],["M12",1.5,"Fine",10.5,13,13.5],["M12",1.25,"Fine",10.8,13,13.5],["M14",2,"Coarse",12,15,15.5],["M14",1.5,"Fine",12.5,15,15.5],
+ ["M16",2,"Coarse",14,17,17.5],["M16",1.5,"Fine",14.5,17,17.5],["M18",2.5,"Coarse",15.5,19,20],["M18",1.5,"Fine",16.5,19,20],
+ ["M20",2.5,"Coarse",17.5,21,22],["M20",1.5,"Fine",18.5,21,22],["M22",2.5,"Coarse",19.5,23,24],["M24",3,"Coarse",21,25,26],["M24",2,"Fine",22,25,26]
+];
+const PIPE=[["1/16",27,"1/4"],["1/8",27,"R"],["1/4",18,"7/16"],["3/8",18,"37/64"],["1/2",14,"23/32"],["3/4",14,"59/64"],["1",11.5,"1-5/32"],["1-1/4",11.5,"1-1/2"],["1-1/2",11.5,"1-47/64"],["2",11.5,"2-7/32"]];
+const QUICK=["#8-32","#10-24","1/4-20","5/16-18","3/8-16","1/2-13","M4","M6","M8","1/4 NPT"];
+
+function gcd(a,b){return b?gcd(b,a%b):a}
+const DRILLS=[];
+for(let i=60;i>=1;i--)DRILLS.push(["#"+i,"Number",NUM[i]]);
+Object.keys(LET).forEach(k=>DRILLS.push([k,"Letter",LET[k]]));
+for(let n=1;n<=64;n++){const g=gcd(n,64);DRILLS.push([n===64?"1":(n/g)+"/"+(64/g),"Fraction",n/64])}
+DRILLS.sort((a,b)=>a[2]-b[2]);
+const TAPFOR={};
+INCH.forEach(r=>{(TAPFOR[r[3]]=TAPFOR[r[3]]||[]).push(r[0]+"-"+r[1])});
+
+/* ---------- Finder ---------- */
+function parse(raw){
+  let s=raw.toLowerCase().replace(/[″"']|inch(es)?|\bin\b/g,"").replace(/×/g,"x").replace(/\s+/g," ").trim();
+  if(!s)return {kind:"empty"};
+  const fine=/\b(fine|unf)\b/.test(s);
+  s=s.replace(/\b(fine|unf|coarse|unc|uns|bolt|screw|tap)\b/g,"").trim();
+  if(/npt|pipe/.test(s)){
+    const size=s.replace(/npt|pipe/g,"").trim().replace(/\s+/g,"-");
+    const r=PIPE.find(p=>p[0]===size);
+    return r?{kind:"pipe",row:r,id:r[0]}:{kind:"miss"};
+  }
+  let m=s.replace(/\s/g,"").match(/^m(\d+(?:\.\d+)?)(?:x(\d*\.?\d+))?$/);
+  if(m){
+    const size="M"+(+m[1]), rows=METRIC.filter(r=>r[0]===size);
+    if(!rows.length)return {kind:"miss"};
+    const row=m[2]?rows.find(r=>Math.abs(r[1]-parseFloat(m[2]))<1e-6):fine?rows.find(r=>r[2]==="Fine"):rows[0];
+    return row?{kind:"metric",row,rows,id:row[0]+"x"+row[1]}:{kind:"miss",near:rows.map(r=>r[0]+"x"+r[1])};
+  }
+  m=s.replace(/\s*-\s*/g,"-").replace(/\s/g,"").match(/^(#?\d+(?:\/\d+)?)(?:[-x](\d+))?$/);
+  if(m){
+    let size=m[1];
+    if(!size.includes("/")&&!size.startsWith("#")&&size!=="1")size="#"+size;
+    const rows=INCH.filter(r=>r[0]===size);
+    if(!rows.length)return {kind:"miss"};
+    const row=m[2]?rows.find(r=>r[1]===+m[2]):fine?rows.find(r=>r[2]==="UNF"):rows[0];
+    return row?{kind:"inch",row,rows,id:row[0]+"-"+row[1]}:{kind:"miss",near:rows.map(r=>r[0]+"-"+r[1])};
+  }
+  return {kind:"miss"};
+}
+const chip=l=>`<button class="chip" type="button" data-v="${l}">${l}</button>`;
+let found=null;
+
+function renderFinder(){
+  const p=parse(inp.value);
+  found=p.row?p:null;
+  document.querySelectorAll("#quick .chip").forEach(c=>c.setAttribute("aria-pressed",String(c.dataset.v.toLowerCase()===inp.value.trim().toLowerCase())));
+  if(p.kind==="empty"){out.innerHTML=`<div class="miss">Enter a bolt size, or pick a common one.</div>`;return}
+  if(p.kind==="miss"){
+    out.innerHTML=`<div class="miss"><span><b>No match for “${esc(inp.value)}”.</b> ${p.near?"That size comes in:":"Try a format like:"}</span><div class="chips">${(p.near||["1/4-20","#10-32","M8x1.25","1/2 NPT"]).map(chip).join("")}</div></div>`;
+    return;
+  }
+  let head,drill,drillAlt,tap,tapAlt,extra=[],tip="";
+  if(p.kind==="inch"){
+    const r=p.row,d=dec(r[3]);
+    head=`<h2>${r[0]}-${r[1]}</h2><span class="tag">${r[2]}</span>`;
+    drill=r[3]; drillAlt=`${f4(d)}″ · ${mm1(d)} mm`; tap=`${r[0]}-${r[1]}`; tapAlt=`${r[2]} plug tap`;
+    if(r[4])extra.push(`Close fit <b>${r[4]}</b>`,`Free fit <b>${r[5]}</b>`);
+    if(["#0","#1","#2"].includes(r[0]))tip="Small taps break easily. Use cutting oil and back the tap out every half turn.";
+  }else if(p.kind==="metric"){
+    const r=p.row;
+    head=`<h2>${r[0]}×${r[1]}</h2><span class="tag">${r[2]}</span>`;
+    drill=`${r[3]} mm`; drillAlt=`${f4(r[3]/25.4)}″`; tap=`${r[0]}×${r[1]}`; tapAlt=`${r[2]} pitch plug tap`;
+    extra.push(`Close fit <b>${r[4]} mm</b>`,`Medium fit <b>${r[5]} mm</b>`);
+  }else{
+    const r=p.row,d=dec(r[2]);
+    head=`<h2>${r[0]}″ NPT</h2><span class="tag">Tapered pipe</span>`;
+    drill=r[2]; drillAlt=`${f4(d)}″ · ${mm1(d)} mm`; tap=`${r[0]}-${r[1]} NPT`; tapAlt="Taper pipe tap";
+    tip="Tap until the fitting threads in by hand about 3 to 4 turns, then stop.";
+  }
+  const others=p.rows?p.rows.filter(x=>x!==p.row).map(x=>chip(p.kind==="metric"?x[0]+"x"+x[1]:x[0]+"-"+x[1])).join(""):"";
+  if(others)extra.push(`Other pitch <span class="chips" style="display:inline-flex">${others}</span>`);
+  out.innerHTML=`<div class="res-head">${head}</div>
+    <div class="figs">
+      <div class="fig"><span class="lbl"><span class="step">1</span>Drill</span><div class="big">${drill}</div><div class="alt">${drillAlt}</div></div>
+      <div class="fig"><span class="lbl"><span class="step">2</span>Tap</span><div class="big tap">${tap}</div><div class="alt">${tapAlt}</div></div>
+    </div>
+    ${extra.length?`<div class="extra">${extra.map(x=>`<span>${x}</span>`).join("")}</div>`:""}
+    ${tip?`<div class="tip">${tip}</div>`:""}`;
+}
+
+/* ---------- Chart ---------- */
+const sizeBtn=(label,v)=>`<td class="size"><button type="button" data-v="${v}" title="Look up ${v}">${label}</button></td>`;
+const VIEWS={
+ inch:{note:"Clearance holes are the same for coarse and fine threads of a size.",
+  head:`<tr class="group"><th colspan="3"></th><th colspan="3">Tap drill</th><th colspan="2">Clearance</th></tr>
+   <tr><th>Size</th><th>TPI</th><th>Series</th><th>Drill</th><th>Decimal</th><th>mm</th><th>Close</th><th>Free</th></tr>`,
+  rows:()=>INCH.map((r,i)=>({id:r[0]+"-"+r[1],k:[r[0],r[0]+"-"+r[1],r[2],r[3]].join(" "),first:i===0||INCH[i-1][0]!==r[0],
+   h:`${sizeBtn(r[0]+"-"+r[1],r[0]+"-"+r[1])}<td>${r[1]}</td><td><span class="pill">${r[2]}</span></td><td class="tapc">${r[3]}</td><td>${f4(dec(r[3]))}</td><td class="dim">${mm(dec(r[3]))}</td>
+   <td>${r[4]?r[4]+' <span class="dim">'+f4(dec(r[4]))+'</span>':'<span class="dim">—</span>'}</td><td>${r[5]?r[5]+' <span class="dim">'+f4(dec(r[5]))+'</span>':'<span class="dim">—</span>'}</td>`}))},
+ metric:{note:"Tap drill = major diameter minus pitch. Clearance holes follow ISO 273 close and medium fits.",
+  head:`<tr class="group"><th colspan="3"></th><th colspan="2">Tap drill</th><th colspan="2">Clearance (mm)</th></tr>
+   <tr><th>Size</th><th>Pitch</th><th>Series</th><th>mm</th><th>Inch</th><th>Close</th><th>Medium</th></tr>`,
+  rows:()=>METRIC.map((r,i)=>({id:r[0]+"x"+r[1],k:r[0]+" "+r[0]+"x"+r[1]+" "+r[2],first:i===0||METRIC[i-1][0]!==r[0],
+   h:`${sizeBtn(r[0]+"×"+r[1],r[0]+"x"+r[1])}<td>${r[1]}</td><td><span class="pill">${r[2]}</span></td><td class="tapc">${r[3]}</td><td class="dim">${f4(r[3]/25.4)}</td><td>${r[4]}</td><td>${r[5]}</td>`}))},
+ pipe:{note:"Sizes for tapping without a taper reamer. Use plenty of cutting oil.",
+  head:`<tr><th>Pipe size</th><th>TPI</th><th>Tap drill</th><th>Decimal</th><th>mm</th></tr>`,
+  rows:()=>PIPE.map(r=>({id:r[0],k:r[0]+" npt "+r[2],first:false,
+   h:`${sizeBtn(r[0]+"″ NPT",r[0]+" NPT")}<td>${r[1]}</td><td class="tapc">${r[2]}</td><td>${f4(dec(r[2]))}</td><td class="dim">${mm(dec(r[2]))}</td>`}))},
+ drills:{note:"Every number, letter and fractional drill up to 1″, sorted by diameter.",
+  head:`<tr><th>Drill</th><th>Type</th><th>Decimal</th><th>mm</th><th>Tap drill for</th></tr>`,
+  rows:()=>DRILLS.map(r=>({id:"drill:"+r[0],k:r[0]+" "+r[1]+" "+r[2],first:false,
+   h:`<td style="font:700 1rem var(--f-display)">${r[0]}</td><td class="dim">${r[1]}</td><td>${f4(r[2])}</td><td class="dim">${mm(r[2])}</td><td class="tapc">${(TAPFOR[r[0]]||[]).join(", ")}</td>`}))}
+};
+const TAB_FOR={inch:"inch",metric:"metric",pipe:"pipe"};
+let cur="inch";
+const tbl=document.getElementById("tbl"),q=document.getElementById("q"),note=document.getElementById("note"),
+      out=document.getElementById("out"),inp=document.getElementById("bolt");
+
+function matchId(){
+  if(!found)return null;
+  if(cur==="drills")return "drill:"+(found.kind==="pipe"?found.row[2]:found.kind==="inch"?found.row[3]:"");
+  return TAB_FOR[found.kind]===cur?found.id:null;
+}
+function renderChart(){
+  const v=VIEWS[cur],term=q.value.trim().toLowerCase(),mid=matchId();
+  const rows=v.rows().filter(r=>!term||r.k.toLowerCase().includes(term));
+  note.textContent=v.note;
+  tbl.innerHTML=`<thead>${v.head}</thead><tbody>${rows.length?rows.map(r=>{
+    const c=[r.first&&!term?"first":"",r.id===mid?"match":""].filter(Boolean).join(" ");
+    return `<tr${c?` class="${c}"`:""}>${r.h}</tr>`}).join(""):`<tr><td class="empty" colspan="8">No sizes match “${esc(q.value)}”.</td></tr>`}</tbody>`;
+  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.t===cur)));
+}
+function lookup(scrollTo){
+  renderFinder();
+  if(found&&cur!=="drills")cur=TAB_FOR[found.kind];
+  renderChart();
+  if(scrollTo){const m=tbl.querySelector("tr.match");if(m)m.scrollIntoView({block:"nearest"})}
+}
+
+document.getElementById("quick").innerHTML=QUICK.map(chip).join("");
+document.addEventListener("click",e=>{
+  const b=e.target.closest(".chip, td.size button");
+  if(b){inp.value=b.dataset.v;lookup(false);if(b.matches("td.size button"))window.scrollTo({top:0,behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})}
+  const t=e.target.closest(".tabs button");
+  if(t){cur=t.dataset.t;renderChart()}
+});
+inp.addEventListener("input",()=>lookup(false));
+q.addEventListener("input",renderChart);
+lookup(false);
+</script>
+
+</body>
+</html>

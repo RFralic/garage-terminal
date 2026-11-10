@@ -17,6 +17,7 @@ const cleanUrls = {
       if (/^\/(forum|wiki|join|mod)$/.test(path)) req.url = `${path}/${q}`;
       else if (path === '/forum/new') req.url = `/forum/new.html${q}`;
       else if (path.startsWith('/forum/t/')) req.url = `/forum/thread.html${q}`; // same as firebase.json rewrite
+      else if (path === '/apps/tap-drill-chart') req.url = `/apps/tap-drill-chart/${q}`;
       else if (path === '/wiki/add') req.url = `/wiki/add.html${q}`;
       else if (path.startsWith('/wiki/') && path !== '/wiki/' && !path.includes('.')) req.url = `/wiki/doc.html${q}`; // same as firebase.json rewrite
       next();
@@ -43,6 +44,7 @@ export default defineConfig({
         wikiAdd: page('wiki/add.html'),
         join: page('join/index.html'),
         mod: page('mod/index.html'),
+        tapDrillChart: page('apps/tap-drill-chart/index.html'),
         notFound: page('404.html'),
       },
     },

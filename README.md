@@ -18,6 +18,7 @@ Live site: https://garage-terminal-15499.web.app
 | `wiki/add.html` | Sysop: upload a file or write a page; `?edit={slug}` to edit (`src/pages/library-add.js`) |
 | `join/index.html` | Sign in with Google + pick a handle (`src/pages/join.js`) |
 | `mod/index.html` | Sysop dashboard: reports, held posts, members, settings, mod log (`src/pages/mod.js`) |
+| `apps/tap-drill-chart/index.html` | Tap Drill Chart, copied from its Claude artifact (re-copy if the artifact changes) |
 | `404.html` | Not-found page |
 | `src/styles/base.css` | Shared look: colors, fonts, header, footer, terminal boxes |
 | `src/styles/home.css` | Home-page-only styles |
