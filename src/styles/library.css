@@ -4,9 +4,6 @@
 /* on phones the bar stacks vertically, so don't let the box grow tall */
 @media (max-width:600px){.lib-search{flex:none;max-width:none}}
 .lib-folders{margin-bottom:16px}
-.chip-count{color:var(--muted);margin-left:6px}
-.chip[aria-current="true"] .chip-count{color:inherit}
-.lib-folders .chip[aria-current="true"]{border-color:var(--blue);color:var(--blue)}
 .tag-type{color:var(--blue);border-color:#2E3F5E}
 .lib-folder{color:var(--blue)}
 .lib-row-desc{color:var(--muted);font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

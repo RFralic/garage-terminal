@@ -20,12 +20,7 @@
 
 /* area chips + post button */
 .forum-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
-/* .chips is a <nav>; reset the header-nav spacing from base.css */
-.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start;padding-block:0}
-.chip{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;
-  font-family:var(--mono);font-size:13px;color:var(--soft);text-decoration:none;background:var(--panel)}
-.chip:hover{border-color:var(--line-2);color:var(--fg)}
-.chip[aria-current="true"]{border-color:var(--violet);color:var(--violet)}
+/* (chip styles are shared: see base.css) */
 .forum-actions{display:flex;align-items:center;gap:12px}
 .forum-actions .mutedt{margin:0}
 

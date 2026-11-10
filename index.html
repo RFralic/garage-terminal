@@ -29,6 +29,7 @@
 <link rel="stylesheet" href="/src/styles/base.css">
 <link rel="stylesheet" href="/src/styles/home.css">
 <script type="module" src="/src/pages/common.js"></script>
+<script type="module" src="/src/pages/app-filter.js"></script>
 </head>
 <body>
 <header>
@@ -81,9 +82,16 @@
   </div>
 
   <section class="wrap block" id="apps">
-    <div class="shead"><h2>&gt; ls /apps</h2><span>3 apps</span></div>
-    <div class="apps">
-      <article class="app">
+    <div class="shead"><h2>&gt; ls /apps</h2><span id="apps-count">3 apps</span></div>
+    <!--
+      Adding an app: copy an <article class="app"> below and set data-category
+      to garage, gym, or a new word (e.g. "other"). The filter buttons and counts
+      are built from these automatically (src/pages/app-filter.js); a new
+      category gets its own button the first time an app uses it.
+    -->
+    <nav class="chips filter app-filter" id="apps-filter" aria-label="Filter apps by category" hidden></nav>
+    <div class="apps" id="apps-list">
+      <article class="app" data-category="gym">
         <div class="apphead">
           <img src="/img/repclock-icon.svg" alt="" width="56" height="56">
           <div>
@@ -93,7 +101,7 @@
           </div>
         </div>
       </article>
-      <article class="app">
+      <article class="app" data-category="garage">
         <div class="apphead">
           <img src="/img/tapdrill-icon.svg" alt="" width="56" height="56">
           <div>
@@ -103,7 +111,7 @@
           </div>
         </div>
       </article>
-      <article class="app">
+      <article class="app" data-category="garage">
         <div class="apphead">
           <img src="/img/logbook-icon.png" alt="" width="56" height="56">
           <div>

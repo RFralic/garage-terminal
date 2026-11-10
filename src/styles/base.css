@@ -85,3 +85,19 @@ main.page{padding-top:48px;min-height:60vh}
 /* 404 page: links to the main sections */
 .err-links{display:flex;flex-wrap:wrap;gap:10px}
 .err-links .btn{font-family:var(--mono);font-size:14px}
+
+/* Chips: rounded filter/tab buttons (forum areas, library folders, home /apps,
+   /mod tabs). Each page can recolor the selected chip. Works on <a> and <button>. */
+/* .chips is a <nav>; reset the header-nav spacing from base.css */
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start;padding-block:0}
+.chip{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;
+  font-family:var(--mono);font-size:13px;color:var(--soft);text-decoration:none;background:var(--panel)}
+.chip:hover{border-color:var(--line-2);color:var(--fg)}
+.chip[aria-current="true"]{border-color:var(--violet);color:var(--violet)}
+button.chip{font-family:var(--mono);font-size:13px;cursor:pointer}
+.chip:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.chip[aria-pressed="true"]{border-color:var(--violet);color:var(--violet)}
+/* Filter chips with a count, e.g. "/manuals 2" (library folders, home /apps) */
+.chip-count{color:var(--muted);margin-left:6px}
+.chip[aria-current="true"] .chip-count,.chip[aria-pressed="true"] .chip-count{color:inherit}
+.chips.filter .chip[aria-current="true"],.chips.filter .chip[aria-pressed="true"]{border-color:var(--blue);color:var(--blue)}

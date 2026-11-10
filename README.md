@@ -21,6 +21,7 @@ Live site: https://garage-terminal-15499.web.app
 | `404.html` | Not-found page |
 | `src/styles/base.css` | Shared look: colors, fonts, header, footer, terminal boxes |
 | `src/styles/home.css` | Home-page-only styles |
+| `src/pages/app-filter.js` | Home `/apps` category buttons (All · Garage · Gym …), built from each card's `data-category` |
 | `src/styles/forms.css` | Inputs, buttons, status lines |
 | `src/lib/firebase.js` | Starts Firebase (live config from Hosting; emulators locally) |
 | `src/lib/session.js` | Sign-in, sign-out, handle rules, claiming a handle |
@@ -70,6 +71,17 @@ starting data, the site, and Cloud Functions.
 Nothing is deployed by hand.
 The workflow needs the repo secret `FIREBASE_SERVICE_ACCOUNT` (a service-account JSON key for project
 `garage-terminal-15499`).
+
+## Adding an app to the home page
+
+In `index.html`, copy one `<article class="app" data-category="…">` card inside `#apps-list`, change the
+name, description, icon (put it in `public/img/`) and link, and set `data-category`:
+
+- `garage` or `gym` for the existing buttons, or
+- any new word, e.g. `other`: an **Other** button appears automatically (labels and order for known
+  categories are in `src/pages/app-filter.js`, `KNOWN`).
+
+The counts on the buttons and the "N apps" label update by themselves.
 
 ## Security table → tests
 
