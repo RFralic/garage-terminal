@@ -17,6 +17,8 @@ const cleanUrls = {
       if (/^\/(forum|wiki|join|mod)$/.test(path)) req.url = `${path}/${q}`;
       else if (path === '/forum/new') req.url = `/forum/new.html${q}`;
       else if (path.startsWith('/forum/t/')) req.url = `/forum/thread.html${q}`; // same as firebase.json rewrite
+      else if (path === '/wiki/add') req.url = `/wiki/add.html${q}`;
+      else if (path.startsWith('/wiki/') && path !== '/wiki/' && !path.includes('.')) req.url = `/wiki/doc.html${q}`; // same as firebase.json rewrite
       next();
     });
   },
@@ -37,6 +39,8 @@ export default defineConfig({
         forumThread: page('forum/thread.html'),
         forumNew: page('forum/new.html'),
         wiki: page('wiki/index.html'),
+        wikiDoc: page('wiki/doc.html'),
+        wikiAdd: page('wiki/add.html'),
         join: page('join/index.html'),
         mod: page('mod/index.html'),
         notFound: page('404.html'),

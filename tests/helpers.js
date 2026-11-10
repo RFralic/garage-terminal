@@ -8,6 +8,10 @@ export async function startEnv() {
   return initializeTestEnvironment({
     projectId: 'demo-garage-terminal',
     firestore: { rules: readFileSync('firestore.rules', 'utf8') },
+    // Storage rules are loaded too when the Storage emulator is running.
+    ...(process.env.FIREBASE_STORAGE_EMULATOR_HOST
+      ? { storage: { rules: readFileSync('storage.rules', 'utf8') } }
+      : {}),
   });
 }
 

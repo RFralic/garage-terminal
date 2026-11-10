@@ -1,0 +1,43 @@
+rules_version = '2';
+
+// =============================================================================
+// Garage Terminal: Cloud Storage security rules
+//
+// Only library files live in Storage, at library/{slug}/{fileName}, where
+// {slug} is the library item's ID in Firestore (library/{slug}).
+//
+//   - Anyone can download a file whose library item is published.
+//   - Draft items' files are visible only to the sysop.
+//   - Only the sysop can upload (max 50 MB) or delete.
+//   - Everything else in the bucket is locked.
+//
+// These rules read Firestore (firestore.get / firestore.exists) to check the
+// item's status and whether the caller is sysop.
+// =============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAdmin() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+
+    function isPublished(slug) {
+      return firestore.get(/databases/(default)/documents/library/$(slug)).data.status == 'published';
+    }
+
+    match /library/{slug}/{fileName} {
+      allow read: if isAdmin() || isPublished(slug);
+
+      allow create, update: if isAdmin()
+        && request.resource.size <= 50 * 1024 * 1024;
+
+      allow delete: if isAdmin();
+    }
+
+    match /{everythingElse=**} {
+      allow read, write: if false;
+    }
+  }
+}

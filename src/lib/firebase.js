@@ -15,12 +15,18 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 const isLocal = import.meta.env.DEV;
 
 async function loadConfig() {
   if (isLocal) {
-    return { apiKey: 'demo-key', projectId: 'demo-garage-terminal', authDomain: location.host };
+    return {
+      apiKey: 'demo-key',
+      projectId: 'demo-garage-terminal',
+      authDomain: location.host,
+      storageBucket: 'demo-garage-terminal.appspot.com',
+    };
   }
   const res = await fetch('/__/firebase/init.json');
   if (!res.ok) throw new Error('Could not load Firebase config');
@@ -35,9 +41,12 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 // Cloud Functions live in us-east1 (same as the database); see functions/index.js.
 export const functions = getFunctions(app, 'us-east1');
+// Library files (PDFs, ebooks...). Access is controlled by storage.rules.
+export const storage = getStorage(app);
 
 if (isLocal) {
   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, 'localhost', 8080);
   connectFunctionsEmulator(functions, 'localhost', 5001);
+  connectStorageEmulator(storage, 'localhost', 9199);
 }

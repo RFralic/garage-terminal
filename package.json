@@ -8,8 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "firebase emulators:exec --only firestore --project demo-garage-terminal \"node --test --test-concurrency=1 tests/*.test.js\"",
-    "emulators": "firebase emulators:start --only auth,firestore,functions --project demo-garage-terminal",
+    "test": "firebase emulators:exec --only firestore,storage --project demo-garage-terminal \"node --test --test-concurrency=1 tests/*.test.js\"",
+    "emulators": "firebase emulators:start --only auth,firestore,functions,storage --project demo-garage-terminal",
     "seed:local": "FIRESTORE_EMULATOR_HOST=localhost:8080 node scripts/seed.mjs"
   },
   "devDependencies": {

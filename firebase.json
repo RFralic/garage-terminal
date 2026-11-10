@@ -40,12 +40,19 @@
       {
         "source": "/forum/t/**",
         "destination": "/forum/thread.html"
+      },
+      {
+        "source": "/wiki/**",
+        "destination": "/wiki/doc.html"
       }
     ]
   },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
   },
   "functions": [
     {
@@ -75,6 +82,9 @@
     "singleProjectMode": true,
     "functions": {
       "port": 5001
+    },
+    "storage": {
+      "port": 9199
     }
   }
 }

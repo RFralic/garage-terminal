@@ -1,6 +1,7 @@
 // new-thread.js: the /forum/new page. Members only; guests get a join link.
 //
 // URL: /forum/new?area=general   preselects the area
+//      /forum/new?title=Re:%20…   pre-fills the title
 
 import { mountHeader } from '../lib/header.js';
 import { watchSession, canPost, currentSession } from '../lib/session.js';
@@ -15,6 +16,8 @@ const status = $('n-status');
 const errorLine = $('n-error');
 const composer = setupComposer(form.querySelector('[data-composer]'), BODY_MAX);
 const wantedArea = new URLSearchParams(location.search).get('area') || '';
+// ?title= pre-fills the title (used by "Discuss in the forum" on library pages)
+$('n-title').value = (new URLSearchParams(location.search).get('title') || '').slice(0, TITLE_MAX);
 
 // ---------- areas dropdown ----------------------------------------------------
 

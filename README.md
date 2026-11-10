@@ -13,7 +13,9 @@ Live site: https://garage-terminal-15499.web.app
 | `forum/index.html` | Forum thread list (`src/pages/forum-list.js`) |
 | `forum/thread.html` | One thread, served at `/forum/t/{id}` (`src/pages/thread.js`) |
 | `forum/new.html` | New thread form (`src/pages/new-thread.js`) |
-| `wiki/index.html` | Library (placeholder until Phase 5) |
+| `wiki/index.html` | Library list: search, folders (`src/pages/library-list.js`) |
+| `wiki/doc.html` | One library item, served at `/wiki/{slug}` (`src/pages/library-doc.js`) |
+| `wiki/add.html` | Sysop: upload a file or write a page; `?edit={slug}` to edit (`src/pages/library-add.js`) |
 | `join/index.html` | Sign in with Google + pick a handle (`src/pages/join.js`) |
 | `mod/index.html` | Sysop dashboard: reports, held posts, members, settings, mod log (`src/pages/mod.js`) |
 | `404.html` | Not-found page |
@@ -28,6 +30,8 @@ Live site: https://garage-terminal-15499.web.app
 | `src/lib/markdown.js` | Markdown → sanitized HTML (marked + DOMPurify). All user formatting goes through it |
 | `src/lib/ui.js` | Small DOM helpers, time formatting, the Markdown composer |
 | `src/styles/forum.css` | Forum styles |
+| `src/lib/library.js` | Every library read/write, uploads, downloads |
+| `src/styles/library.css` | Library styles |
 | `src/lib/mod.js` | Sysop helpers: calls the `moderate` function, loads dashboard data |
 | `src/styles/mod.css` | Dashboard styles and sysop touches on forum pages |
 | `functions/index.js` | Cloud Functions: reply counts, last reply time, post counts |
@@ -37,17 +41,19 @@ Live site: https://garage-terminal-15499.web.app
 | `scripts/recount.mjs` | Rebuilds reply/post counts from the actual posts ("Recount forum" GitHub action) |
 | `firestore.indexes.json` | Database indexes the thread and post lists need |
 | `firestore.rules` | **The real security.** Who can read/write what |
+| `storage.rules` | Who can download/upload library files (reads Firestore for draft/sysop checks) |
 | `tests/` | Rules tests and Cloud Functions tests, run on the Firestore emulator |
 | `public/` | Files copied as-is (images, favicon) |
 | `vite.config.js` | List of pages to build; add new pages here |
 | `firebase.json` | Hosting settings (clean URLs, caching, security headers) |
 | `.github/workflows/deploy.yml` | Auto-deploy: `main` goes live, pull requests get a preview link |
+| `.github/workflows/test.yml` | Tests only, for pushes to other branches |
 
 ## Working on it
 
 ```bash
 npm install && npm install --prefix functions
-npm run emulators   # terminal 1: local Firebase (fake auth + database + functions, needs Java)
+npm run emulators   # terminal 1: local Firebase (auth, database, functions, storage; needs Java)
 npm run seed:local  # once: create the forum areas in the local database
 npm run dev         # terminal 2: local site at http://localhost:5173, talks to the emulators
 npm test            # rules + functions tests

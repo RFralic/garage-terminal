@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<!-- Library · Garage Terminal: placeholder page for Phase 1. Shared look comes from src/styles/base.css. -->
+<!-- /wiki: library list with search and folder filters. Logic: src/pages/library-list.js -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -12,7 +12,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/src/styles/base.css">
-<script type="module" src="/src/pages/common.js"></script>
+<link rel="stylesheet" href="/src/styles/forms.css">
+<link rel="stylesheet" href="/src/styles/forum.css">
+<link rel="stylesheet" href="/src/styles/mod.css">
+<link rel="stylesheet" href="/src/styles/library.css">
+<script type="module" src="/src/pages/library-list.js"></script>
 </head>
 <body>
 <header>
@@ -30,14 +34,18 @@
 
 <main class="wrap page">
   <section class="block">
-    <div class="shead"><h1>&gt; ls /library</h1><span>docs · ebooks · files</span></div>
+    <div class="shead"><h1>&gt; ls /library</h1><span>guides · manuals · ebooks · files</span></div>
+
+    <div class="forum-bar">
+      <input class="field lib-search" id="l-search" type="search" placeholder="Search titles and descriptions…" aria-label="Search the library" autocomplete="off">
+      <a class="btn primary" id="l-add" href="/wiki/add" hidden>+ Add to library</a>
+    </div>
+    <nav class="chips lib-folders" id="l-folders" aria-label="Folders"></nav>
+
     <div class="term">
-      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>library.txt</span></div>
-      <div class="tbody">
-        <div class="dirs"><span>[DIR] /guides</span><span>[DIR] /manuals</span><span>[DIR] /ebooks</span><span>[DIR] /files</span></div>
-        <p class="soon">&gt; Library is being stocked. Coming soon.</p>
-        <p><a href="/">&lt; back to home</a></p>
-      </div>
+      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span id="l-file">library.txt</span></div>
+      <p class="list-status" id="l-status">loading…</p>
+      <ol class="threads" id="l-list" aria-label="Library items"></ol>
     </div>
   </section>
 </main>

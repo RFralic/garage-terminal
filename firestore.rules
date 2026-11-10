@@ -7,7 +7,7 @@ rules_version = '2';
 // decide. Anything not explicitly allowed here is denied.
 //
 // Sections: members (users, handles, private, admins) · forum (settings, areas,
-// threads, posts) · moderation (reports, modlog).
+// threads, posts) · moderation (reports, modlog) · library.
 //
 // Cloud Functions use the Admin SDK, which bypasses these rules. That's how:
 //   - counters (replyCount, lastReplyAt, postCount) are kept up to date, and
@@ -321,6 +321,52 @@ service cloud.firestore {
     match /modlog/{id} {
       allow read: if isAdmin();
       allow write: if false;
+    }
+
+    // =========================================================================
+    // LIBRARY (wiki)
+    // =========================================================================
+
+    // ---------- library/{slug}: a wiki item (uploaded file or written page) --
+    // The doc ID is the item's web address (/wiki/{slug}), so addresses are
+    // unique. Everyone reads published items; drafts are sysop-only.
+    // Only the sysop writes (from /wiki/add). Files live in Storage at
+    // library/{slug}/{fileName}; see storage.rules.
+    function validLibraryItem(slug) {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+               'slug', 'title', 'folder', 'kind', 'type', 'description', 'body',
+               'storagePath', 'fileName', 'size', 'contentType',
+               'status', 'createdAt', 'updatedAt', 'updatedBy'])
+        && d.slug == slug
+        && slug.matches('^[a-z0-9]+(-[a-z0-9]+)*$') && slug.size() <= 80
+        && d.title is string && d.title.size() >= 1 && d.title.size() <= 150
+        && d.folder in ['guides', 'manuals', 'ebooks', 'files']
+        && d.kind in ['file', 'page']
+        && d.type in ['PDF', 'EPUB', 'GUIDE', 'MANUAL', 'DOC', 'SHEET', 'IMAGE', 'ZIP', 'TEXT', 'FILE']
+        && d.description is string && d.description.size() <= 500
+        && d.body is string && d.body.size() <= 100000
+        // a file, if any, must be inside this item's own folder in Storage
+        && (d.storagePath == '' || d.storagePath.matches('^library/' + slug + '/[^/]+$'))
+        && d.size is int && d.size >= 0 && d.size <= 50 * 1024 * 1024
+        && (d.kind == 'page' || d.storagePath != '')
+        && d.status in ['draft', 'published']
+        && d.updatedAt == request.time
+        && d.updatedBy == request.auth.uid;
+    }
+
+    match /library/{slug} {
+      // Public list queries must include where('status', '==', 'published').
+      allow read: if resource.data.status == 'published' || isAdmin();
+
+      allow create: if isAdmin() && validLibraryItem(slug)
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if isAdmin() && validLibraryItem(slug)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.kind == resource.data.kind;
+
+      allow delete: if isAdmin();
     }
   }
 }

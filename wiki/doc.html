@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<!-- /wiki/{slug}: one library item (firebase.json rewrites to this file). Logic: src/pages/library-doc.js -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Library · Garage Terminal</title>
+<meta name="description" content="A document in the Garage Terminal library.">
+<meta name="theme-color" content="#0B0E12">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/src/styles/base.css">
+<link rel="stylesheet" href="/src/styles/forms.css">
+<link rel="stylesheet" href="/src/styles/forum.css">
+<link rel="stylesheet" href="/src/styles/mod.css">
+<link rel="stylesheet" href="/src/styles/library.css">
+<script type="module" src="/src/pages/library-doc.js"></script>
+</head>
+<body>
+<header>
+  <nav class="wrap" aria-label="Main">
+    <a class="logo" href="/">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
+    <div class="links">
+      <a href="/#apps">/apps</a>
+      <a href="/forum">/forum</a>
+      <a href="/wiki" aria-current="page">/wiki</a>
+      <a href="/#bbs" hidden>/bbs</a>
+    </div>
+  </nav>
+  <div class="wrap session" id="session" aria-live="polite"></div>
+</header>
+
+<main class="wrap page">
+  <section class="block narrow-wide">
+    <p class="crumbs"><a href="/wiki">&lt; /library</a> <a id="d-folder" href="/wiki"></a></p>
+    <div class="shead thread-head"><h1 id="d-title">loading…</h1><span id="d-tags"></span></div>
+
+    <div class="modbar" id="d-sysop" hidden></div>
+    <p class="list-status" id="d-status" hidden></p>
+
+    <article id="d-article" hidden>
+      <p class="mod-meta" id="d-meta"></p>
+      <p class="lib-desc" id="d-desc"></p>
+      <div class="download" id="d-download" hidden></div>
+      <div class="md post-body lib-body" id="d-body" hidden></div>
+    </article>
+
+    <div class="lib-after" id="d-after" hidden>
+      <p><a class="btn ghost" id="d-discuss" href="/forum/new">Discuss in the forum</a></p>
+      <div id="d-related-box" hidden>
+        <p class="field-label" id="d-related-title">More in this folder</p>
+        <ol class="threads lib-related" id="d-related"></ol>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>© Garage Terminal</span><span>NO CARRIER</span></div>
+</footer>
+</body>
+</html>

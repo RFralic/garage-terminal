@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<!-- /wiki/add: sysop form to upload a file or write a page (also /wiki/add?edit={slug}). Logic: src/pages/library-add.js -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Add to library · Garage Terminal</title>
+<meta name="description" content="Add a file or page to the Garage Terminal library.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B0E12">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/src/styles/base.css">
+<link rel="stylesheet" href="/src/styles/forms.css">
+<link rel="stylesheet" href="/src/styles/forum.css">
+<link rel="stylesheet" href="/src/styles/mod.css">
+<link rel="stylesheet" href="/src/styles/library.css">
+<script type="module" src="/src/pages/library-add.js"></script>
+</head>
+<body>
+<header>
+  <nav class="wrap" aria-label="Main">
+    <a class="logo" href="/">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
+    <div class="links">
+      <a href="/#apps">/apps</a>
+      <a href="/forum">/forum</a>
+      <a href="/wiki" aria-current="page">/wiki</a>
+      <a href="/#bbs" hidden>/bbs</a>
+    </div>
+  </nav>
+  <div class="wrap session" id="session" aria-live="polite"></div>
+</header>
+
+<main class="wrap page">
+  <section class="block narrow-wide">
+    <p class="crumbs"><a href="/wiki">&lt; /library</a></p>
+    <div class="shead"><h1 id="a-heading">&gt; add to library</h1><span class="mod-sub">sysop</span></div>
+
+    <div class="term">
+      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>upload.txt</span></div>
+      <p class="list-status" id="a-gate">connecting…</p>
+
+      <form class="tbody form-body" id="a-form" novalidate hidden>
+        <fieldset class="radios kind-pick" id="a-kind">
+          <legend class="field-label">What are you adding?</legend>
+          <label class="radio"><input type="radio" name="kind" value="file" checked> Upload a file (PDF, ebook, zip…)</label>
+          <label class="radio"><input type="radio" name="kind" value="page"> Write a page</label>
+        </fieldset>
+
+        <div class="file-pick" id="a-file-box">
+          <label class="field-label" for="a-file" id="a-file-label">File (max 50 MB)</label>
+          <input class="field" id="a-file" type="file">
+          <p class="mutedt small" id="a-current-file" hidden></p>
+          <progress id="a-progress" max="1" value="0" hidden></progress>
+        </div>
+
+        <label class="field-label" for="a-title">Title</label>
+        <input class="field" id="a-title" type="text" maxlength="150" autocomplete="off">
+
+        <label class="field-label" for="a-slug">Address</label>
+        <div class="slug-row"><span class="mutedt">/wiki/</span><input class="field" id="a-slug" type="text" maxlength="80" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+        <p class="field-status" id="a-slug-status" data-kind="wait">Filled in from the title. Lowercase letters, numbers and dashes.</p>
+
+        <div class="two-col">
+          <div><label class="field-label" for="a-folder">Folder</label><select class="field" id="a-folder"></select></div>
+          <div><label class="field-label" for="a-type">Type</label><select class="field" id="a-type"></select></div>
+        </div>
+
+        <label class="field-label" for="a-desc">Description (shown in the list and searched)</label>
+        <textarea class="field area-field" id="a-desc" rows="3" maxlength="500"></textarea>
+
+        <div id="a-body-box">
+          <div class="composer" data-composer>
+            <div class="composer-bar">
+              <label class="field-label" for="a-body" id="a-body-label">Page text (Markdown)</label>
+              <button class="link-btn" type="button" data-preview-toggle>Preview</button>
+            </div>
+            <textarea class="field area-field" id="a-body" rows="14" placeholder="# Heading&#10;&#10;Steps, notes, tables…"></textarea>
+            <div class="md post-body preview" data-preview hidden></div>
+            <p class="composer-foot"><span>Markdown: # headings, **bold**, - lists, | tables |, [links](https://…)</span><span data-counter></span></p>
+          </div>
+        </div>
+
+        <div class="file-pick" id="a-attach-box" hidden>
+          <label class="field-label" for="a-attach">Attach a file to this page (optional, max 50 MB)</label>
+          <input class="field" id="a-attach" type="file">
+        </div>
+
+        <p class="field-status" id="a-error" data-kind="bad" role="alert"></p>
+        <div class="post-actions">
+          <button class="btn primary" type="submit" value="published" id="a-publish">Publish</button>
+          <button class="btn ghost" type="submit" value="draft" id="a-draft">Save as draft</button>
+        </div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>© Garage Terminal</span><span>NO CARRIER</span></div>
+</footer>
+</body>
+</html>
