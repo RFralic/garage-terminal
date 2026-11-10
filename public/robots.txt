@@ -1,0 +1,7 @@
+# Garage Terminal. Everything public may be indexed except the pages below,
+# which are for signing in, posting, or the sysop.
+User-agent: *
+Disallow: /mod
+Disallow: /join
+Disallow: /forum/new
+Disallow: /wiki/add

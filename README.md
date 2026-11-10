@@ -9,7 +9,7 @@ Live site: https://garage-terminal-15499.web.app
 
 | Path | What it is |
 | --- | --- |
-| `index.html` | Home page (ported from `garage-terminal.html`, which is kept for reference) |
+| `index.html` | Home page (ported from the original `garage-terminal.html` in Phase 1) |
 | `forum/index.html` | Forum thread list (`src/pages/forum-list.js`) |
 | `forum/thread.html` | One thread, served at `/forum/t/{id}` (`src/pages/thread.js`) |
 | `forum/new.html` | New thread form (`src/pages/new-thread.js`) |
@@ -57,8 +57,11 @@ npm run emulators   # terminal 1: local Firebase (auth, database, functions, sto
 npm run seed:local  # once: create the forum areas in the local database
 npm run dev         # terminal 2: local site at http://localhost:5173, talks to the emulators
 npm test            # rules + functions tests
+npm run check:phone # every page at 360/390px: sideways scroll, tap targets, labels (screenshots in check-phone-output/)
 npm run build       # production build into dist/
 ```
+
+`check:phone` uses Playwright; on a new computer run `npx playwright install chromium` once.
 
 Locally the site uses a demo project (`demo-garage-terminal`) on the emulators, so it never touches real data.
 
@@ -67,6 +70,27 @@ starting data, the site, and Cloud Functions.
 Nothing is deployed by hand.
 The workflow needs the repo secret `FIREBASE_SERVICE_ACCOUNT` (a service-account JSON key for project
 `garage-terminal-15499`).
+
+## Security table → tests
+
+Every row of the security table in `PLAN.md` has its own block in `tests/plan-table.rules.test.js`;
+the other test files go into detail:
+
+| PLAN row / rule | Tests |
+| --- | --- |
+| Guest: reads visible content, writes nothing | `plan-table` (Guest), `forum.rules` (reading), `library.rules` |
+| Member: posts as themselves, edits within 30 min, deletes own, reports; no counters/pins/locks/emails | `plan-table` (Member), `forum.rules`, `moderation.rules` (reports), `members.rules` (emails) |
+| Muted: reads and reports, can't post | `plan-table` (Muted), `forum.rules`, `moderation.rules` |
+| Banned: reads like a guest; can't post, reply or report | `plan-table` (Banned), `forum.rules`, `moderation.rules` |
+| Sysop: everything, moderation via the logged function, library uploads | `plan-table` (Sysop), `moderate.functions`, `library.rules` |
+| Handles: 3–20 chars, unique, reserved words | `members.rules` |
+| Titles 3–120, bodies 1–10,000 | `forum.rules` |
+| One post per 20 seconds | `forum.rules` (rate limit) |
+| Hidden items and drafts invisible except to the sysop | `forum.rules`, `library.rules`, `plan-table` |
+| Storage: published files public, sysop-only uploads/deletes, 50 MB | `library.rules` (Storage) |
+
+Note: the Storage tests need the Storage emulator to read Firestore; they pass on GitHub. In some
+sandboxed environments with an HTTP proxy, the emulator can't reach Firestore and three of them fail.
 
 ## Moderation
 
@@ -87,3 +111,22 @@ Sysop status is a document at `admins/{uid}` in Firestore. The site itself can n
   (from Firebase console → Authentication → Users). Script: `scripts/add-sysop.mjs`.
 - Or by hand in the Firebase console: Firestore → `admins` → new document with the UID as its ID
   and a timestamp field `addedAt`.
+
+## Bot protection (App Check)
+
+`src/lib/firebase.js` starts App Check with a reCAPTCHA v3 site key (`APP_CHECK_SITE_KEY`). To turn
+enforcement on: Firebase console → **App Check** → **APIs** → Cloud Firestore, Cloud Storage and
+Authentication → check that most requests show as *verified*, then **Enforce**. Once enforced, PR preview
+links stop working with the database (their addresses aren't registered with reCAPTCHA); the live site is
+unaffected. To add a domain, add it in the reCAPTCHA admin console too.
+
+## Adding a custom domain (later)
+
+1. Firebase console → Hosting → **Add custom domain**; copy the DNS records it shows into your domain
+   registrar and wait for it to say *Connected*.
+2. Firebase console → Authentication → Settings → **Authorized domains** → add the domain.
+3. Google Cloud console → APIs & Services → Credentials → the OAuth web client → **Authorized redirect
+   URIs** → add `https://YOUR-DOMAIN/__/auth/handler` (phones finish sign-in there).
+4. reCAPTCHA admin console → the Garage Terminal key → add the domain (App Check).
+5. In the code, replace `https://garage-terminal-15499.web.app` in the link-preview tags (search the HTML
+   files for `og:url`) with the new address.

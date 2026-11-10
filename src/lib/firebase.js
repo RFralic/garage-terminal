@@ -12,12 +12,20 @@
 // "Authorized redirect URIs" on the OAuth client in Google Cloud Console.)
 
 import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 const isLocal = import.meta.env.DEV;
+
+// Bot protection (App Check): proves requests come from this website, using a
+// reCAPTCHA v3 *site* key. The site key is public by design (every browser gets
+// it). The matching *secret* key lives only in the Firebase console.
+// Empty = App Check switched off. Enforcement is turned on in the Firebase
+// console (App Check -> APIs) once real visits show as verified.
+const APP_CHECK_SITE_KEY = '';
 
 async function loadConfig() {
   if (isLocal) {
@@ -36,6 +44,14 @@ async function loadConfig() {
 }
 
 const app = initializeApp(await loadConfig());
+
+// Must start before the database or storage are used.
+if (!isLocal && APP_CHECK_SITE_KEY) {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);

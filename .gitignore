@@ -5,3 +5,4 @@ dist/
 .env*
 # Never commit service-account keys
 *service-account*.json
+check-phone-output/

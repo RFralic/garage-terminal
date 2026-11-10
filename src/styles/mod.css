@@ -49,7 +49,7 @@ button.stat:hover{border-color:var(--amber)}
   border:1px dashed #5A4A2A;border-radius:10px;background:#1B1912}
 .modbar-label{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--amber);margin-right:4px}
 .modbar-move{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:13px;color:var(--soft)}
-.field-small{min-height:40px;width:auto;padding:4px 8px;font-size:13px}
+.field-small{min-height:44px;width:auto;padding:4px 8px;font-size:13px}
 .link-btn.mod{color:var(--amber)}
 .mod-banner{margin:0 0 16px;padding:10px 14px;border:1px solid #5A4A2A;border-radius:8px;background:#1B1912;
   font-family:var(--mono);font-size:13px;color:var(--amber)}

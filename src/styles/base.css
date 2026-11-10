@@ -31,7 +31,7 @@ nav{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between
 @keyframes blink{50%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.cursor{animation:none}html{scroll-behavior:auto}}
 .links{display:flex;flex-wrap:wrap;gap:4px;font-family:var(--mono);font-size:14px}
-.links a{color:var(--soft);text-decoration:none;padding:10px 12px;border-radius:6px}
+.links a{color:var(--soft);text-decoration:none;padding:0 12px;min-height:44px;display:inline-flex;align-items:center;border-radius:6px}
 .links a:hover{color:var(--fg);background:var(--panel)}
 
 .btn{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 22px;border-radius:8px;font-weight:600;text-decoration:none}
@@ -81,3 +81,7 @@ main.page{padding-top:48px;min-height:60vh}
 .session-link:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:4px}
 .tag-sysop{padding:1px 8px;border:1px solid #5A4A2A;border-radius:999px;color:var(--amber);font-size:11px;letter-spacing:.06em}
 .session .tag-sysop{margin-left:6px}
+
+/* 404 page: links to the main sections */
+.err-links{display:flex;flex-wrap:wrap;gap:10px}
+.err-links .btn{font-family:var(--mono);font-size:14px}

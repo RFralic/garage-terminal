@@ -338,10 +338,10 @@ function describe(details = {}) {
 /** Link (or button) to whatever an entry was about. */
 function targetEl(path = '') {
   const [kind, a, , b] = path.split('/');
-  if (kind === 'threads') return el('a', { href: threadLink(a, b) }, b ? 'post' : 'thread');
+  if (kind === 'threads') return el('a', { class: 'link-btn', href: threadLink(a, b) }, b ? 'post' : 'thread');
+  if (kind === 'reports') return el('span', {}, 'report');
   if (kind === 'users') return btn('member', () => show('members', a));
   if (kind === 'settings') return btn('settings', () => show('settings'));
-  if (kind === 'reports') return el('span', {}, 'report');
   return el('span', {}, path);
 }
 
