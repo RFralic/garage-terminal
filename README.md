@@ -47,5 +47,10 @@ The workflow needs the repo secret `FIREBASE_SERVICE_ACCOUNT` (a service-account
 
 ## Making someone sysop
 
-Sysop status is a document at `admins/{uid}` in Firestore, added by hand in the Firebase console
-(the site itself can never create one; the rules forbid it).
+Sysop status is a document at `admins/{uid}` in Firestore. The site itself can never create one
+(the rules forbid it). Two ways to add one:
+
+- GitHub → **Actions** → **Add sysop** → Run workflow → paste the User UID
+  (from Firebase console → Authentication → Users). Script: `scripts/add-sysop.mjs`.
+- Or by hand in the Firebase console: Firestore → `admins` → new document with the UID as its ID
+  and a timestamp field `addedAt`.
