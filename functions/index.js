@@ -1,5 +1,8 @@
 // Cloud Functions for Garage Terminal.
 //
+//   onPostCreated / onPostDeleted: keep the forum counters up to date (below)
+//   moderate: every sysop moderation action, always logged (see moderate.js)
+//
 // These run on Google's servers (not in the browser) with full access, so they
 // can update numbers that members are never allowed to touch directly:
 //   - thread.replyCount and thread.lastReplyAt
@@ -15,7 +18,9 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { onDocumentCreated, onDocumentDeleted } from 'firebase-functions/v2/firestore';
+import { onCall } from 'firebase-functions/v2/https';
 import { setGlobalOptions, logger } from 'firebase-functions/v2';
+import { moderateHandler } from './moderate.js';
 
 initializeApp();
 const db = getFirestore();
@@ -64,3 +69,8 @@ export const onPostDeleted = onDocumentDeleted(POST_PATH, async (event) => {
   }
   logger.info('post deleted', { threadId, postId });
 });
+
+// ---------- moderation ---------------------------------------------------------
+// Called from the page by the sysop. Checks the caller is sysop itself, so it's
+// safe for it to be reachable from the internet (that's how pages call it).
+export const moderate = onCall({ maxInstances: 3 }, moderateHandler);

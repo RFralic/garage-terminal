@@ -6,12 +6,15 @@ rules_version = '2';
 // These rules are the real security. The web pages only *ask*; the rules
 // decide. Anything not explicitly allowed here is denied.
 //
-// Phase 2: users, handles, private, admins.
-// Phase 3: areas, threads, posts, settings (read), rate limit.
-// Later phases add: reports, library, modlog, sysop moderation writes.
+// Sections: members (users, handles, private, admins) · forum (settings, areas,
+// threads, posts) · moderation (reports, modlog).
 //
-// Cloud Functions (later phases) use the Admin SDK, which bypasses these rules.
-// That's how counters like postCount get updated without members touching them.
+// Cloud Functions use the Admin SDK, which bypasses these rules. That's how:
+//   - counters (replyCount, lastReplyAt, postCount) are kept up to date, and
+//   - every sysop moderation action is made (functions/index.js `moderate`),
+//     always together with a modlog entry.
+// So the page itself can never change pins, locks, hidden flags, member status
+// or settings directly, not even for the sysop.
 // =============================================================================
 
 service cloud.firestore {
@@ -28,7 +31,7 @@ service cloud.firestore {
     }
 
     // The sysop is anyone with a doc at admins/{uid}. Those docs are only ever
-    // created by hand in the Firebase console, never from the site.
+    // created by hand (Firebase console or the "Add sysop" GitHub action).
     function isAdmin() {
       return signedIn()
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
@@ -46,13 +49,16 @@ service cloud.firestore {
         && !(h.lower() in reservedHandles());
     }
 
+    // =========================================================================
+    // MEMBERS
+    // =========================================================================
+
     // ---------- users/{uid}: public member profile ---------------------------
     // Anyone can read (the forum shows handles). Never holds an email.
     //
     // Created once, when a member claims a handle. In the same write the member
     // must also create handles/{handle} (pointing back at them) and private/{uid}.
-    // Members can't edit their profile afterwards: status and postCount are
-    // changed only by the sysop (Phase 4) and Cloud Functions (Phase 3).
+    // status, postCount and handle changes are made only by Cloud Functions.
     match /users/{uid} {
       allow read: if true;
 
@@ -82,11 +88,11 @@ service cloud.firestore {
 
     // ---------- handles/{handle}: keeps handles unique -----------------------
     // Doc ID is the handle in lowercase, so "Ryan" and "ryan" collide.
-    // Anyone can look up one handle (the live "available?" check), but nobody
-    // can list them all.
+    // Anyone can look up one handle (the live "available?" check). Only the
+    // sysop can list them (member search on /mod).
     match /handles/{handle} {
       allow get: if true;
-      allow list: if false;
+      allow list: if isAdmin();
 
       allow create: if signedIn()
         && validHandle(handle)
@@ -99,13 +105,13 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.handle.lower() == handle;
 
       // Creating over an existing doc counts as an update, so a taken handle
-      // can never be grabbed.
+      // can never be grabbed. Renames are done by the sysop's Cloud Function.
       allow update, delete: if false;
     }
 
-    // ---------- private/{uid}: member email, sysop eyes only -----------------
-    // The member writes it once (must be the email Google signed them in with).
-    // Only the sysop can read it. Other members never can.
+    // ---------- private/{uid}: email and ban reason, sysop eyes only ---------
+    // The member writes their email once (must be the one Google signed them in
+    // with). Only the sysop can read it. Other members never can.
     match /private/{uid} {
       allow read: if isAdmin();
 
@@ -117,6 +123,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---------- admins/{uid}: who is sysop -----------------------------------
+    // A signed-in user may check only their own entry (so the page knows
+    // whether to show sysop tools).
+    match /admins/{uid} {
+      allow get: if isSelf(uid);
+      allow list, write: if false;
+    }
+
     // =========================================================================
     // FORUM
     // =========================================================================
@@ -125,11 +139,26 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Member with a handle and status "active" (muted and banned can't post).
-    function isActiveMember() {
+    function site() {
+      return get(/databases/$(database)/documents/settings/site).data;
+    }
+
+    // Member with a handle and status "active" (muted and banned can't post),
+    // and the forum is open (the sysop can always post).
+    function canPost() {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && me().status == 'active';
+        && me().status == 'active'
+        && (isAdmin() || !exists(/databases/$(database)/documents/settings/site) || site().forumOpen != false);
+    }
+
+    // Word filter: true if the text contains a banned word (whole words,
+    // ignoring capitals). Banned words are limited to letters, numbers and
+    // spaces when saved, so they're always safe to put in a pattern.
+    function hasBannedWord(text) {
+      return exists(/databases/$(database)/documents/settings/site)
+        && site().get('bannedWords', []).size() > 0
+        && text.lower().matches('(?s).*\\b(' + site().bannedWords.join('|') + ')\\b.*');
     }
 
     // This write must also bump the member's lastPostAt to now (rate limit).
@@ -154,10 +183,10 @@ service cloud.firestore {
     }
 
     // ---------- settings/site: sysop notice, forum switch, word filter -------
-    // Everyone reads (the forum shows the notice). Only the sysop writes.
+    // Everyone reads. Changed only through the sysop's Cloud Function (logged).
     match /settings/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if false;
     }
 
     // ---------- areas/{id}: [1] General ... [5] Off-Topic --------------------
@@ -169,16 +198,18 @@ service cloud.firestore {
 
     // ---------- threads/{threadId} -------------------------------------------
     // replyCount and lastReplyAt are kept up to date by Cloud Functions.
-    // pinned / locked / hidden are sysop controls (Phase 4).
+    // pinned / locked / hidden / areaId changes are sysop actions (Cloud Function).
     match /threads/{threadId} {
       // Hidden threads are invisible to everyone but the sysop. List queries
       // from the page must include where('hidden', '==', false).
       allow read: if resource.data.hidden == false || isAdmin();
 
-      allow create: if isActiveMember()
+      // A new thread whose title or opening post contains a banned word must be
+      // created hidden and "held" for the sysop to review.
+      allow create: if canPost()
         && request.resource.data.keys().hasOnly([
              'areaId', 'title', 'authorUid', 'authorHandle', 'authorRole',
-             'createdAt', 'lastReplyAt', 'replyCount', 'pinned', 'locked', 'hidden'])
+             'createdAt', 'lastReplyAt', 'replyCount', 'pinned', 'locked', 'hidden', 'held'])
         && exists(/databases/$(database)/documents/areas/$(request.resource.data.areaId))
         && validTitle(request.resource.data.title)
         && authorFieldsOk(request.resource.data)
@@ -187,12 +218,14 @@ service cloud.firestore {
         && request.resource.data.replyCount == 0
         && request.resource.data.pinned == false
         && request.resource.data.locked == false
-        && request.resource.data.hidden == false
+        && (hasBannedWord(request.resource.data.title + ' '
+              + getAfter(/databases/$(database)/documents/threads/$(threadId)/posts/op).data.body)
+            ? request.resource.data.hidden == true && request.resource.data.held == true
+            : request.resource.data.hidden == false && !('held' in request.resource.data))
         // the opening post (id "op") is written in the same batch
         && existsAfter(/databases/$(database)/documents/threads/$(threadId)/posts/op)
         && bumpsLastPost();
 
-      // Members never edit thread docs; sysop tools come in Phase 4.
       allow update, delete: if false;
 
       // ---------- threads/{threadId}/posts/{postId} --------------------------
@@ -207,45 +240,87 @@ service cloud.firestore {
 
         allow read: if isAdmin() || (resource.data.hidden == false && thread().hidden == false);
 
-        allow create: if isActiveMember()
+        // A reply containing a banned word must be created hidden and "held".
+        // (An opening post is never held itself; its thread is held instead.)
+        allow create: if canPost()
           && request.resource.data.keys().hasOnly([
-               'authorUid', 'authorHandle', 'authorRole', 'body', 'createdAt', 'hidden'])
+               'authorUid', 'authorHandle', 'authorRole', 'body', 'createdAt', 'hidden', 'held'])
           && authorFieldsOk(request.resource.data)
           && validBody(request.resource.data.body)
           && request.resource.data.createdAt == request.time
-          && request.resource.data.hidden == false
           && bumpsLastPost()
-          // "op" only together with a brand-new thread; replies only to an
-          // existing thread that isn't locked or hidden.
           && (postId == 'op'
+                // "op" only together with a brand-new thread by the same author
                 ? !exists(/databases/$(database)/documents/threads/$(threadId))
                   && threadAfter().authorUid == request.auth.uid
-                : thread().locked == false && thread().hidden == false);
+                  && request.resource.data.hidden == false && !('held' in request.resource.data)
+                // replies only to an existing thread that isn't locked or hidden
+                : thread().locked == false && thread().hidden == false
+                  && (hasBannedWord(request.resource.data.body)
+                      ? request.resource.data.hidden == true && request.resource.data.held == true
+                      : request.resource.data.hidden == false && !('held' in request.resource.data)));
 
         // Authors can edit their own post's text within 30 minutes, if the
-        // thread isn't locked and they're still allowed to post.
-        allow update: if isActiveMember()
+        // thread isn't locked, they can still post, and the new text passes
+        // the word filter.
+        allow update: if canPost()
           && resource.data.authorUid == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body', 'editedAt'])
           && validBody(request.resource.data.body)
+          && !hasBannedWord(request.resource.data.body)
           && request.resource.data.editedAt == request.time
           && request.time < resource.data.createdAt + duration.value(30, 'm')
           && thread().locked == false;
 
         // Authors can delete their own replies. The opening post can't be
-        // deleted by members (deleting a whole thread is sysop-only).
+        // deleted by members (deleting a whole thread is a sysop action).
         allow delete: if signedIn()
           && resource.data.authorUid == request.auth.uid
           && postId != 'op';
       }
     }
 
-    // ---------- admins/{uid}: who is sysop -----------------------------------
-    // Added by hand in the Firebase console. A signed-in user may check only
-    // their own entry (so the page knows whether to show sysop tools).
-    match /admins/{uid} {
-      allow get: if isSelf(uid);
-      allow list, write: if false;
+    // Collection-group queries over every thread's posts (member's posts,
+    // posts today, held posts) are for the sysop dashboard only.
+    match /{path=**}/posts/{postId} {
+      allow read: if isAdmin();
+    }
+
+    // =========================================================================
+    // MODERATION
+    // =========================================================================
+
+    // ---------- reports/{reportId}: a member reporting a post ----------------
+    // ID is "{threadId}__{postId}__{reporterUid}", so each member can report a
+    // given post only once. Muted members may report; banned members can't.
+    // Only the sysop reads reports; their status changes via Cloud Function.
+    match /reports/{reportId} {
+      allow read: if isAdmin();
+
+      allow create: if signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && me().status in ['active', 'muted']
+        && request.resource.data.keys().hasOnly([
+             'threadId', 'postId', 'reporterUid', 'reporterHandle', 'reason', 'note', 'createdAt', 'status'])
+        && reportId == request.resource.data.threadId + '__' + request.resource.data.postId + '__' + request.auth.uid
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.reporterHandle == me().handle
+        && request.resource.data.reason in ['spam', 'rude', 'off-topic', 'other']
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.status == 'open'
+        // the post must exist and be visible
+        && get(/databases/$(database)/documents/threads/$(request.resource.data.threadId)/posts/$(request.resource.data.postId)).data.hidden == false;
+
+      allow update, delete: if false;
+    }
+
+    // ---------- modlog/{id}: every moderation action -------------------------
+    // Written only by the moderation Cloud Function. Sysop reads.
+    match /modlog/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

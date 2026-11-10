@@ -2,9 +2,12 @@
 //
 // URL: /forum            all areas
 //      /forum?area=general just one area
+//
+// The sysop also sees hidden and held threads (tagged), so they can be found
+// and dealt with. Everyone sees a notice when the forum is read-only.
 
 import { mountHeader } from '../lib/header.js';
-import { watchSession, canPost } from '../lib/session.js';
+import { watchSession, canPost, currentSession } from '../lib/session.js';
 import { getAreas, getSiteSettings, listThreads } from '../lib/forum.js';
 import { el, setMarkdown, timeEl } from '../lib/ui.js';
 
@@ -15,24 +18,40 @@ const params = new URLSearchParams(location.search);
 let areaId = params.get('area') || '';
 let cursor = null;
 let areas = [];
+let showHidden = false; // true for the sysop
+let site = { forumOpen: true };
 
 // ---------- post button: depends on who's reading ----------------------------
 
 watchSession((s) => {
-  $('f-new').hidden = !canPost(s);
+  const closedToMe = site.forumOpen === false && !(s.state === 'member' && s.isSysop);
+  $('f-new').hidden = !canPost(s) || closedToMe;
   $('f-join').hidden = !(s.state === 'guest' || s.state === 'needs-handle');
   const cant = $('f-cant');
   cant.hidden = !(s.state === 'member' && !canPost(s));
   if (!cant.hidden) cant.textContent = `Your account is ${s.profile.status}: you can read but not post.`;
   $('f-new').href = areaId ? `/forum/new?area=${encodeURIComponent(areaId)}` : '/forum/new';
+
+  // The sysop's list includes hidden threads; reload once we know who's reading.
+  const sysop = s.state === 'member' && s.isSysop;
+  if (s.state !== 'loading' && sysop !== showHidden) {
+    showHidden = sysop;
+    if (areas.length) loadThreads(true);
+  }
 });
 
 // ---------- sysop notice ------------------------------------------------------
 
 getSiteSettings().then((settings) => {
+  site = settings;
   if (settings.sysopNotice?.trim()) {
     setMarkdown($('f-notice-body'), settings.sysopNotice);
     $('f-notice').hidden = false;
+  }
+  if (settings.forumOpen === false) {
+    $('f-closed').hidden = false;
+    const s = currentSession();
+    if (!(s.state === 'member' && s.isSysop)) $('f-new').hidden = true;
   }
 }).catch(() => {});
 
@@ -63,11 +82,12 @@ function selectArea(id) {
 function threadRow(t) {
   const area = areas.find((a) => a.id === t.areaId);
   const replies = `${t.replyCount ?? 0} ${t.replyCount === 1 ? 'reply' : 'replies'}`;
-  return el('li', { class: 'thread' },
+  return el('li', { class: t.hidden ? 'thread is-hidden' : 'thread' },
     el('a', { href: `/forum/t/${encodeURIComponent(t.id)}` },
       el('span', { class: 'thread-title' },
         t.pinned ? el('span', { class: 'tag tag-pin' }, 'PINNED') : null,
         t.locked ? el('span', { class: 'tag' }, 'LOCKED') : null,
+        t.hidden ? el('span', { class: 'tag tag-hidden' }, t.held ? 'HELD' : 'HIDDEN') : null,
         t.title),
       el('span', { class: 'thread-meta' },
         area ? el('span', { class: 'area-key' }, area.key) : null,
@@ -91,7 +111,7 @@ async function loadThreads(fresh) {
   $('f-file').textContent = area ? `${area.name.toLowerCase().replace(/\W+/g, '_')}.txt` : 'threads.txt';
 
   try {
-    const page = await listThreads({ areaId, cursor });
+    const page = await listThreads({ areaId, cursor, includeHidden: showHidden });
     list.append(...page.threads.map(threadRow));
     cursor = page.cursor;
     $('f-more').hidden = !cursor;
@@ -118,5 +138,7 @@ $('f-more').addEventListener('click', () => loadThreads(false));
   }
   if (areaId && !areas.some((a) => a.id === areaId)) areaId = '';
   renderChips();
+  const s = currentSession();
+  showHidden = s.state === 'member' && s.isSysop;
   loadThreads(true);
 })();

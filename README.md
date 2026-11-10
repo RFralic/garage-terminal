@@ -15,6 +15,7 @@ Live site: https://garage-terminal-15499.web.app
 | `forum/new.html` | New thread form (`src/pages/new-thread.js`) |
 | `wiki/index.html` | Library (placeholder until Phase 5) |
 | `join/index.html` | Sign in with Google + pick a handle (`src/pages/join.js`) |
+| `mod/index.html` | Sysop dashboard: reports, held posts, members, settings, mod log (`src/pages/mod.js`) |
 | `404.html` | Not-found page |
 | `src/styles/base.css` | Shared look: colors, fonts, header, footer, terminal boxes |
 | `src/styles/home.css` | Home-page-only styles |
@@ -27,7 +28,10 @@ Live site: https://garage-terminal-15499.web.app
 | `src/lib/markdown.js` | Markdown → sanitized HTML (marked + DOMPurify). All user formatting goes through it |
 | `src/lib/ui.js` | Small DOM helpers, time formatting, the Markdown composer |
 | `src/styles/forum.css` | Forum styles |
+| `src/lib/mod.js` | Sysop helpers: calls the `moderate` function, loads dashboard data |
+| `src/styles/mod.css` | Dashboard styles and sysop touches on forum pages |
 | `functions/index.js` | Cloud Functions: reply counts, last reply time, post counts |
+| `functions/moderate.js` | The `moderate` function: every sysop action, checked and written to the mod log |
 | `scripts/seed.mjs` | Creates the forum areas and site settings if missing (runs on deploy) |
 | `scripts/add-sysop.mjs` | Makes a member sysop (run via the "Add sysop" GitHub action) |
 | `scripts/recount.mjs` | Rebuilds reply/post counts from the actual posts ("Recount forum" GitHub action) |
@@ -57,6 +61,16 @@ starting data, the site, and Cloud Functions.
 Nothing is deployed by hand.
 The workflow needs the repo secret `FIREBASE_SERVICE_ACCOUNT` (a service-account JSON key for project
 `garage-terminal-15499`).
+
+## Moderation
+
+Every sysop action (pin, lock, move, hide, delete, mute/ban, rename, settings) goes through one
+Cloud Function, `moderate` (`functions/moderate.js`). It checks the caller is in `admins/`, makes the
+change, and writes a `modlog/` entry. The Firestore rules block these changes from the page directly,
+so nothing can be moderated without being logged.
+
+The word filter is enforced by the rules too: a post containing a banned word can only be saved hidden
+and "held"; the sysop approves or deletes it from `/mod#held`.
 
 ## Making someone sysop
 

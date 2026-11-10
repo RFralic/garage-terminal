@@ -4,7 +4,7 @@
 
 import { mountHeader } from '../lib/header.js';
 import { watchSession, canPost, currentSession } from '../lib/session.js';
-import { getAreas, createThread, postErrorMessage, secondsUntilCanPost, TITLE_MIN, TITLE_MAX, BODY_MAX } from '../lib/forum.js';
+import { getAreas, getSiteSettings, createThread, postErrorMessage, secondsUntilCanPost, TITLE_MIN, TITLE_MAX, BODY_MAX } from '../lib/forum.js';
 import { el, setupComposer } from '../lib/ui.js';
 
 mountHeader();
@@ -26,17 +26,25 @@ getAreas().then((areas) => {
 
 // ---------- who can see the form ------------------------------------------------
 
-watchSession((s) => {
-  form.hidden = !canPost(s);
-  status.hidden = canPost(s);
-  if (s.state === 'loading') {
+let forumOpen = true;
+getSiteSettings().then((site) => { forumOpen = site.forumOpen !== false; render(currentSession()); }).catch(() => {});
+
+watchSession((s) => render(s));
+
+function render(s) {
+  const closedToMe = !forumOpen && !(s.state === 'member' && s.isSysop);
+  form.hidden = !canPost(s) || closedToMe;
+  status.hidden = !form.hidden;
+  if (closedToMe && canPost(s)) {
+    status.textContent = 'The forum is read-only right now, so new threads are paused. Check back soon.';
+  } else if (s.state === 'loading') {
     status.textContent = 'loading…';
   } else if (s.state === 'guest' || s.state === 'needs-handle') {
     status.replaceChildren('Members only. ', el('a', { href: '/join?next=' + encodeURIComponent(location.pathname + location.search) }, 'Join to post'), ' — it takes a minute.');
   } else if (!canPost(s)) {
     status.textContent = `Your account is ${s.profile.status}: you can read but not post.`;
   }
-});
+}
 
 // ---------- submit ------------------------------------------------------------------
 
@@ -59,7 +67,16 @@ form.addEventListener('submit', async (e) => {
   $('n-send').disabled = true;
   $('n-send').textContent = 'Posting…';
   try {
-    const id = await createThread(session, { areaId: $('n-area').value, title, body });
+    const { id, held } = await createThread(session, { areaId: $('n-area').value, title, body });
+    if (held) {
+      // Held threads are hidden until the sysop approves them, so there's
+      // nothing to open yet.
+      form.hidden = true;
+      status.hidden = false;
+      status.replaceChildren('Your thread contains a filtered word, so it’s held for the sysop to review before it appears. ',
+        el('a', { href: '/forum' }, 'Back to the forum.'));
+      return;
+    }
     location.href = `/forum/t/${encodeURIComponent(id)}`;
   } catch (err) {
     console.error(err);

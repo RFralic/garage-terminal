@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<!-- /mod: sysop moderation dashboard. Logic: src/pages/mod.js
+     The page hides itself from non-sysops, but the real protection is in
+     firestore.rules (sysop-only reads) and the `moderate` Cloud Function. -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Moderation · Garage Terminal</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B0E12">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/src/styles/base.css">
+<link rel="stylesheet" href="/src/styles/forms.css">
+<link rel="stylesheet" href="/src/styles/forum.css">
+<link rel="stylesheet" href="/src/styles/mod.css">
+<script type="module" src="/src/pages/mod.js"></script>
+</head>
+<body>
+<header>
+  <nav class="wrap" aria-label="Main">
+    <a class="logo" href="/">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
+    <div class="links">
+      <a href="/#apps">/apps</a>
+      <a href="/forum">/forum</a>
+      <a href="/wiki">/wiki</a>
+      <a href="/#bbs" hidden>/bbs</a>
+    </div>
+  </nav>
+  <div class="wrap session" id="session" aria-live="polite"></div>
+</header>
+
+<main class="wrap page">
+  <section class="block">
+    <div class="shead"><h1 id="m-title">&gt; /mod</h1><span class="mod-sub">sysop console</span></div>
+
+    <p class="list-status" id="m-gate">connecting…</p>
+
+    <div id="m-app" hidden>
+      <nav class="chips mod-tabs" id="m-tabs" aria-label="Dashboard sections"></nav>
+
+      <!-- Each section is filled in by mod.js when its tab is opened -->
+      <div class="term">
+        <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span id="m-file">overview.txt</span></div>
+        <div class="tbody mod-body" id="m-body"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>© Garage Terminal</span><span>NO CARRIER</span></div>
+</footer>
+</body>
+</html>

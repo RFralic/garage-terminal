@@ -277,7 +277,7 @@ describe('areas and settings', () => {
     await assertFails(updateDoc(doc(as('ryan'), 'settings', 'site'), { sysopNotice: 'hacked' }));
   });
 
-  test('the sysop can change the sysop notice', async () => {
-    await assertSucceeds(updateDoc(doc(as('sysop1'), 'settings', 'site'), { sysopNotice: 'New rules' }));
+  test('even the sysop changes settings only through the logged moderation function', async () => {
+    await assertFails(updateDoc(doc(as('sysop1'), 'settings', 'site'), { sysopNotice: 'New rules' }));
   });
 });

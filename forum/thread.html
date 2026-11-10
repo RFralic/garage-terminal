@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="/src/styles/base.css">
 <link rel="stylesheet" href="/src/styles/forms.css">
 <link rel="stylesheet" href="/src/styles/forum.css">
+<link rel="stylesheet" href="/src/styles/mod.css">
 <script type="module" src="/src/pages/thread.js"></script>
 </head>
 <body>
@@ -34,6 +35,10 @@
   <section class="block">
     <p class="crumbs"><a href="/forum">&lt; /forum</a> <span id="t-area"></span></p>
     <div class="shead thread-head"><h1 id="t-title">loading…</h1><span id="t-flags"></span></div>
+
+    <!-- Sysop only: thread moderation (filled in by thread.js) -->
+    <div class="modbar" id="t-modbar" hidden></div>
+    <p class="mod-banner" id="t-hidden-banner" hidden></p>
 
     <p class="list-status" id="t-status" hidden></p>
     <ol class="posts" id="t-posts" aria-label="Posts"></ol>
@@ -57,6 +62,21 @@
     <p class="thread-foot" id="t-join" hidden><a class="btn ghost" id="t-join-link" href="/join">Join to reply</a></p>
     <p class="thread-foot mutedt" id="t-closed" hidden></p>
   </section>
+
+  <!-- Report dialog (members). Logic: thread.js -->
+  <dialog class="dialog" id="t-report">
+    <form method="dialog" class="form-body" id="t-report-form">
+      <p class="field-label">Report this post to the sysop</p>
+      <fieldset class="radios" id="t-report-reasons"><legend class="mutedt small">Reason</legend></fieldset>
+      <label class="field-label" for="t-report-note">Note (optional)</label>
+      <textarea class="field" id="t-report-note" rows="3" maxlength="500"></textarea>
+      <p class="field-status" id="t-report-error" data-kind="bad" role="alert"></p>
+      <div class="post-actions">
+        <button class="btn primary" type="submit" value="send">Send report</button>
+        <button class="link-btn" type="button" id="t-report-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
 </main>
 
 <footer>

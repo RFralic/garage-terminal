@@ -14,7 +14,7 @@ const cleanUrls = {
     server.middlewares.use((req, _res, next) => {
       const [path, query = ''] = req.url.split('?');
       const q = query ? '?' + query : '';
-      if (/^\/(forum|wiki|join)$/.test(path)) req.url = `${path}/${q}`;
+      if (/^\/(forum|wiki|join|mod)$/.test(path)) req.url = `${path}/${q}`;
       else if (path === '/forum/new') req.url = `/forum/new.html${q}`;
       else if (path.startsWith('/forum/t/')) req.url = `/forum/thread.html${q}`; // same as firebase.json rewrite
       next();
@@ -38,6 +38,7 @@ export default defineConfig({
         forumNew: page('forum/new.html'),
         wiki: page('wiki/index.html'),
         join: page('join/index.html'),
+        mod: page('mod/index.html'),
         notFound: page('404.html'),
       },
     },

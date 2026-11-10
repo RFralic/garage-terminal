@@ -2,7 +2,8 @@
 //
 //   guest:        reading as guest · Sign in
 //   no handle:    signed in · Pick a handle · Log off
-//   member:       logged in as {handle} · Log off      (plus a SYSOP tag for the sysop)
+//   member:       logged in as {handle} · Log off
+//   sysop:        logged in as {handle} SYSOP · /mod · Log off
 //
 // Also updates any element with [data-welcome] (the home page's
 // "CONNECT 115200 ▸ welcome, guest" line).
@@ -57,7 +58,12 @@ export function mountHeader() {
       const who = el('span', 'session-muted', 'logged in as ');
       who.append(el('strong', 'session-handle', s.profile.handle));
       slot.append(who);
-      if (s.isSysop) slot.append(el('span', 'tag-sysop', 'SYSOP'));
+      if (s.isSysop) {
+        slot.append(el('span', 'tag-sysop', 'SYSOP'), sep());
+        const mod = el('a', 'session-link', '/mod');
+        mod.href = '/mod';
+        slot.append(mod);
+      }
       slot.append(sep(), logOffButton());
     }
 

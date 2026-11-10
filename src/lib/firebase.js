@@ -14,6 +14,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
 const isLocal = import.meta.env.DEV;
 
@@ -32,8 +33,11 @@ const app = initializeApp(await loadConfig());
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+// Cloud Functions live in us-east1 (same as the database); see functions/index.js.
+export const functions = getFunctions(app, 'us-east1');
 
 if (isLocal) {
   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, 'localhost', 8080);
+  connectFunctionsEmulator(functions, 'localhost', 5001);
 }

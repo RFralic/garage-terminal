@@ -20,6 +20,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   startAfter,
   updateDoc,
   deleteDoc,
@@ -59,10 +60,11 @@ export async function getSiteSettings() {
 /**
  * One page of the thread list: pinned first, then latest reply first.
  * Pass the `cursor` from the previous page to get the next one.
- * Hidden threads are filtered out (the rules require it).
+ * Hidden threads are filtered out (the rules require it), except for the
+ * sysop, who passes includeHidden to see them marked as hidden.
  */
-export async function listThreads({ areaId = '', cursor = null } = {}) {
-  const parts = [where('hidden', '==', false)];
+export async function listThreads({ areaId = '', cursor = null, includeHidden = false } = {}) {
+  const parts = includeHidden ? [] : [where('hidden', '==', false)];
   if (areaId) parts.push(where('areaId', '==', areaId));
   parts.push(orderBy('pinned', 'desc'), orderBy('lastReplyAt', 'desc'), limit(PAGE_SIZE));
   if (cursor) parts.push(startAfter(cursor));
@@ -83,13 +85,11 @@ export function watchThread(threadId, callback) {
   );
 }
 
-/** Live-follow a thread's visible posts, oldest first. */
-export function watchPosts(threadId, callback, onError) {
-  const q = query(
-    collection(db, 'threads', threadId, 'posts'),
-    where('hidden', '==', false),
-    orderBy('createdAt', 'asc'),
-  );
+/** Live-follow a thread's posts, oldest first. Hidden ones only for the sysop. */
+export function watchPosts(threadId, callback, onError, { includeHidden = false } = {}) {
+  const q = includeHidden
+    ? query(collection(db, 'threads', threadId, 'posts'), orderBy('createdAt', 'asc'))
+    : query(collection(db, 'threads', threadId, 'posts'), where('hidden', '==', false), orderBy('createdAt', 'asc'));
   return onSnapshot(
     q,
     (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }))),
@@ -113,8 +113,26 @@ function bumpLastPost(batch, session) {
   batch.update(doc(db, 'users', session.user.uid), { lastPostAt: serverTimestamp() });
 }
 
-/** Start a thread. Returns the new thread's id. */
+/**
+ * Word filter: true if the text contains one of the sysop's banned words
+ * (whole words, ignoring capitals). Mirrors hasBannedWord() in firestore.rules,
+ * which is what actually enforces it.
+ */
+export function hasBannedWord(text, bannedWords = []) {
+  if (!bannedWords.length) return false;
+  return new RegExp(`\\b(${bannedWords.join('|')})\\b`, 'i').test(text);
+}
+
+/** Fields that mark a new item as hidden and held for the sysop's review. */
+const heldFields = (held) => (held ? { hidden: true, held: true } : { hidden: false });
+
+/**
+ * Start a thread. Returns { id, held }. If the title or message contains a
+ * banned word, the thread is saved hidden and held for the sysop to review.
+ */
 export async function createThread(session, { areaId, title, body }) {
+  const { bannedWords } = await getSiteSettings();
+  const held = hasBannedWord(`${title} ${body}`, bannedWords);
   const threadRef = doc(collection(db, 'threads'));
   const batch = writeBatch(db);
   batch.set(threadRef, {
@@ -126,7 +144,7 @@ export async function createThread(session, { areaId, title, body }) {
     replyCount: 0,
     pinned: false,
     locked: false,
-    hidden: false,
+    ...heldFields(held),
   });
   batch.set(doc(threadRef, 'posts', 'op'), {
     ...authorFields(session),
@@ -136,20 +154,43 @@ export async function createThread(session, { areaId, title, body }) {
   });
   bumpLastPost(batch, session);
   await batch.commit();
-  return threadRef.id;
+  return { id: threadRef.id, held };
 }
 
-/** Reply to a thread. */
+/** Reply to a thread. Returns { held } (true if the word filter held it). */
 export async function createReply(session, threadId, body) {
+  const { bannedWords } = await getSiteSettings();
+  const held = hasBannedWord(body, bannedWords);
   const batch = writeBatch(db);
   batch.set(doc(collection(db, 'threads', threadId, 'posts')), {
     ...authorFields(session),
     body,
     createdAt: serverTimestamp(),
-    hidden: false,
+    ...heldFields(held),
   });
   bumpLastPost(batch, session);
   await batch.commit();
+  return { held };
+}
+
+/** Report someone's post to the sysop. One report per member per post. */
+export const REPORT_REASONS = [
+  ['spam', 'Spam'],
+  ['rude', 'Rude or abusive'],
+  ['off-topic', 'Off-topic'],
+  ['other', 'Something else'],
+];
+export function reportPost(session, threadId, postId, reason, note = '') {
+  return setDoc(doc(db, 'reports', `${threadId}__${postId}__${session.user.uid}`), {
+    threadId,
+    postId,
+    reporterUid: session.user.uid,
+    reporterHandle: session.profile.handle,
+    reason,
+    note: note.trim().slice(0, 500),
+    createdAt: serverTimestamp(),
+    status: 'open',
+  });
 }
 
 /** Edit your own post's text (within the edit window). */
@@ -185,7 +226,7 @@ export function postErrorMessage(err, session) {
     if (session?.profile?.status && session.profile.status !== 'active') {
       return 'Your account can’t post right now.';
     }
-    return 'That wasn’t allowed. The thread may be locked, or the edit window has closed.';
+    return 'That wasn’t allowed. The forum or thread may be closed, the edit window may have passed, or the text contains a filtered word.';
   }
   if (err?.code === 'unavailable') return 'You seem to be offline. Try again.';
   return 'Something went wrong. Try again.';
