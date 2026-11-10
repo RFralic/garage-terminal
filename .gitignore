@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.firebase/
+*.log
+.env*
+# Never commit service-account keys
+*service-account*.json

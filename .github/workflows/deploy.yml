@@ -1,0 +1,40 @@
+# Deploys the site to Firebase Hosting.
+#  - Push to main  -> builds and deploys to the live site (garage-terminal-15499.web.app)
+#  - Pull request  -> builds and deploys to a temporary preview link, posted on the PR
+#
+# Needs one GitHub secret: FIREBASE_SERVICE_ACCOUNT (the JSON key of the deploy service account).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  checks: write        # lets the action report its status
+  pull-requests: write # lets the action comment the preview link on PRs
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Fork PRs can't see secrets, so skip them instead of failing.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: garage-terminal-15499
+          # Live deploy on main; PRs get a preview channel (expires after 7 days).
+          channelId: ${{ github.event_name == 'push' && 'live' || '' }}

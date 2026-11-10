@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<!--
+  Home page. Ported from the original garage-terminal.html (kept in the repo for reference).
+  Shared look: src/styles/base.css · Home-only styles: src/styles/home.css
+  The BBS link, card and section, and the hero buttons, are switched off with `hidden`
+  until the BBS is built. Keep them hidden.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Garage Terminal</title>
+<meta name="description" content="Handy tools for the garage, the gym and the workbench.">
+<meta name="theme-color" content="#0B0E12">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/src/styles/base.css">
+<link rel="stylesheet" href="/src/styles/home.css">
+</head>
+<body>
+<header>
+  <nav class="wrap" aria-label="Main">
+    <a class="logo" href="/">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
+    <div class="links">
+      <a href="#apps">/apps</a>
+      <a href="/forum">/forum</a>
+      <a href="/wiki">/wiki</a>
+      <a href="#bbs" hidden>/bbs</a>
+    </div>
+  </nav>
+</header>
+
+<main id="top">
+  <section class="wrap hero">
+    <p class="connect">CONNECT 115200 ▸ welcome, guest</p>
+    <h1>Apps, an open forum, and a library worth digging through.</h1>
+    <p class="lede">Handy tools for the garage, the gym and the workbench, built one project at a time. Grab an app, dig through the library, or pull up a stool on the board.</p>
+    <div class="ctas" hidden>
+      <a class="btn primary" href="#apps">Browse apps</a>
+      <a class="btn ghost" href="#bbs" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+        About the BBS</a>
+    </div>
+  </section>
+
+  <div class="wrap areas">
+    <a class="area" href="#apps">
+      <p class="key" style="color:var(--green)">[A] APPS</p>
+      <h2>Software I've built</h2>
+      <p>Workout timers, maintenance logs and more shop tools on the way.</p>
+    </a>
+    <a class="area" href="/forum">
+      <p class="key" style="color:var(--violet)">[F] FORUM · OPEN TO READ</p>
+      <h2>Shop talk</h2>
+      <p>Questions, fixes and garage setups. Anyone can read; join to post.</p>
+    </a>
+    <a class="area" href="/wiki">
+      <p class="key" style="color:var(--blue)">[W] WIKI &amp; LIBRARY</p>
+      <h2>Docs, ebooks, files</h2>
+      <p>Guides, manuals and downloads, organized and searchable.</p>
+    </a>
+    <a class="area" href="#bbs" hidden>
+      <p class="key" style="color:var(--amber)">[B] BBS · MEMBERS ONLY</p>
+      <h2>The private board</h2>
+      <p>Passcode required. For members only.</p>
+    </a>
+  </div>
+
+  <section class="wrap block" id="apps">
+    <div class="shead"><h2>&gt; ls /apps</h2><span>2 apps</span></div>
+    <div class="apps">
+      <article class="app">
+        <div class="apphead">
+          <img src="/img/repclock-icon.svg" alt="" width="56" height="56">
+          <div>
+            <h3>RepClock</h3>
+            <p>Rep counter, stopwatch and circuit interval timer with workout history.</p>
+            <p class="meta">Web app · <a href="https://claude.ai/artifact/JKeLMiprJDSDuf9GudpJpF" target="_blank" rel="noopener noreferrer">Open app →</a></p>
+          </div>
+        </div>
+      </article>
+      <article class="app">
+        <div class="apphead">
+          <img src="/img/logbook-icon.png" alt="" width="56" height="56">
+          <div>
+            <h3>Engine &amp; Vehicle Logbook</h3>
+            <p>Specs, part numbers and service records for your vehicles and small engines. Sign in with Google to sync.</p>
+            <p class="meta">Web app · <a href="https://vehicle-logbook-c7e27.web.app/" target="_blank" rel="noopener noreferrer">Open app →</a></p>
+          </div>
+        </div>
+        <div class="shot"><img src="/img/logbook-shot.jpg" alt="Screenshot of the Engine & Vehicle Logbook showing small engines, vehicles and inventory tabs"></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="wrap block" id="forum">
+    <div class="shead"><h2>&gt; cd /forum</h2><span>open to read</span></div>
+    <div class="term">
+      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>forum.txt</span></div>
+      <div class="tbody">
+        <p>Areas: [1] General · [2] App Support · [3] Releases · [4] Wiki Requests · [5] Off&#8209;Topic</p>
+        <p class="mutedt">Anyone can read. Sign in with Google and pick a handle to post.</p>
+        <p class="soon">&gt; Forum opening soon. Check back.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap block" id="wiki">
+    <div class="shead"><h2>&gt; ls /library</h2><span>docs · ebooks · files</span></div>
+    <div class="term">
+      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>library.txt</span></div>
+      <div class="tbody">
+        <div class="dirs">
+          <span>[DIR] /docs</span>
+          <span>[DIR] /ebooks</span>
+          <span>[DIR] /files</span>
+          <span>[DIR] /guides</span>
+        </div>
+        <p class="soon">&gt; Library is being stocked. Coming soon.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap block" id="bbs" hidden>
+    <div class="shead"><h2>&gt; cd /bbs</h2><span>members only</span></div>
+    <div class="term">
+      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>bbs.txt</span></div>
+      <div class="tbody">
+        <span class="badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+          MEMBERS ONLY</span>
+        <p class="mutedt">A private board for members. Entry requires the access code from the sysop.</p>
+        <p class="soon">&gt; Board opening soon. Check back.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>© Garage Terminal</span><span>NO CARRIER</span></div>
+</footer>
+
+</body>
+</html>

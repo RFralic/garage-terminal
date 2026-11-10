@@ -1,0 +1,70 @@
+/*
+  base.css: shared look for every Garage Terminal page.
+  Colors, fonts, header, footer, section headings and the "terminal window" box.
+  Taken from the original garage-terminal.html so all pages match the home page.
+  Dark single theme by choice (BBS screen).
+*/
+:root{
+  --bg:#0E1116; --bar:#0B0E12; --panel:#161B22; --tile:#222A35;
+  --line:#262D38; --line-2:#3A4352;
+  --fg:#E6EDF3; --soft:#C9D1DB; --muted:#9AA4B2;
+  --green:#5BE49B; --green-hi:#8BF0B9; --amber:#F2B45A; --blue:#8EB8FF; --violet:#E58BFF; --on-green:#0E1116;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0}img{max-width:100%}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px;line-height:1.6}
+a{color:var(--green)}a:hover{color:var(--green-hi)}
+a:focus-visible{outline:2px solid var(--green);outline-offset:3px;border-radius:4px}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+@media (max-width:480px){.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}}
+.mono{font-family:var(--mono)}
+
+header{border-bottom:1px solid var(--line);background:var(--bar)}
+nav{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding-block:14px}
+.logo{font-family:var(--mono);font-weight:700;font-size:18px;color:var(--green);text-decoration:none;letter-spacing:.02em}
+.cursor{animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.cursor{animation:none}html{scroll-behavior:auto}}
+.links{display:flex;flex-wrap:wrap;gap:4px;font-family:var(--mono);font-size:14px}
+.links a{color:var(--soft);text-decoration:none;padding:10px 12px;border-radius:6px}
+.links a:hover{color:var(--fg);background:var(--panel)}
+
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 22px;border-radius:8px;font-weight:600;text-decoration:none}
+.btn.primary{background:var(--green);color:var(--on-green)}
+.btn.primary:hover{background:var(--green-hi);color:var(--on-green)}
+.btn.ghost{border:1px solid var(--line-2);color:var(--fg)}
+.btn.ghost:hover{border-color:var(--muted);color:var(--fg)}
+
+.key{margin:0;font-family:var(--mono);font-size:13px;letter-spacing:.04em}
+
+section.block{padding-bottom:72px}
+.shead{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px dashed var(--line-2);padding-bottom:12px;margin-bottom:24px}
+.shead h2{margin:0;font-family:var(--mono);font-size:22px}
+.shead span{font-family:var(--mono);font-size:13px;color:var(--muted)}
+
+
+.term{background:var(--bar);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tbar{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--muted)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--line-2)}
+.tbar span:last-child{margin-left:8px}
+.tbody{padding:24px;font-family:var(--mono);font-size:15px;line-height:1.9;display:flex;flex-direction:column;gap:14px}
+.tbody p{margin:0}
+.dirs{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 24px;color:var(--soft)}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border:1px solid #5A4A2A;border-radius:999px;color:var(--amber);font-family:var(--mono);font-size:12px;letter-spacing:.04em;align-self:flex-start}
+.soon{color:var(--amber)}
+.mutedt{color:var(--muted)}
+
+footer{border-top:1px solid var(--line)}
+footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding-block:24px;font-family:var(--mono);font-size:13px;color:var(--muted)}
+
+/* Current page in the top menu */
+.links a[aria-current="page"]{color:var(--green)}
+
+/* Inner pages (forum, wiki, 404): page title sits in the section heading */
+main.page{padding-top:48px;min-height:60vh}
+.shead h1{margin:0;font-family:var(--mono);font-size:22px;line-height:1.4}
