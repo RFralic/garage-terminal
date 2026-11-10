@@ -76,12 +76,18 @@ export async function claimHandle(handle) {
 
 // Phones and tablets use a full-page redirect to Google (pop-ups are unreliable
 // there); desktops use a pop-up so the page doesn't reload.
+// When the site runs as an installed app (opened from the home screen, see
+// public/manifest.webmanifest), pop-ups open outside the app and sign-in can't
+// finish, so installed apps always use the redirect too. Google's page opens
+// inside the app and returns to /join on this site.
 const usesTouch = window.matchMedia('(pointer: coarse)').matches;
+const isInstalledApp = () =>
+  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; // (iOS)
 
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  if (usesTouch) {
+  if (usesTouch || isInstalledApp()) {
     await signInWithRedirect(auth, provider);
   } else {
     await signInWithPopup(auth, provider);
