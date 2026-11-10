@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/src/styles/base.css">
 <link rel="stylesheet" href="/src/styles/home.css">
+<script type="module" src="/src/pages/common.js"></script>
 </head>
 <body>
 <header>
@@ -30,11 +31,12 @@
       <a href="#bbs" hidden>/bbs</a>
     </div>
   </nav>
+  <div class="wrap session" id="session" aria-live="polite"></div>
 </header>
 
 <main id="top">
   <section class="wrap hero">
-    <p class="connect">CONNECT 115200 ▸ welcome, guest</p>
+    <p class="connect" data-welcome>CONNECT 115200 ▸ welcome, guest</p>
     <h1>Apps, an open forum, and a library worth digging through.</h1>
     <p class="lede">Handy tools for the garage, the gym and the workbench, built one project at a time. Grab an app, dig through the library, or pull up a stool on the board.</p>
     <div class="ctas" hidden>

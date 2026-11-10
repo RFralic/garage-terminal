@@ -1,6 +1,10 @@
-# Deploys the site to Firebase Hosting.
-#  - Push to main  -> builds and deploys to the live site (garage-terminal-15499.web.app)
-#  - Pull request  -> builds and deploys to a temporary preview link, posted on the PR
+# Tests and deploys the site.
+#  - Every push and pull request: runs the Firestore rules tests on the emulator.
+#    If any test fails, nothing is deployed.
+#  - Push to main: deploys Firestore rules, then the website, to the live project
+#    (garage-terminal-15499.web.app).
+#  - Pull request: deploys the website only to a temporary preview link, posted on
+#    the PR. Previews share the live database and rules; rules change only from main.
 #
 # Needs one GitHub secret: FIREBASE_SERVICE_ACCOUNT (the JSON key of the deploy service account).
 name: Deploy
@@ -12,8 +16,8 @@ on:
 
 permissions:
   contents: read
-  checks: write        # lets the action report its status
-  pull-requests: write # lets the action comment the preview link on PRs
+  checks: write        # lets the hosting action report its status
+  pull-requests: write # lets the hosting action comment the preview link on PRs
 
 jobs:
   deploy:
@@ -28,10 +32,31 @@ jobs:
           node-version: 22
           cache: npm
 
+      # The Firestore emulator (used by the rules tests) needs Java.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
       - run: npm ci
+
+      - name: Rules tests (Firestore emulator)
+        run: npm run test:rules
+
       - run: npm run build
 
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Deploy Firestore rules (main only)
+        if: github.event_name == 'push'
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx firebase deploy --only firestore:rules,firestore:indexes --project garage-terminal-15499 --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"
+
+      - name: Deploy website
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

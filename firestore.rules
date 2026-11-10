@@ -1,0 +1,117 @@
+rules_version = '2';
+
+// =============================================================================
+// Garage Terminal: Firestore security rules
+//
+// These rules are the real security. The web pages only *ask*; the rules
+// decide. Anything not explicitly allowed here is denied.
+//
+// Phase 2 covers: users, handles, private, admins.
+// Later phases add: areas, threads, posts, reports, library, settings, modlog.
+//
+// Cloud Functions (later phases) use the Admin SDK, which bypasses these rules.
+// That's how counters like postCount get updated without members touching them.
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ------------------------------------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // The sysop is anyone with a doc at admins/{uid}. Those docs are only ever
+    // created by hand in the Firebase console, never from the site.
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Handles: 3–20 letters, numbers or underscores, not a reserved word.
+    // Reserved check ignores capitals ("SysOp" is blocked too).
+    function reservedHandles() {
+      return ['sysop', 'admin', 'moderator', 'garage', 'terminal'];
+    }
+
+    function validHandle(h) {
+      return h is string
+        && h.matches('^[A-Za-z0-9_]{3,20}$')
+        && !(h.lower() in reservedHandles());
+    }
+
+    // ---------- users/{uid}: public member profile ---------------------------
+    // Anyone can read (the forum shows handles). Never holds an email.
+    //
+    // Created once, when a member claims a handle. In the same write the member
+    // must also create handles/{handle} (pointing back at them) and private/{uid}.
+    // Members can't edit their profile afterwards: status and postCount are
+    // changed only by the sysop (Phase 4) and Cloud Functions (Phase 3).
+    match /users/{uid} {
+      allow read: if true;
+
+      allow create: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(['handle', 'createdAt', 'status', 'postCount'])
+        && validHandle(request.resource.data.handle)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.status == 'active'
+        && request.resource.data.postCount == 0
+        // the matching handle reservation must belong to this member
+        && getAfter(/databases/$(database)/documents/handles/$(request.resource.data.handle.lower())).data.uid == uid
+        // and the private email record must be written at the same time
+        && existsAfter(/databases/$(database)/documents/private/$(uid));
+
+      allow update, delete: if false;
+    }
+
+    // ---------- handles/{handle}: keeps handles unique -----------------------
+    // Doc ID is the handle in lowercase, so "Ryan" and "ryan" collide.
+    // Anyone can look up one handle (the live "available?" check), but nobody
+    // can list them all.
+    match /handles/{handle} {
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if signedIn()
+        && validHandle(handle)
+        && handle == handle.lower()
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid
+        // one handle per member: they mustn't already have a profile...
+        && !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        // ...and the profile created alongside must use this exact handle
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.handle.lower() == handle;
+
+      // Creating over an existing doc counts as an update, so a taken handle
+      // can never be grabbed.
+      allow update, delete: if false;
+    }
+
+    // ---------- private/{uid}: member email, sysop eyes only -----------------
+    // The member writes it once (must be the email Google signed them in with).
+    // Only the sysop can read it. Other members never can.
+    match /private/{uid} {
+      allow read: if isAdmin();
+
+      allow create: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(['email'])
+        && request.resource.data.email == request.auth.token.email
+        && existsAfter(/databases/$(database)/documents/users/$(uid));
+
+      allow update, delete: if false;
+    }
+
+    // ---------- admins/{uid}: who is sysop -----------------------------------
+    // Added by hand in the Firebase console. A signed-in user may check only
+    // their own entry (so the page knows whether to show sysop tools).
+    match /admins/{uid} {
+      allow get: if isSelf(uid);
+      allow list, write: if false;
+    }
+  }
+}

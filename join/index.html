@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<!-- /join: sign in with Google, then pick a handle. Logic: src/pages/join.js -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Join · Garage Terminal</title>
+<meta name="description" content="Sign in to Garage Terminal with Google and pick a handle.">
+<meta name="theme-color" content="#0B0E12">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/src/styles/base.css">
+<link rel="stylesheet" href="/src/styles/forms.css">
+<script type="module" src="/src/pages/join.js"></script>
+</head>
+<body>
+<header>
+  <nav class="wrap" aria-label="Main">
+    <a class="logo" href="/">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
+    <div class="links">
+      <a href="/#apps">/apps</a>
+      <a href="/forum">/forum</a>
+      <a href="/wiki">/wiki</a>
+      <a href="/#bbs" hidden>/bbs</a>
+    </div>
+  </nav>
+  <div class="wrap session" id="session" aria-live="polite"></div>
+</header>
+
+<main class="wrap page">
+  <section class="block narrow">
+    <div class="shead"><h1>&gt; login</h1><span>join the board</span></div>
+    <div class="term">
+      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>join.txt</span></div>
+      <div class="tbody">
+
+        <div id="j-loading"><p class="mutedt">connecting…</p></div>
+
+        <div id="j-guest" hidden>
+          <p>Anyone can read. To post, sign in with Google and pick a handle.</p>
+          <p class="mutedt">Other members only ever see your handle, never your email.</p>
+          <button class="btn primary" id="j-google" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.35 11.1H12v2.9h5.35c-.25 1.5-1.7 4.4-5.35 4.4-3.2 0-5.85-2.65-5.85-5.9S8.8 6.6 12 6.6c1.85 0 3.05.8 3.75 1.45l2.55-2.45C16.7 4.1 14.55 3.1 12 3.1 6.95 3.1 2.9 7.15 2.9 12.2s4.05 9.1 9.1 9.1c5.25 0 8.75-3.7 8.75-8.9 0-.6-.05-1.05-.15-1.3z"/></svg>
+            Sign in with Google
+          </button>
+        </div>
+
+        <form id="j-handle" hidden novalidate>
+          <p>Signed in. One last step:</p>
+          <label class="field-label" for="j-input">Pick your handle</label>
+          <input class="field" id="j-input" name="handle" type="text" autocomplete="off" autocapitalize="off"
+                 spellcheck="false" maxlength="20" inputmode="text" aria-describedby="j-status">
+          <p class="field-status" id="j-status" data-kind="wait" aria-live="polite">3–20 letters, numbers or underscores.</p>
+          <p class="mutedt small">This is your name on the board. It can’t be changed later without asking the sysop.</p>
+          <button class="btn primary" id="j-claim" type="submit" disabled>Claim handle</button>
+        </form>
+
+        <div id="j-done" hidden>
+          <p>logged in as <strong class="session-handle" id="j-done-handle"></strong></p>
+          <p class="mutedt">You’re all set.</p>
+          <a class="btn primary" id="j-continue" href="/">Continue &gt;</a>
+        </div>
+
+        <p class="field-status" id="j-error" data-kind="bad" role="alert" hidden></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>© Garage Terminal</span><span>NO CARRIER</span></div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,15 @@
+/* forms.css: inputs, buttons and status lines for pages with forms (join, later: new thread, mod). */
+.narrow{max-width:640px}
+.small{font-size:13px}
+button.btn{border:0;cursor:pointer;font:inherit;font-family:var(--sans);font-weight:600;align-self:flex-start}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+button.btn:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.field-label{font-family:var(--mono);font-size:13px;color:var(--soft);letter-spacing:.04em}
+.field{width:100%;min-height:48px;padding:10px 14px;border-radius:8px;border:1px solid var(--line-2);
+  background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:16px}
+.field:focus{outline:none;border-color:var(--green)}
+.field-status{min-height:1.9em}
+.field-status[data-kind="ok"]{color:var(--green)}
+.field-status[data-kind="bad"]{color:#FF8A80}
+.field-status[data-kind="wait"]{color:var(--muted)}
+#j-handle,#j-guest,#j-done{display:flex;flex-direction:column;gap:14px}

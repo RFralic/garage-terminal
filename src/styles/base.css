@@ -68,3 +68,15 @@ footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;
 /* Inner pages (forum, wiki, 404): page title sits in the section heading */
 main.page{padding-top:48px;min-height:60vh}
 .shead h1{margin:0;font-family:var(--mono);font-size:22px;line-height:1.4}
+
+/* Sign-in status line under the top menu (filled in by src/lib/header.js) */
+.session{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-height:44px;padding-bottom:6px;
+  font-family:var(--mono);font-size:13px}
+.session-muted{color:var(--muted)}
+.session-handle{color:var(--violet);font-weight:600}
+.session-sep{color:var(--line-2)}
+.session-link{display:inline-flex;align-items:center;min-height:44px;padding:0 6px;background:none;border:0;
+  color:var(--green);font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.session-link:hover{color:var(--green-hi)}
+.session-link:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:4px}
+.tag-sysop{padding:1px 8px;border:1px solid #5A4A2A;border-radius:999px;color:var(--amber);font-size:11px;letter-spacing:.06em}
