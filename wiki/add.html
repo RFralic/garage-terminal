@@ -18,7 +18,12 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0B0E12">
-<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<!-- Site icons: SVG for modern browsers, .ico/.png fallbacks, home-screen icon, web manifest -->
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
@@ -32,7 +37,7 @@
 <body>
 <header>
   <nav class="wrap" aria-label="Main">
-    <a class="logo" href="/">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
+    <a class="logo" href="/"><img class="logo-mark" src="/logo.svg" alt="" width="28" height="28">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
     <div class="links">
       <a href="/#apps">/apps</a>
       <a href="/forum">/forum</a>

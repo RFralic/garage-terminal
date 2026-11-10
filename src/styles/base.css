@@ -27,6 +27,9 @@ a:focus-visible{outline:2px solid var(--green);outline-offset:3px;border-radius:
 header{border-bottom:1px solid var(--line);background:var(--bar)}
 nav{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding-block:14px}
 .logo{font-family:var(--mono);font-weight:700;font-size:18px;color:var(--green);text-decoration:none;letter-spacing:.02em}
+/* Site logo mark just left of the GARAGE_TERMINAL text */
+.logo{display:inline-flex;align-items:center}
+.logo-mark{width:28px;height:28px;flex:none;display:block;margin-right:10px}
 .cursor{animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.cursor{animation:none}html{scroll-behavior:auto}}
