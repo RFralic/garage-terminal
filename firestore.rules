@@ -6,8 +6,9 @@ rules_version = '2';
 // These rules are the real security. The web pages only *ask*; the rules
 // decide. Anything not explicitly allowed here is denied.
 //
-// Phase 2 covers: users, handles, private, admins.
-// Later phases add: areas, threads, posts, reports, library, settings, modlog.
+// Phase 2: users, handles, private, admins.
+// Phase 3: areas, threads, posts, settings (read), rate limit.
+// Later phases add: reports, library, modlog, sysop moderation writes.
 //
 // Cloud Functions (later phases) use the Admin SDK, which bypasses these rules.
 // That's how counters like postCount get updated without members touching them.
@@ -66,7 +67,17 @@ service cloud.firestore {
         // and the private email record must be written at the same time
         && existsAfter(/databases/$(database)/documents/private/$(uid));
 
-      allow update, delete: if false;
+      // The only field a member may change is their own "last posted" time, and
+      // only to *now*, and only if 20+ seconds have passed. Every new thread or
+      // reply must update it in the same write, which is how the
+      // one-post-per-20-seconds rate limit is enforced.
+      allow update: if isSelf(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastPostAt'])
+        && request.resource.data.lastPostAt == request.time
+        && (!('lastPostAt' in resource.data)
+            || request.time > resource.data.lastPostAt + duration.value(20, 's'));
+
+      allow delete: if false;
     }
 
     // ---------- handles/{handle}: keeps handles unique -----------------------
@@ -104,6 +115,129 @@ service cloud.firestore {
         && existsAfter(/databases/$(database)/documents/users/$(uid));
 
       allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // FORUM
+    // =========================================================================
+
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Member with a handle and status "active" (muted and banned can't post).
+    function isActiveMember() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && me().status == 'active';
+    }
+
+    // This write must also bump the member's lastPostAt to now (rate limit).
+    function bumpsLastPost() {
+      return getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastPostAt == request.time;
+    }
+
+    // Author fields on a new thread or post must be the real, current member.
+    // authorRole drives the SYSOP badge, so it's checked against admins/.
+    function authorFieldsOk(data) {
+      return data.authorUid == request.auth.uid
+        && data.authorHandle == me().handle
+        && data.authorRole == (isAdmin() ? 'sysop' : 'member');
+    }
+
+    function validTitle(t) {
+      return t is string && t.size() >= 3 && t.size() <= 120 && t.matches('(?s).*\\S.*');
+    }
+
+    function validBody(b) {
+      return b is string && b.size() >= 1 && b.size() <= 10000 && b.matches('(?s).*\\S.*');
+    }
+
+    // ---------- settings/site: sysop notice, forum switch, word filter -------
+    // Everyone reads (the forum shows the notice). Only the sysop writes.
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------- areas/{id}: [1] General ... [5] Off-Topic --------------------
+    // Created by the deploy (scripts/seed.mjs). Read-only from the site.
+    match /areas/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ---------- threads/{threadId} -------------------------------------------
+    // replyCount and lastReplyAt are kept up to date by Cloud Functions.
+    // pinned / locked / hidden are sysop controls (Phase 4).
+    match /threads/{threadId} {
+      // Hidden threads are invisible to everyone but the sysop. List queries
+      // from the page must include where('hidden', '==', false).
+      allow read: if resource.data.hidden == false || isAdmin();
+
+      allow create: if isActiveMember()
+        && request.resource.data.keys().hasOnly([
+             'areaId', 'title', 'authorUid', 'authorHandle', 'authorRole',
+             'createdAt', 'lastReplyAt', 'replyCount', 'pinned', 'locked', 'hidden'])
+        && exists(/databases/$(database)/documents/areas/$(request.resource.data.areaId))
+        && validTitle(request.resource.data.title)
+        && authorFieldsOk(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.lastReplyAt == request.time
+        && request.resource.data.replyCount == 0
+        && request.resource.data.pinned == false
+        && request.resource.data.locked == false
+        && request.resource.data.hidden == false
+        // the opening post (id "op") is written in the same batch
+        && existsAfter(/databases/$(database)/documents/threads/$(threadId)/posts/op)
+        && bumpsLastPost();
+
+      // Members never edit thread docs; sysop tools come in Phase 4.
+      allow update, delete: if false;
+
+      // ---------- threads/{threadId}/posts/{postId} --------------------------
+      // The opening post always has the id "op"; replies get random ids.
+      match /posts/{postId} {
+        function thread() {
+          return get(/databases/$(database)/documents/threads/$(threadId)).data;
+        }
+        function threadAfter() {
+          return getAfter(/databases/$(database)/documents/threads/$(threadId)).data;
+        }
+
+        allow read: if isAdmin() || (resource.data.hidden == false && thread().hidden == false);
+
+        allow create: if isActiveMember()
+          && request.resource.data.keys().hasOnly([
+               'authorUid', 'authorHandle', 'authorRole', 'body', 'createdAt', 'hidden'])
+          && authorFieldsOk(request.resource.data)
+          && validBody(request.resource.data.body)
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.hidden == false
+          && bumpsLastPost()
+          // "op" only together with a brand-new thread; replies only to an
+          // existing thread that isn't locked or hidden.
+          && (postId == 'op'
+                ? !exists(/databases/$(database)/documents/threads/$(threadId))
+                  && threadAfter().authorUid == request.auth.uid
+                : thread().locked == false && thread().hidden == false);
+
+        // Authors can edit their own post's text within 30 minutes, if the
+        // thread isn't locked and they're still allowed to post.
+        allow update: if isActiveMember()
+          && resource.data.authorUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body', 'editedAt'])
+          && validBody(request.resource.data.body)
+          && request.resource.data.editedAt == request.time
+          && request.time < resource.data.createdAt + duration.value(30, 'm')
+          && thread().locked == false;
+
+        // Authors can delete their own replies. The opening post can't be
+        // deleted by members (deleting a whole thread is sysop-only).
+        allow delete: if signedIn()
+          && resource.data.authorUid == request.auth.uid
+          && postId != 'op';
+      }
     }
 
     // ---------- admins/{uid}: who is sysop -----------------------------------

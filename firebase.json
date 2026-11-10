@@ -35,12 +35,30 @@
           }
         ]
       }
+    ],
+    "rewrites": [
+      {
+        "source": "/forum/t/**",
+        "destination": "/forum/thread.html"
+      }
     ]
   },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs22",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.log"
+      ]
+    }
+  ],
   "emulators": {
     "auth": {
       "port": 9099
@@ -54,6 +72,9 @@
     "ui": {
       "enabled": false
     },
-    "singleProjectMode": true
+    "singleProjectMode": true,
+    "functions": {
+      "port": 5001
+    }
   }
 }

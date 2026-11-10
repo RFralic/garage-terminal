@@ -1,10 +1,13 @@
 # Tests and deploys the site.
-#  - Every push and pull request: runs the Firestore rules tests on the emulator.
-#    If any test fails, nothing is deployed.
-#  - Push to main: deploys Firestore rules, then the website, to the live project
-#    (garage-terminal-15499.web.app).
+#  - Every push and pull request: runs the tests (Firestore rules + Cloud Functions)
+#    on the emulator. If any test fails, nothing is deployed.
+#  - Push to main, in this order:
+#      1. Firestore rules + indexes
+#      2. Starting data (areas, settings) if missing: scripts/seed.mjs
+#      3. The website (garage-terminal-15499.web.app)
+#      4. Cloud Functions (last, so a functions problem never blocks the site)
 #  - Pull request: deploys the website only to a temporary preview link, posted on
-#    the PR. Previews share the live database and rules; rules change only from main.
+#    the PR. Previews share the live database and rules; those change only from main.
 #
 # Needs one GitHub secret: FIREBASE_SERVICE_ACCOUNT (the JSON key of the deploy service account).
 name: Deploy
@@ -25,35 +28,47 @@ jobs:
     # Fork PRs can't see secrets, so skip them instead of failing.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
 
-      # The Firestore emulator (used by the rules tests) needs Java.
-      - uses: actions/setup-java@v4
+      # The Firestore emulator (used by the tests) needs Java.
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
 
       - run: npm ci
+      - run: npm ci --prefix functions
 
-      - name: Rules tests (Firestore emulator)
-        run: npm run test:rules
+      - name: Tests (rules + functions, on the Firestore emulator)
+        run: npm test
 
       - run: npm run build
 
-      - name: Deploy Firestore rules (main only)
+      # ---- live deploy (main only) ------------------------------------------
+
+      - name: Write deploy credentials
         if: github.event_name == 'push'
         env:
           SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           echo "$SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/sa.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx firebase deploy --only firestore:rules,firestore:indexes --project garage-terminal-15499 --non-interactive
-          rm -f "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      - name: Deploy Firestore rules and indexes
+        if: github.event_name == 'push'
+        run: npx firebase deploy --only firestore:rules,firestore:indexes --project garage-terminal-15499 --non-interactive
+
+      - name: Seed starting data (areas, settings) if missing
+        if: github.event_name == 'push'
+        run: node scripts/seed.mjs
 
       - name: Deploy website
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -63,3 +78,12 @@ jobs:
           projectId: garage-terminal-15499
           # Live deploy on main; PRs get a preview channel (expires after 7 days).
           channelId: ${{ github.event_name == 'push' && 'live' || '' }}
+
+      - name: Deploy Cloud Functions
+        if: github.event_name == 'push'
+        # --force: accept the default clean-up policy for old function images
+        run: npx firebase deploy --only functions --project garage-terminal-15499 --non-interactive --force
+
+      - name: Remove deploy credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"

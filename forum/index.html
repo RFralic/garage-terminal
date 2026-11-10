@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<!-- Forum · Garage Terminal: placeholder page for Phase 1. Shared look comes from src/styles/base.css. -->
+<!-- /forum: thread list. Logic: src/pages/forum-list.js -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -12,7 +12,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/src/styles/base.css">
-<script type="module" src="/src/pages/common.js"></script>
+<link rel="stylesheet" href="/src/styles/forms.css">
+<link rel="stylesheet" href="/src/styles/forum.css">
+<script type="module" src="/src/pages/forum-list.js"></script>
 </head>
 <body>
 <header>
@@ -31,14 +33,26 @@
 <main class="wrap page">
   <section class="block">
     <div class="shead"><h1>&gt; cd /forum</h1><span>open to read</span></div>
-    <div class="term">
-      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>forum.txt</span></div>
-      <div class="tbody">
-        <p>Areas: [1] General · [2] App Support · [3] Releases · [4] Wiki Requests · [5] Off&#8209;Topic</p>
-        <p class="mutedt">Anyone can read. Sign in with Google and pick a handle to post.</p>
-        <p class="soon">&gt; Forum opening soon. Check back.</p>
-        <p><a href="/">&lt; back to home</a></p>
+
+    <aside class="notice" id="f-notice" hidden>
+      <p class="notice-tag">SYSOP NOTICE</p>
+      <div class="md notice-body" id="f-notice-body"></div>
+    </aside>
+
+    <div class="forum-bar">
+      <nav class="chips" id="f-areas" aria-label="Message areas"></nav>
+      <div class="forum-actions">
+        <a class="btn primary" id="f-new" href="/forum/new" hidden>+ New thread</a>
+        <a class="btn ghost" id="f-join" href="/join?next=%2Fforum" hidden>Join to post</a>
+        <p class="mutedt small" id="f-cant" hidden></p>
       </div>
+    </div>
+
+    <div class="term">
+      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span id="f-file">threads.txt</span></div>
+      <p class="list-status" id="f-status">loading…</p>
+      <ol class="threads" id="f-list" aria-label="Threads"></ol>
+      <div class="list-more"><button class="btn ghost" id="f-more" type="button" hidden>Load more</button></div>
     </div>
   </section>
 </main>

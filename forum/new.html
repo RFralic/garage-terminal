@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<!-- /forum/new: new thread form. Logic: src/pages/new-thread.js -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>New thread · Garage Terminal</title>
+<meta name="description" content="Start a thread on the Garage Terminal forum.">
+<meta name="theme-color" content="#0B0E12">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/src/styles/base.css">
+<link rel="stylesheet" href="/src/styles/forms.css">
+<link rel="stylesheet" href="/src/styles/forum.css">
+<script type="module" src="/src/pages/new-thread.js"></script>
+</head>
+<body>
+<header>
+  <nav class="wrap" aria-label="Main">
+    <a class="logo" href="/">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
+    <div class="links">
+      <a href="/#apps">/apps</a>
+      <a href="/forum" aria-current="page">/forum</a>
+      <a href="/wiki">/wiki</a>
+      <a href="/#bbs" hidden>/bbs</a>
+    </div>
+  </nav>
+  <div class="wrap session" id="session" aria-live="polite"></div>
+</header>
+
+<main class="wrap page">
+  <section class="block narrow-wide">
+    <p class="crumbs"><a href="/forum">&lt; /forum</a></p>
+    <div class="shead"><h1>&gt; new thread</h1><span>post to the board</span></div>
+
+    <div class="term">
+      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>new_thread.txt</span></div>
+      <p class="list-status" id="n-status">loading…</p>
+      <form class="tbody form-body" id="n-form" novalidate hidden>
+        <label class="field-label" for="n-area">Area</label>
+        <select class="field" id="n-area" name="area"></select>
+
+        <label class="field-label" for="n-title">Title</label>
+        <input class="field" id="n-title" name="title" type="text" maxlength="120" autocomplete="off" placeholder="What’s it about?">
+
+        <div class="composer" data-composer>
+            <div class="composer-bar">
+              <label class="field-label" for="n-body">Message</label>
+              <button class="link-btn" type="button" data-preview-toggle>Preview</button>
+            </div>
+            <textarea class="field area-field" id="n-body" name="n-body" rows="10" placeholder="Write your post…"></textarea>
+            <div class="md post-body preview" data-preview hidden></div>
+            <p class="composer-foot"><span>Markdown: **bold**, _italic_, `code`, [link](https://…), - lists, &gt; quotes</span><span data-counter></span></p>
+          </div>
+        <p class="field-status" id="n-error" data-kind="bad" role="alert"></p>
+        <button class="btn primary" id="n-send" type="submit">Post thread</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>© Garage Terminal</span><span>NO CARRIER</span></div>
+</footer>
+</body>
+</html>

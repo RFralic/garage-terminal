@@ -10,7 +10,9 @@ Live site: https://garage-terminal-15499.web.app
 | Path | What it is |
 | --- | --- |
 | `index.html` | Home page (ported from `garage-terminal.html`, which is kept for reference) |
-| `forum/index.html` | Forum (placeholder until Phase 3) |
+| `forum/index.html` | Forum thread list (`src/pages/forum-list.js`) |
+| `forum/thread.html` | One thread, served at `/forum/t/{id}` (`src/pages/thread.js`) |
+| `forum/new.html` | New thread form (`src/pages/new-thread.js`) |
 | `wiki/index.html` | Library (placeholder until Phase 5) |
 | `join/index.html` | Sign in with Google + pick a handle (`src/pages/join.js`) |
 | `404.html` | Not-found page |
@@ -21,8 +23,16 @@ Live site: https://garage-terminal-15499.web.app
 | `src/lib/session.js` | Sign-in, sign-out, handle rules, claiming a handle |
 | `src/lib/header.js` | The "reading as guest · Sign in" line on every page |
 | `src/pages/common.js` | Script every plain page loads |
+| `src/lib/forum.js` | Every forum read/write (threads, posts, rate limit helpers) |
+| `src/lib/markdown.js` | Markdown → sanitized HTML (marked + DOMPurify). All user formatting goes through it |
+| `src/lib/ui.js` | Small DOM helpers, time formatting, the Markdown composer |
+| `src/styles/forum.css` | Forum styles |
+| `functions/index.js` | Cloud Functions: reply counts, last reply time, post counts |
+| `scripts/seed.mjs` | Creates the forum areas and site settings if missing (runs on deploy) |
+| `scripts/add-sysop.mjs` | Makes a member sysop (run via the "Add sysop" GitHub action) |
+| `firestore.indexes.json` | Database indexes the thread and post lists need |
 | `firestore.rules` | **The real security.** Who can read/write what |
-| `tests/firestore.rules.test.js` | Rules tests, run on the Firestore emulator |
+| `tests/` | Rules tests and Cloud Functions tests, run on the Firestore emulator |
 | `public/` | Files copied as-is (images, favicon) |
 | `vite.config.js` | List of pages to build; add new pages here |
 | `firebase.json` | Hosting settings (clean URLs, caching, security headers) |
@@ -31,16 +41,18 @@ Live site: https://garage-terminal-15499.web.app
 ## Working on it
 
 ```bash
-npm install
-npm run emulators   # terminal 1: local Firebase (fake auth + database, needs Java)
+npm install && npm install --prefix functions
+npm run emulators   # terminal 1: local Firebase (fake auth + database + functions, needs Java)
+npm run seed:local  # once: create the forum areas in the local database
 npm run dev         # terminal 2: local site at http://localhost:5173, talks to the emulators
-npm run test:rules  # Firestore rules tests
+npm test            # rules + functions tests
 npm run build       # production build into dist/
 ```
 
 Locally the site uses a demo project (`demo-garage-terminal`) on the emulators, so it never touches real data.
 
-Deploys happen automatically through GitHub Actions: rules tests first, then on `main` the Firestore rules and the site.
+Deploys happen automatically through GitHub Actions: tests first, then on `main` the Firestore rules,
+starting data, the site, and Cloud Functions.
 Nothing is deployed by hand.
 The workflow needs the repo secret `FIREBASE_SERVICE_ACCOUNT` (a service-account JSON key for project
 `garage-terminal-15499`).

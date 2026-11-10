@@ -4,31 +4,23 @@
 // Each test acts as a guest, a member, or the sysop and checks the rules
 // allow or block exactly what PLAN.md says.
 
-import { readFileSync } from 'node:fs';
 import { after, before, beforeEach, describe, test } from 'node:test';
-import {
-  initializeTestEnvironment,
-  assertFails,
-  assertSucceeds,
-} from '@firebase/rules-unit-testing';
+import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { startEnv, guestOf, asOf, seed as seedRaw, seedMember as seedMemberRaw } from './helpers.js';
 import { doc, getDoc, getDocs, collection, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 
 let env;
 
 before(async () => {
-  env = await initializeTestEnvironment({
-    projectId: 'demo-garage-terminal',
-    firestore: { rules: readFileSync('firestore.rules', 'utf8') },
-  });
+  env = await startEnv();
 });
 after(() => env.cleanup());
 beforeEach(() => env.clearFirestore());
 
 // ---------- helpers ----------------------------------------------------------
 
-const guest = () => env.unauthenticatedContext().firestore();
-const as = (uid, email = `${uid}@example.com`) =>
-  env.authenticatedContext(uid, { email, email_verified: true }).firestore();
+const guest = () => guestOf(env)();
+const as = (...a) => asOf(env)(...a);
 
 /** The same three writes the /join page makes when claiming a handle. */
 function claim(db, uid, handle, { email = `${uid}@example.com`, extra = {}, handleId } = {}) {
@@ -39,17 +31,8 @@ function claim(db, uid, handle, { email = `${uid}@example.com`, extra = {}, hand
   return b.commit();
 }
 
-/** Seed data directly, bypassing rules (like the console or a Cloud Function). */
-async function seed(fn) {
-  await env.withSecurityRulesDisabled((ctx) => fn(ctx.firestore()));
-}
-async function seedMember(uid, handle) {
-  await seed(async (db) => {
-    await setDoc(doc(db, 'users', uid), { handle, createdAt: new Date(), status: 'active', postCount: 0 });
-    await setDoc(doc(db, 'handles', handle.toLowerCase()), { uid });
-    await setDoc(doc(db, 'private', uid), { email: `${uid}@example.com` });
-  });
-}
+const seed = (fn) => seedRaw(env, fn);
+const seedMember = (uid, handle) => seedMemberRaw(env, uid, handle);
 
 // ---------- claiming a handle ------------------------------------------------
 
@@ -197,7 +180,7 @@ describe('admins', () => {
 // ---------- everything else is locked ----------------------------------------
 
 test('collections not opened yet are locked for everyone', async () => {
-  await assertFails(getDoc(doc(guest(), 'threads', 'x')));
-  await assertFails(setDoc(doc(as('ryan'), 'threads', 'x'), { title: 'hi' }));
+  await assertFails(getDoc(doc(guest(), 'reports', 'x')));
+  await assertFails(setDoc(doc(as('ryan'), 'reports', 'x'), { reason: 'spam' }));
   await assertFails(setDoc(doc(as('ryan'), 'anything', 'x'), { a: 1 }));
 });

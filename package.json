@@ -8,8 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-garage-terminal \"node --test tests/*.test.js\"",
-    "emulators": "firebase emulators:start --only auth,firestore --project demo-garage-terminal"
+    "test": "firebase emulators:exec --only firestore --project demo-garage-terminal \"node --test --test-concurrency=1 tests/*.test.js\"",
+    "emulators": "firebase emulators:start --only auth,firestore,functions --project demo-garage-terminal",
+    "seed:local": "FIRESTORE_EMULATOR_HOST=localhost:8080 node scripts/seed.mjs"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",
@@ -18,6 +19,8 @@
     "vite": "^6.3.5"
   },
   "dependencies": {
-    "firebase": "^12.19.0"
+    "dompurify": "^3.4.17",
+    "firebase": "^12.19.0",
+    "marked": "^18.2.0"
   }
 }

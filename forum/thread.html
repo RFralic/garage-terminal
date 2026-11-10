@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<!-- /forum/t/{id}: one thread with replies (firebase.json rewrites to this file). Logic: src/pages/thread.js -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Thread · Garage Terminal</title>
+<meta name="description" content="A thread on the Garage Terminal forum.">
+<meta name="theme-color" content="#0B0E12">
+<link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/src/styles/base.css">
+<link rel="stylesheet" href="/src/styles/forms.css">
+<link rel="stylesheet" href="/src/styles/forum.css">
+<script type="module" src="/src/pages/thread.js"></script>
+</head>
+<body>
+<header>
+  <nav class="wrap" aria-label="Main">
+    <a class="logo" href="/">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
+    <div class="links">
+      <a href="/#apps">/apps</a>
+      <a href="/forum" aria-current="page">/forum</a>
+      <a href="/wiki">/wiki</a>
+      <a href="/#bbs" hidden>/bbs</a>
+    </div>
+  </nav>
+  <div class="wrap session" id="session" aria-live="polite"></div>
+</header>
+
+<main class="wrap page">
+  <section class="block">
+    <p class="crumbs"><a href="/forum">&lt; /forum</a> <span id="t-area"></span></p>
+    <div class="shead thread-head"><h1 id="t-title">loading…</h1><span id="t-flags"></span></div>
+
+    <p class="list-status" id="t-status" hidden></p>
+    <ol class="posts" id="t-posts" aria-label="Posts"></ol>
+
+    <div class="term reply-box" id="t-reply" hidden>
+      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>reply.txt</span></div>
+      <form class="tbody form-body" id="t-form" novalidate>
+          <div class="composer" data-composer>
+            <div class="composer-bar">
+              <label class="field-label" for="t-body">Reply as <span class="session-handle" id="t-me"></span></label>
+              <button class="link-btn" type="button" data-preview-toggle>Preview</button>
+            </div>
+            <textarea class="field area-field" id="t-body" name="t-body" rows="5" placeholder="Write your reply…"></textarea>
+            <div class="md post-body preview" data-preview hidden></div>
+            <p class="composer-foot"><span>Markdown: **bold**, _italic_, `code`, [link](https://…), - lists, &gt; quotes</span><span data-counter></span></p>
+          </div>
+          <p class="field-status" id="t-error" data-kind="bad" role="alert"></p>
+          <button class="btn primary" id="t-send" type="submit">Post reply</button>
+      </form>
+    </div>
+    <p class="thread-foot" id="t-join" hidden><a class="btn ghost" id="t-join-link" href="/join">Join to reply</a></p>
+    <p class="thread-foot mutedt" id="t-closed" hidden></p>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>© Garage Terminal</span><span>NO CARRIER</span></div>
+</footer>
+</body>
+</html>

@@ -98,15 +98,26 @@ export function logOff() {
 }
 
 // ---------- watching the session ---------------------------------------------
+// One shared listener for the whole page; any number of parts of the page can
+// subscribe with watchSession() and get the latest state straight away.
 
-export function watchSession(callback) {
+const listeners = new Set();
+let current = { state: 'loading' };
+let started = false;
+
+function publish(next) {
+  current = next;
+  for (const cb of listeners) cb(current);
+}
+
+function start() {
+  started = true;
   let stopProfile = () => {};
-  callback({ state: 'loading' });
 
-  return onAuthStateChanged(auth, async (user) => {
+  onAuthStateChanged(auth, async (user) => {
     stopProfile();
     if (!user) {
-      callback({ state: 'guest' });
+      publish({ state: 'guest' });
       return;
     }
 
@@ -118,19 +129,38 @@ export function watchSession(callback) {
       isSysop = false;
     }
 
-    // Live-follow the profile so claiming a handle updates every open page.
+    // Live-follow the profile so claiming a handle (or a new post count)
+    // updates every part of the page.
     stopProfile = onSnapshot(
       doc(db, 'users', user.uid),
       (snap) => {
         if (snap.exists()) {
-          callback({ state: 'member', user, profile: snap.data(), isSysop });
+          publish({ state: 'member', user, profile: snap.data(), isSysop });
         } else {
-          callback({ state: 'needs-handle', user });
+          publish({ state: 'needs-handle', user });
         }
       },
-      () => callback({ state: 'needs-handle', user }),
+      () => publish({ state: 'needs-handle', user }),
     );
   });
+}
+
+/** Subscribe to session changes. Returns an unsubscribe function. */
+export function watchSession(callback) {
+  listeners.add(callback);
+  callback(current);
+  if (!started) start();
+  return () => listeners.delete(callback);
+}
+
+/** The latest session state, without subscribing. */
+export function currentSession() {
+  return current;
+}
+
+/** True if this session may post (signed in, has a handle, status active). */
+export function canPost(s = current) {
+  return s.state === 'member' && s.profile.status === 'active';
 }
 
 /**
