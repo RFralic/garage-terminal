@@ -5,7 +5,8 @@
 #      1. Firestore rules + indexes
 #      2. Starting data (areas, settings) if missing: scripts/seed.mjs
 #      3. The website (garage-terminal-15499.web.app)
-#      4. Cloud Functions (last, so a functions problem never blocks the site)
+#      4. Cloud Functions (last, so a functions problem never blocks the site),
+#         plus a 1-day clean-up policy for old function images
 #  - Pull request: deploys the website only to a temporary preview link, posted on
 #    the PR. Previews share the live database and rules; those change only from main.
 #
@@ -84,6 +85,12 @@ jobs:
         # --force: accept the default clean-up policy for old function images
         run: npx firebase deploy --only functions --project garage-terminal-15499 --non-interactive --force
 
+      # Each functions deploy stores a container image in Artifact Registry.
+      # Delete images older than 1 day so storage doesn't slowly cost money.
+      # (Safe to repeat on every deploy; us-east1 is where the functions run.)
+      - name: Set clean-up policy for old function images
+        if: github.event_name == 'push'
+        run: npx firebase functions:artifacts:setpolicy --location us-east1 --days 1 --force --project garage-terminal-15499 --non-interactive
       - name: Remove deploy credentials
         if: always()
         run: rm -f "$RUNNER_TEMP/sa.json"
