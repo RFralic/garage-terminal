@@ -7,7 +7,7 @@ rules_version = '2';
 // decide. Anything not explicitly allowed here is denied.
 //
 // Sections: members (users, handles, private, admins) · forum (settings, areas,
-// threads, posts) · moderation (reports, modlog) · library.
+// threads, posts) · moderation (reports, modlog) · library · RepClock (per-member workouts).
 //
 // Cloud Functions use the Admin SDK, which bypasses these rules. That's how:
 //   - counters (replyCount, lastReplyAt, postCount) are kept up to date, and
@@ -367,6 +367,43 @@ service cloud.firestore {
         && request.resource.data.kind == resource.data.kind;
 
       allow delete: if isAdmin();
+    }
+
+    // =========================================================================
+    // REPCLOCK (apps/repclock): each member's own workouts and settings
+    // =========================================================================
+
+    // Private to the member: nobody else can read or write them, not even the
+    // sysop. Values are the JSON text RepClock keeps on the device
+    // (src/apps/repclock-sync.js).
+    function optionalText(m, key, max) {
+      return !(key in m) || (m[key] is string && m[key].size() <= max);
+    }
+
+    match /repclock/{uid} {
+      allow read, delete: if isSelf(uid);
+
+      allow create, update: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(['settings', 'updatedAt'])
+        && request.resource.data.settings is map
+        && request.resource.data.settings.keys().hasOnly(['cfg', 'goals', 'theme', 'muted'])
+        && optionalText(request.resource.data.settings, 'cfg', 20000)
+        && optionalText(request.resource.data.settings, 'goals', 20000)
+        && optionalText(request.resource.data.settings, 'theme', 100)
+        && optionalText(request.resource.data.settings, 'muted', 20)
+        && request.resource.data.updatedAt == request.time;
+
+      // One doc per saved workout; the ID is RepClock's workout id (a number).
+      match /workouts/{workoutId} {
+        allow read, delete: if isSelf(uid);
+
+        allow create, update: if isSelf(uid)
+          && workoutId.matches('^[0-9]{1,20}$')
+          && request.resource.data.keys().hasOnly(['json', 'date', 'updatedAt'])
+          && request.resource.data.json is string && request.resource.data.json.size() <= 50000
+          && request.resource.data.date is string && request.resource.data.date.size() <= 40
+          && request.resource.data.updatedAt == request.time;
+      }
     }
   }
 }

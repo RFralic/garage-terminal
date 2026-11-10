@@ -18,6 +18,8 @@ Live site: https://garage-terminal-15499.web.app
 | `wiki/add.html` | Sysop: upload a file or write a page; `?edit={slug}` to edit (`src/pages/library-add.js`) |
 | `join/index.html` | Sign in with Google + pick a handle (`src/pages/join.js`) |
 | `mod/index.html` | Sysop dashboard: reports, held posts, members, settings, mod log (`src/pages/mod.js`) |
+| `apps/repclock/index.html` | RepClock, built from its Claude artifact by `scripts/import-repclock.mjs` (don't edit by hand) |
+| `src/apps/repclock-sync.js` | Saves RepClock workouts and settings to the signed-in member's account |
 | `apps/tap-drill-chart/index.html` | Tap Drill Chart, copied from its Claude artifact (re-copy if the artifact changes) |
 | `404.html` | Not-found page |
 | `src/styles/base.css` | Shared look: colors, fonts, header, footer, terminal boxes |
@@ -72,6 +74,19 @@ starting data, the site, and Cloud Functions.
 Nothing is deployed by hand.
 The workflow needs the repo secret `FIREBASE_SERVICE_ACCOUNT` (a service-account JSON key for project
 `garage-terminal-15499`).
+
+## RepClock and member workouts
+
+RepClock (`/apps/repclock`) keeps its data on the device, as it always has. When a member is signed in,
+`src/apps/repclock-sync.js` also saves their workout history and settings to Firestore
+(`repclock/{uid}`, one doc per workout under `workouts/`), so they appear on every device they sign in on.
+Only the member can read or write their own (see the REPCLOCK section of `firestore.rules`); not other
+members, not the sysop. Signing out removes the member's workouts from that device (they stay in the
+account). A count or stopwatch in progress stays on the device.
+
+To update RepClock from a newer version of the Claude artifact, save the artifact's HTML and run
+`node scripts/import-repclock.mjs path/to/file.html`; the script stops with an error if the artifact
+changed in a way its edits no longer fit.
 
 ## Adding an app to the home page
 

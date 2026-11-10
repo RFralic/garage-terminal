@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<!--
+  RepClock, served at /apps/repclock. Built by scripts/import-repclock.mjs from
+  the Claude artifact https://claude.ai/artifact/JKeLMiprJDSDuf9GudpJpF.
+  Don't edit by hand: re-run the script with a newer artifact file instead.
+  Signed-in members' workouts sync to their account: src/apps/repclock-sync.js.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RepClock · Garage Terminal</title>
+<meta name="description" content="Rep counter, stopwatch and circuit interval timer with workout history.">
+<meta name="theme-color" content="#12161f">
+<!-- Site icons: SVG for modern browsers, .ico/.png fallbacks, home-screen icon, web manifest -->
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Figtree:wght@400;500;700&display=swap">
+<!-- Base styles from the artifact's page wrapper -->
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<style>
+/* Layout: one-screen phone app — setup/history tabs, full-bleed run screen colored by phase, summary table */
+:root{
+  --bg:#f3f4f7; --surface:#ffffff; --line:#d9dce4; --fg:#151a24; --muted:#5d6577;
+  --work:#e8431f; --work-ink:#ffffff; --rest:#0f8c7e; --rest-ink:#ffffff; --prep:#c98a00; --prep-ink:#1a1300;
+  --accent:#e8431f; --danger:#c22a2a;
+  --display:"Big Shoulders Display","Oswald","Arial Narrow",sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161f; --surface:#1b212d; --line:#2c3444; --fg:#eef0f5; --muted:#99a1b3;
+  --work:#ff5a33; --work-ink:#1a0600; --rest:#22c2ad; --rest-ink:#00201c; --prep:#f2b632; --prep-ink:#1a1300;
+  --accent:#ff5a33; --danger:#ff6b6b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161f; --surface:#1b212d; --line:#2c3444; --fg:#eef0f5; --muted:#99a1b3;
+  --work:#ff5a33; --work-ink:#1a0600; --rest:#22c2ad; --rest-ink:#00201c; --prep:#f2b632; --prep-ink:#1a1300;
+  --accent:#ff5a33; --danger:#ff6b6b; color-scheme:dark}
+:root{--good:#178a46;--good-ink:#ffffff}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--good:#3ccf78;--good-ink:#03200e}}
+:root[data-theme="dark"]{--good:#3ccf78;--good-ink:#03200e}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 32px;display:flex;flex-direction:column;gap:18px}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.brand h1{font-family:var(--display);font-weight:900;font-size:2.1rem;letter-spacing:.01em;margin:0;text-transform:uppercase;line-height:1}
+.brand h1 span{color:var(--accent)}
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+.tabs button{flex:1;padding:10px;border-radius:9px;font-weight:700;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg)}
+.label{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.field{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.stepper{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.stepper button{width:40px;height:40px;border-radius:10px;background:var(--bg);font-size:1.4rem;font-weight:700;flex:none}
+.stepper output{font-family:var(--display);font-weight:800;font-size:1.9rem;font-variant-numeric:tabular-nums;line-height:1}
+.stepper small{font-size:.8rem;color:var(--muted);font-family:var(--body);font-weight:500;margin-left:2px}
+.exlist{display:flex;flex-direction:column;gap:8px}
+.exrow{display:flex;gap:8px;align-items:center}
+.exrow .n{font-family:var(--display);font-weight:800;color:var(--muted);width:22px;text-align:right;flex:none}
+.exrow input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit;color:var(--fg)}
+.icon{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);flex:none;font-size:1.1rem;color:var(--muted)}
+.ghost{border:1px dashed var(--line);border-radius:10px;padding:12px;color:var(--muted);font-weight:700}
+.est{display:flex;justify-content:space-between;color:var(--muted);font-size:.92rem;font-variant-numeric:tabular-nums}
+.est b{color:var(--fg)}
+.primary{background:var(--accent);color:var(--work-ink);font-family:var(--display);font-weight:900;font-size:1.6rem;letter-spacing:.06em;text-transform:uppercase;padding:16px;border-radius:14px}
+.secondary{border:1px solid var(--line);background:var(--surface);padding:14px;border-radius:12px;font-weight:700}
+
+/* run screen */
+#run{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--phase);color:var(--ink);transition:background .25s;
+  padding-top:calc(env(safe-area-inset-top,0px) + 12px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));gap:10px;z-index:20}
+#run[data-phase="work"]{--phase:var(--work);--ink:var(--work-ink)}
+#run[data-phase="rest"],#run[data-phase="roundrest"]{--phase:var(--rest);--ink:var(--rest-ink)}
+#run[data-phase="prep"]{--phase:var(--prep);--ink:var(--prep-ink)}
+.runtop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;font-variant-numeric:tabular-nums}
+.runtop .k{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;opacity:.75}
+.runtop .v{font-family:var(--display);font-weight:800;font-size:1.7rem;line-height:1}
+.phase{font-family:var(--display);font-weight:900;font-size:1.5rem;letter-spacing:.14em;text-transform:uppercase;text-align:center}
+.exname{font-family:var(--display);font-weight:800;font-size:clamp(2rem,9vw,3rem);text-align:center;line-height:1;text-wrap:balance;text-transform:uppercase}
+.next{text-align:center;font-weight:600;opacity:.8;min-height:1.3em}
+.clock{font-family:var(--display);font-weight:900;font-size:clamp(6rem,38vw,11rem);line-height:.9;text-align:center;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:color-mix(in srgb,var(--ink) 22%,transparent);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ink);width:0}
+.reppad{flex:1;min-height:140px;border-radius:22px;background:color-mix(in srgb,var(--ink) 14%,transparent);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;user-select:none;touch-action:manipulation}
+.reppad .cnt{font-family:var(--display);font-weight:900;font-size:clamp(4rem,22vw,6.5rem);line-height:1;font-variant-numeric:tabular-nums}
+.reppad .hint{font-size:.85rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.8}
+.reppad:active{background:color-mix(in srgb,var(--ink) 24%,transparent)}
+.controls{display:grid;grid-template-columns:1.3fr 1fr 1.2fr 1fr;gap:8px}
+#mute[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:-2px}
+.repbtns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.repbtns button{padding:14px 6px;border-radius:12px;background:color-mix(in srgb,var(--ink) 16%,transparent);font-family:var(--display);font-weight:900;font-size:1.6rem;font-variant-numeric:tabular-nums}
+.repbtns button:active{background:color-mix(in srgb,var(--ink) 28%,transparent)}
+.controls button{padding:14px 6px;border-radius:12px;background:color-mix(in srgb,var(--ink) 16%,transparent);font-weight:800;font-size:.95rem}
+.controls .big{background:var(--ink);color:var(--phase)}
+#run.paused .clock{opacity:.45}
+
+/* summary + history */
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.95rem}
+th,td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal;min-width:110px}
+thead th{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+tfoot td{font-weight:800;border-bottom:0}
+td input{width:52px;text-align:right;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px;font:inherit;color:var(--fg)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat .v{font-family:var(--display);font-weight:800;font-size:1.9rem;font-variant-numeric:tabular-nums;line-height:1.05}
+.row2{display:flex;gap:10px}.row2>*{flex:1}
+.hist{display:flex;flex-direction:column;gap:10px}
+.hcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.hhead{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.hhead b{font-size:1.05rem}
+.hmeta{color:var(--muted);font-size:.88rem;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:.85rem;font-variant-numeric:tabular-nums}
+.hact{display:flex;gap:8px;justify-content:flex-end}
+.hact button{font-size:.85rem;font-weight:700;color:var(--muted);padding:6px 8px}
+.hact .del{color:var(--danger)}
+.empty{color:var(--muted);text-align:center;padding:28px 12px;border:1px dashed var(--line);border-radius:12px}
+.note{color:var(--muted);font-size:.85rem;line-height:1.45}
+button.chip{padding:8px 14px;font-weight:700;font-size:.95rem;border-radius:14px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left}
+button.chip .cs{font-size:.78rem;font-weight:600;opacity:.75;font-variant-numeric:tabular-nums}
+button.chip.done{background:var(--good);color:var(--good-ink);border-color:var(--good)}
+button.chip.done .cs{opacity:.95}
+button.chip.done[aria-pressed="true"]{outline:3px solid var(--fg);outline-offset:2px}
+.exrow input.goal{flex:none;width:84px;text-align:right}
+button.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.counterbox{--phase:var(--work);--ink:var(--work-ink);background:var(--phase);color:var(--ink);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.counterbox .reppad{min-height:190px;flex:none}
+.cname{font-family:var(--display);font-weight:800;font-size:1.6rem;text-transform:uppercase;text-align:center;line-height:1.05;text-wrap:balance}
+.clog{background:var(--ink);color:var(--phase);padding:15px;border-radius:12px;font-family:var(--display);font-weight:900;font-size:1.4rem;letter-spacing:.06em;text-transform:uppercase}
+.tbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"label modes" "clock btns" "goal goal" "laps laps";gap:4px 10px;align-items:center}
+#tLabel{grid-area:label;text-align:left;font-size:.68rem}
+.tmodes{grid-area:modes}
+#tClock{grid-area:clock}
+#tGoal{grid-area:goal}
+.tbtns{grid-area:btns}
+#tLaps{grid-area:laps}
+.tbox.up{background:var(--good);color:var(--good-ink);border-color:var(--good)}
+.tbox.up .label{color:var(--good-ink)}
+.tmodes{display:flex;gap:2px;background:var(--bg);border-radius:8px;padding:2px}
+.tmodes button{padding:4px 9px;border-radius:6px;font-weight:700;font-size:.78rem;color:var(--muted)}
+.tmodes button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.tclock{font-family:var(--display);font-weight:900;font-size:2.6rem;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbox.running .tclock{color:var(--accent)}
+.tgoal{display:flex;align-items:center;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums;font-size:.88rem}
+.tgoal button{padding:5px 10px;border-radius:8px;background:var(--bg);font-weight:700;font-size:.85rem}
+.tgoal b{font-family:var(--display);font-size:1.15rem}
+.tbtns{display:flex;gap:6px}
+.tbtns button{padding:10px 12px;min-width:74px;border-radius:10px;font-family:var(--display);font-weight:900;font-size:1.05rem;letter-spacing:.05em;text-transform:uppercase;background:var(--bg)}
+.tbtns .go{background:var(--accent);color:var(--work-ink)}
+.tbox button:disabled{opacity:.4;cursor:default}
+.laps{list-style:none;margin:0;padding:0;max-height:64px;overflow-y:auto;border-top:1px solid var(--line);font-size:.85rem}
+.laps li{display:grid;grid-template-columns:1fr auto auto;gap:18px;padding:4px 2px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.laps li span:first-child{font-weight:600;opacity:.7}
+.crow{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.crow>div{flex:1}
+.ctot{font-family:var(--display);font-size:1.7rem;font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){#run{transition:none}}
+.brand h1{display:flex;align-items:center;gap:10px}
+.brand h1 .logo{width:38px;height:38px;flex:none}
+
+/* settings menu */
+.brand{align-items:center}
+.settings{position:relative;flex:none}
+.gear{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--muted);display:grid;place-items:center}
+.gear svg{width:22px;height:22px}
+.gear[aria-expanded="true"]{color:var(--fg);border-color:var(--fg)}
+.menu{position:absolute;right:0;top:calc(100% + 8px);z-index:15;width:220px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.themes{display:flex;flex-direction:column;gap:6px}
+.themes button{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;border:1px solid var(--line);font-weight:700;text-align:left}
+.themes button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.sw{width:30px;height:20px;border-radius:5px;flex:none;border:1px solid var(--line)}
+.sw-o{background:linear-gradient(90deg,var(--bg) 50%,var(--accent) 50%)}
+.sw-c{background:repeating-linear-gradient(-45deg,#e01b22 0 6px,#d6f20a 6px 12px)}
+
+/* Chevron theme: rear-of-apparatus stripes, red + fluorescent yellow, veiled to stay subtle */
+:root{--chev-red:#e01b22;--chev-yel:#d6f20a;--veil:86%}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--veil:84%}}
+:root[data-theme="dark"]{--veil:84%}
+body.theme-chevron{
+  background-image:
+    linear-gradient(color-mix(in srgb,var(--bg) var(--veil),transparent),color-mix(in srgb,var(--bg) var(--veil),transparent)),
+    repeating-linear-gradient(-45deg,var(--chev-red) 0 36px,var(--chev-yel) 36px 72px),
+    repeating-linear-gradient(45deg,var(--chev-red) 0 36px,var(--chev-yel) 36px 72px);
+  background-size:100% 100%,50% 100%,50% 100%;
+  background-position:0 0,left top,right top;
+  background-repeat:no-repeat;
+  background-attachment:fixed}
+body.theme-chevron button.chip:not([aria-pressed="true"]):not(.done){background:var(--surface)}
+body.theme-chevron{--accent:#c8141b;--work:#c8141b;--work-ink:#ffffff}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) body.theme-chevron{--accent:#e3262d;--work:#e3262d;--work-ink:#ffffff}}
+:root[data-theme="dark"] body.theme-chevron{--accent:#e3262d;--work:#e3262d;--work-ink:#ffffff}
+</style>
+<style>
+/* Garage Terminal additions: back link + sync status bar */
+.gt-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:-6px;font:600 .85rem var(--body)}
+.gt-back{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-family:ui-monospace,Menlo,Consolas,monospace}
+.gt-back:hover{color:var(--fg)}
+.gt-back:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.gt-sync{color:var(--muted);text-align:right;overflow-wrap:anywhere}
+.gt-sync a{color:var(--accent);display:inline-flex;align-items:center;min-height:44px}
+.gt-sync[data-state="ok"]{color:var(--good)}
+.gt-sync[data-state="error"]{color:var(--danger)}
+</style>
+<script type="module" src="/src/apps/repclock-sync.js"></script>
+</head>
+<body>
+<div class="wrap" id="home">
+  <!-- Garage Terminal: back link + account sync status (src/apps/repclock-sync.js) -->
+  <div class="gt-bar"><a class="gt-back" href="/#apps">&lt; garage_terminal</a><span class="gt-sync" id="gtSync" aria-live="polite"></span></div>
+  <div class="brand"><h1><svg class="logo" viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="rcF" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b3200f"/><stop offset="1" stop-color="#e8431f"/></linearGradient><clipPath id="rcC"><rect width="100" height="100" rx="22"/></clipPath></defs><g clip-path="url(#rcC)"><rect width="100" height="100" fill="url(#rcF)"/><path fill="#ff7a1f" d="M-5 100V62c6 6 9 3 9-6 6 8 12 10 12 20 3-10 10-16 9-30 9 10 14 20 12 32 4-8 10-12 10-24 9 12 12 22 10 34 5-6 11-8 12-18 7 10 9 20 7 30 4-4 8-8 9-14 4 8 5 14 4 14z"/><path fill="#ffb21a" d="M-5 100V80c5 4 8 2 9-4 5 6 8 10 7 18 4-6 9-10 9-20 7 8 10 16 9 24 4-6 8-8 9-16 7 8 9 14 8 22 4-4 8-6 9-12 6 6 7 12 6 16 3-2 6-6 7-10 3 6 3 10 2 12z"/><path fill="#ffe27a" d="M-5 100v-8c4 2 7 0 8-3 4 4 5 7 4 11zm30 0c2-4 6-7 6-13 5 5 6 9 5 13zm32 0c2-3 5-5 5-10 4 4 5 7 4 10zm26 0c2-3 4-4 4-8 3 3 4 6 3 8z"/></g><g stroke="#fff" stroke-linecap="round"><rect x="42" y="8" width="16" height="7" rx="2" fill="#fff" stroke="none"/><path d="M50 15v7" stroke-width="7"/><path d="M73 24l5-5" stroke-width="7"/><circle cx="50" cy="57" r="31" fill="#1a1110" stroke-width="7"/><path d="M38 45v24M46 45v24M54 45v24M62 45v24" stroke-width="5.5" fill="none"/><path d="M32 64L68 50" stroke="#1a1110" stroke-width="11"/><path d="M32 64L68 50" stroke="#ffb21a" stroke-width="5.5"/></g></svg>Rep<span>Clock</span></h1>
+    <div class="settings"><button id="setBtn" class="gear" aria-expanded="false" aria-controls="setMenu" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg></button>
+      <div class="menu" id="setMenu" hidden role="group" aria-label="Settings">
+        <div class="label">Theme</div>
+        <div class="themes">
+          <button data-theme-pick="original" aria-pressed="true"><span class="sw sw-o"></span>Original</button>
+          <button data-theme-pick="chevron" aria-pressed="false"><span class="sw sw-c"></span>Hero</button>
+        </div>
+      </div>
+    </div></div>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tabCount" aria-selected="true">Rep counter</button>
+    <button role="tab" id="tabSetup" aria-selected="false">Workout</button>
+    <button role="tab" id="tabHist" aria-selected="false">History</button>
+  </div>
+
+  <section id="setup" style="display:flex;flex-direction:column;gap:18px">
+    <div class="grid" id="steppers"></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="label">Exercises in each circuit</div>
+      <div class="exlist" id="exlist"></div>
+      <button class="ghost" id="addEx">+ Add exercise</button>
+    </div>
+    <div class="est"><span>Intervals: <b id="estN">0</b></span><span>Total time: <b id="estT">0:00</b></span></div>
+    <button class="primary" id="startBtn">Start workout</button>
+    <p class="note">Tap the big pad to count each rep. During rest, taps go to the exercise you just finished, so you can catch up on your count.</p>
+  </section>
+
+  <section id="counter" hidden style="flex-direction:column;gap:14px">
+    <div class="tbox" id="tBox">
+      <div class="tmodes" role="group" aria-label="Timer mode"><button id="tUp" aria-pressed="true">Stopwatch</button><button id="tDown" aria-pressed="false">Countdown</button></div>
+      <div class="label tlabel" id="tLabel">Stopwatch</div>
+      <div class="tclock" id="tClock" aria-live="off">0:00.0</div>
+      <div class="tgoal" id="tGoal" hidden><button id="tGm" aria-label="Lower time goal by one minute">−1 min</button><span>Time goal <b id="tGv">10:00</b></span><span style="display:flex;gap:6px"><button id="tGp" aria-label="Raise time goal by one minute">+1 min</button><button id="tGp10" aria-label="Raise time goal by ten minutes">+10 min</button></span></div>
+      <div class="tbtns"><button id="tLeft">Reset</button><button id="tRight" class="go">Start</button></div>
+      <ol class="laps" id="tLaps" hidden></ol>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div class="label">Exercise</div><button class="secondary" id="cEdit" style="padding:8px 14px">Edit</button></div>
+    <div class="chips" id="cChips"></div>
+    <div class="exrow"><input id="cNew" placeholder="Add an exercise" aria-label="New exercise name"><button class="secondary" id="cAdd">Add</button></div>
+    <div class="counterbox">
+      <div class="cname" id="cName"></div>
+      <button class="reppad" id="cPad" aria-label="Add one rep"><span class="cnt" id="cCnt">0</span><span class="hint">Tap to count reps</span></button>
+      <div class="repbtns">
+        <button id="cMinus" aria-label="Remove one rep">−1</button>
+        <button id="cPlus5" aria-label="Add five reps">+5</button>
+        <button id="cPlus10" aria-label="Add ten reps">+10</button>
+      </div>
+      <button class="clog" id="cLog">Log set</button>
+    </div>
+    <p class="note">Switching to another exercise logs the reps you've counted as a set.</p>
+    <div class="label">Logged sets</div>
+    <div class="hist" id="cLogList"></div>
+    <div class="row2"><button class="secondary" id="cReset">Clear</button><button class="primary" id="cSave" style="font-size:1.3rem">Finish &amp; save</button></div>
+  </section>
+
+  <section id="history" hidden style="flex-direction:column;gap:12px"></section>
+</div>
+
+<div id="run" hidden data-phase="prep">
+  <div class="runtop">
+    <div><div class="k">Total</div><div class="v" id="rTotal">0:00</div></div>
+    <div style="text-align:center"><div class="k">Round</div><div class="v" id="rRound">1/3</div></div>
+    <div style="text-align:right"><div class="k">Reps</div><div class="v" id="rAll">0</div></div>
+  </div>
+  <div class="bar"><i id="rOverall"></i></div>
+  <div class="phase" id="rPhase">Get ready</div>
+  <div class="exname" id="rEx">Burpees</div>
+  <div class="clock" id="rClock">10</div>
+  <div class="bar"><i id="rBar"></i></div>
+  <div class="next" id="rNext"></div>
+  <button class="reppad" id="pad" aria-label="Add one rep">
+    <span class="cnt" id="rReps">0</span>
+    <span class="hint" id="rHint">Tap to count reps</span>
+  </button>
+  <div class="repbtns">
+    <button id="minus" aria-label="Remove one rep">−1</button>
+    <button id="plus5" aria-label="Add five reps">+5</button>
+    <button id="plus10" aria-label="Add ten reps">+10</button>
+  </div>
+  <div class="controls">
+    <button id="pause" class="big">Pause</button>
+    <button id="skip">Skip</button>
+    <button id="mute" aria-pressed="false">Sound on</button>
+    <button id="end">End</button>
+  </div>
+</div>
+
+<div class="wrap" id="summary" hidden></div>
+
+<script>
+// Garage Terminal: started by src/apps/repclock-sync.js once saved workouts are loaded.
+window.__startRepClock=()=>{if(window.__rcStarted)return;window.__rcStarted=true;
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const fmt=s=>{s=Math.max(0,Math.round(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0')};
+
+let cfg=store.get('hiit.cfg',{prep:10,work:40,rest:20,rounds:3,roundRest:60,exercises:['Burpees','Kettlebell swings','Push-ups','Jump squats']});
+const fields=[['work','Work','s',5,5,600],['rest','Rest','s',5,0,300],['rounds','Rounds','',1,1,30],['roundRest','Rest between rounds','s',10,0,600],['prep','Get ready','s',5,0,60]];
+
+function renderSetup(){
+  $('steppers').innerHTML=fields.map(([k,l,u])=>`<div class="field"><span class="label">${l}</span><div class="stepper"><button data-k="${k}" data-d="-1" aria-label="Decrease ${l}">−</button><output id="o_${k}">${cfg[k]}<small>${u}</small></output><button data-k="${k}" data-d="1" aria-label="Increase ${l}">+</button></div></div>`).join('');
+  $('exlist').innerHTML=cfg.exercises.map((e,i)=>`<div class="exrow"><span class="n">${i+1}</span><input id="ex${i}" data-i="${i}" value="${e.replace(/"/g,'&quot;')}" aria-label="Exercise ${i+1}"><button class="icon" data-rm="${i}" aria-label="Remove exercise">✕</button></div>`).join('');
+  const p=buildPlan();$('estN').textContent=p.filter(x=>x.type==='work').length;$('estT').textContent=fmt(p.reduce((a,b)=>a+b.dur,0));
+  store.set('hiit.cfg',cfg);
+}
+$('steppers').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const f=fields.find(f=>f[0]===b.dataset.k);cfg[f[0]]=Math.min(f[5],Math.max(f[4],cfg[f[0]]+f[3]*+b.dataset.d));renderSetup()});
+$('exlist').addEventListener('input',e=>{if(e.target.dataset.i!=null){cfg.exercises[+e.target.dataset.i]=e.target.value;store.set('hiit.cfg',cfg)}});
+$('exlist').addEventListener('click',e=>{const b=e.target.closest('[data-rm]');if(b&&cfg.exercises.length>1){cfg.exercises.splice(+b.dataset.rm,1);renderSetup()}});
+$('addEx').onclick=()=>{cfg.exercises.push('');renderSetup();$('ex'+(cfg.exercises.length-1)).focus()};
+
+function exNames(){return cfg.exercises.map((e,i)=>e.trim()||'Exercise '+(i+1))}
+function buildPlan(){
+  const n=exNames(),p=[];if(cfg.prep)p.push({type:'prep',dur:cfg.prep,ex:0,round:0});
+  for(let r=0;r<cfg.rounds;r++)n.forEach((_,i)=>{
+    p.push({type:'work',dur:cfg.work,ex:i,round:r});
+    const lastEx=i===n.length-1,lastRound=r===cfg.rounds-1;
+    if(lastEx&&lastRound)return;
+    if(lastEx&&cfg.roundRest)p.push({type:'roundrest',dur:cfg.roundRest,ex:0,round:r+1});
+    else if(cfg.rest)p.push({type:'rest',dur:cfg.rest,ex:lastEx?0:i+1,round:lastEx?r+1:r});
+  });return p;
+}
+
+/* ---------- run ---------- */
+let S=null,tick=null,wake=null,ac=null;
+let muted=store.get('hiit.muted',false);
+function setMute(m){muted=m;store.set('hiit.muted',m);const b=$('mute');b.textContent=m?'Muted':'Sound on';b.setAttribute('aria-pressed',m);b.setAttribute('aria-label',m?'Turn sound on':'Mute sounds')}
+$('mute').onclick=()=>setMute(!muted);setMute(muted);
+function beep(f=880,d=.12,v=.25){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.type='square';g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d)}catch(e){}}
+function buzz(p){try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}}
+async function lock(){try{wake=await navigator.wakeLock.request('screen')}catch(e){wake=null}}
+
+function start(){
+  const names=exNames();
+  S={names,plan:buildPlan(),i:0,phaseStart:performance.now(),pausedAt:null,activeMs:0,lastNow:performance.now(),
+     reps:Array.from({length:cfg.rounds},()=>names.map(()=>0)),lastWork:null,lastBeep:-1,startedAt:new Date().toISOString(),cfg:{...cfg}};
+  S.totalPlanned=S.plan.reduce((a,b)=>a+b.dur,0);
+  $('home').hidden=true;$('summary').hidden=true;$('run').hidden=false;$('run').classList.remove('paused');$('pause').textContent='Pause';
+  beep(660,.15);lock();enterPhase();tick=setInterval(loop,100);loop();
+}
+function cur(){return S.plan[S.i]}
+function enterPhase(){
+  const p=cur();S.phaseStart=performance.now();S.elapsedInPhase=0;S.lastBeep=-1;
+  if(p.type==='work')S.lastWork={round:p.round,ex:p.ex};
+  const run=$('run');run.dataset.phase=p.type;
+  $('rPhase').textContent={prep:'Get ready',work:'Work',rest:'Rest',roundrest:'Round rest'}[p.type];
+  $('rEx').textContent=(p.type==='work'?'':'Next: ')+S.names[p.ex];
+  if(p.type!=='work')$('rEx').textContent=S.names[p.ex];
+  $('rPhase').textContent=p.type==='work'?'Work':(p.type==='prep'?'Get ready · up first':(p.type==='rest'?'Rest · up next':'Round rest · up next'));
+  $('rRound').textContent=(p.round+1)+'/'+S.cfg.rounds;
+  const nx=S.plan.slice(S.i+1).find(x=>x.type==='work');
+  $('rNext').textContent=p.type==='work'?(nx?'Then: '+S.names[nx.ex]+(nx.round!==p.round?' (round '+(nx.round+1)+')':''):'Last interval'):'';
+  renderReps();
+}
+function target(){const p=cur();return p.type==='work'?{round:p.round,ex:p.ex}:S.lastWork}
+function renderReps(){
+  const t=target();
+  if(t){$('rReps').textContent=S.reps[t.round][t.ex];$('rHint').textContent=cur().type==='work'?'Tap to count reps':'Logging '+S.names[t.ex]+' · R'+(t.round+1)}
+  else{$('rReps').textContent='—';$('rHint').textContent='Counting starts at first work interval'}
+  $('rAll').textContent=S.reps.flat().reduce((a,b)=>a+b,0);
+}
+function loop(){
+  if(!S)return;const now=performance.now();
+  if(S.pausedAt==null){S.activeMs+=now-S.lastNow}S.lastNow=now;
+  const p=cur();const el=S.pausedAt==null?(now-S.phaseStart)/1000:(S.pausedAt-S.phaseStart)/1000;
+  const left=p.dur-el;
+  if(left<=0){next(true);return}
+  const sec=Math.ceil(left);$('rClock').textContent=p.dur>=60&&sec>=60?fmt(sec):sec;
+  $('rBar').style.width=(el/p.dur*100)+'%';
+  $('rTotal').textContent=fmt(S.activeMs/1000);
+  const done=S.plan.slice(0,S.i).reduce((a,b)=>a+b.dur,0)+el;$('rOverall').style.width=Math.min(100,done/S.totalPlanned*100)+'%';
+  if(sec<=3&&sec!==S.lastBeep&&S.pausedAt==null){S.lastBeep=sec;beep(520,.1,.2)}
+}
+function next(auto){
+  if(S.i>=S.plan.length-1){finish();return}
+  S.i++;enterPhase();beep(cur().type==='work'?990:740,.25,.3);buzz(cur().type==='work'?[120,60,120]:200);loop();
+}
+function addRep(d){
+  if(!S)return;const t=target();if(!t)return;
+  S.reps[t.round][t.ex]=Math.max(0,S.reps[t.round][t.ex]+d);buzz(15);renderReps();
+}
+$('pad').addEventListener('click',()=>addRep(1));
+$('minus').onclick=()=>addRep(-1);
+$('plus5').onclick=()=>addRep(5);
+$('plus10').onclick=()=>addRep(10);
+$('skip').onclick=()=>{if(S.pausedAt!=null)togglePause();next(false)};
+$('pause').onclick=togglePause;
+function togglePause(){
+  const now=performance.now();
+  if(S.pausedAt==null){S.pausedAt=now;$('pause').textContent='Resume';$('run').classList.add('paused')}
+  else{S.phaseStart+=now-S.pausedAt;S.pausedAt=null;S.lastNow=now;$('pause').textContent='Pause';$('run').classList.remove('paused')}
+}
+let endArm=0;$('end').onclick=()=>{
+  if(Date.now()-endArm<2500){finish();return}
+  endArm=Date.now();$('end').textContent='Sure?';setTimeout(()=>{$('end').textContent='End'},2500);
+};
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S&&!$('run').hidden)lock()});
+
+function finish(){
+  clearInterval(tick);beep(880,.4,.3);buzz([200,100,200,100,400]);
+  try{wake&&wake.release()}catch(e){}
+  $('run').hidden=true;
+  const w={id:Date.now(),date:S.startedAt,duration:Math.round(S.activeMs/1000),names:S.names,reps:S.reps,cfg:S.cfg};
+  S=null;showSummary(w,false);
+}
+
+/* ---------- summary ---------- */
+function totals(w){return w.names.map((_,i)=>w.reps.reduce((a,r)=>a+r[i],0))}
+function showSummary(w,saved){
+  const sum=$('summary');$('home').hidden=true;sum.hidden=false;
+  const draw=()=>{
+    const t=totals(w),all=t.reduce((a,b)=>a+b,0);
+    sum.innerHTML=`<div class="brand"><h1>Workout <span>done</span></h1></div>
+    <div class="stats">
+      <div class="stat"><div class="label">Time</div><div class="v">${w.mode==='reps'&&!w.duration?'—':fmt(w.duration)}</div></div>
+      <div class="stat"><div class="label">Total reps</div><div class="v" id="sAll">${all}</div></div>
+      <div class="stat"><div class="label">${w.mode==='reps'?'Most sets':'Rounds'}</div><div class="v">${w.reps.length}</div></div>
+    </div>
+    <div class="label">Reps per ${w.mode==='reps'?'set':'round'}${saved?'':' · tap a number to fix a count'}</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Exercise</th>${w.reps.map((_,r)=>`<th>${w.mode==='reps'?'S':'R'}${r+1}</th>`).join('')}<th>Total</th></tr></thead>
+      <tbody>${w.names.map((n,i)=>`<tr><td>${esc(n)}</td>${w.reps.map((r,ri)=>`<td>${saved?r[i]:`<input id="c${ri}_${i}" type="number" inputmode="numeric" min="0" value="${r[i]}" data-r="${ri}" data-i="${i}" aria-label="${esc(n)} round ${ri+1}">`}</td>`).join('')}<td id="t${i}"><b>${t[i]}</b></td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>All</td>${w.reps.map((r,ri)=>`<td id="rt${ri}">${r.reduce((a,b)=>a+b,0)}</td>`).join('')}<td id="ft">${all}</td></tr></tfoot>
+    </table></div>
+    <div class="row2">${saved?'':'<button class="secondary" id="discard">Discard</button>'}<button class="primary" id="saveBtn" style="font-size:1.3rem">${saved?'Back':'Save workout'}</button></div>`;
+    if(!saved){
+      sum.querySelector('tbody').addEventListener('input',e=>{const x=e.target;if(x.dataset.r==null)return;w.reps[+x.dataset.r][+x.dataset.i]=Math.max(0,parseInt(x.value)||0);
+        const t=totals(w),all=t.reduce((a,b)=>a+b,0);t.forEach((v,i)=>$('t'+i).innerHTML='<b>'+v+'</b>');w.reps.forEach((r,ri)=>$('rt'+ri).textContent=r.reduce((a,b)=>a+b,0));$('ft').textContent=all;$('sAll').textContent=all});
+      $('discard').onclick=()=>goHome(w.mode==='reps'?'counter':'setup');
+      $('saveBtn').onclick=()=>{const h=store.get('hiit.history',[]);h.unshift(w);store.set('hiit.history',h);if(w.mode==='reps'){C=freshC(C.names);saveC();tResetAll()}goHome('history')};
+    }else $('saveBtn').onclick=()=>goHome('history');
+  };draw();window.scrollTo(0,0);
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- history ---------- */
+function renderHistory(){
+  const h=store.get('hiit.history',[]),el=$('history');
+  if(!h.length){el.innerHTML='<div class="empty">No saved workouts yet.<br>Finish a workout and tap <b>Save workout</b> to see it here.</div>';return}
+  const best={};h.forEach(w=>w.names.forEach((n,i)=>{const t=w.reps.reduce((a,r)=>a+r[i],0);best[n]=Math.max(best[n]||0,t)}));
+  el.innerHTML=`<p class="note">${esc(window.__rcNote||'Saved on this phone, in this browser.')}</p>`+h.map((w,k)=>{const t=totals(w),d=new Date(w.date);
+    return `<div class="hcard"><div class="hhead"><b>${d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</b><span class="hmeta">${d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}</span></div>
+    <div class="hmeta">${w.mode==='reps'?'Reps only · '+(w.duration?fmt(w.duration)+' · ':'')+w.names.length+' exercises':fmt(w.duration)+' · '+w.reps.length+' rounds · '+w.cfg.work+'s on / '+w.cfg.rest+'s off'} · <b style="color:var(--fg)">${t.reduce((a,b)=>a+b,0)} reps</b></div>
+    <div class="chips">${w.names.map((n,i)=>`<span class="chip">${esc(n)} ${t[i]}${t[i]>0&&t[i]===best[n]&&h.length>1?' ★':''}</span>`).join('')}</div>
+    <div class="hact"><button data-v="${k}">Details</button><button data-load="${k}">Repeat</button><button class="del" data-del="${k}">Delete</button></div></div>`}).join('');
+}
+$('history').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;const h=store.get('hiit.history',[]);
+  if(b.dataset.v!=null)showSummary(h[+b.dataset.v],true);
+  if(b.dataset.load!=null){const w=h[+b.dataset.load];if(w.mode==='reps'){C=freshC([...w.names]);saveC();goHome('counter')}else{cfg={...w.cfg,exercises:[...w.names]};renderSetup();goHome('setup')}}
+  if(b.dataset.del!=null){if(b.dataset.armed){h.splice(+b.dataset.del,1);store.set('hiit.history',h);renderHistory()}else{b.dataset.armed=1;b.textContent='Tap again to delete'}}
+});
+
+/* ---------- rep counter (no timer) ---------- */
+function freshC(names){return {names,sel:0,cur:0,sets:names.map(()=>[])}}
+let C=store.get('hiit.counter',null);
+if(!C||!Array.isArray(C.names)||!C.names.length)C=freshC(exNames());
+function saveC(){store.set('hiit.counter',C)}
+let cEditing=false;
+let G=store.get('hiit.goals',{});const saveG=()=>store.set('hiit.goals',G);
+const tot=i=>C.sets[i].reduce((a,b)=>a+b,0);
+function renderCounter(){
+  const box=$('cChips');box.className=cEditing?'exlist':'chips';$('cEdit').textContent=cEditing?'Done':'Edit';
+  if(cEditing)box.innerHTML=C.names.map((n,i)=>`<div class="exrow"><input id="cen${i}" data-cren="${i}" value="${esc(n)}" aria-label="Rename exercise ${i+1}"><input class="goal" id="cg${i}" data-cgoal="${i}" type="number" inputmode="numeric" min="0" placeholder="Goal" value="${G[n]||''}" aria-label="Rep goal for ${esc(n)}"><button class="icon" data-cdel="${i}" aria-label="Delete ${esc(n)}" ${C.names.length<2?'disabled style="opacity:.35"':''}>✕</button></div>`).join('')+'<p class="note">Goal is the total reps across all sets. The exercise turns green when you reach it.</p>'+(C.names.length<2?'<p class="note">Add another exercise before deleting this one.</p>':'');
+  else box.innerHTML=C.names.map((n,i)=>{const g=G[n],t=tot(i),ok=g&&t>=g;return `<button class="chip${ok?' done':''}" data-ci="${i}" aria-pressed="${i===C.sel}"><span class="cn">${esc(n)}${ok?' ✓':''}</span><span class="cs">Set ${C.sets[i].length} / ${t}${g?' of '+g:''} reps</span></button>`}).join('');
+  {const g=G[C.names[C.sel]],t=tot(C.sel);$('cName').textContent=C.names[C.sel]+' · set '+(C.sets[C.sel].length+1)+(g?(t>=g?' · goal hit':' · '+(g-t)+' to go'):'');}
+  $('cCnt').textContent=C.cur;
+  const rows=C.names.map((n,i)=>C.sets[i].length?`<div class="crow"><div style="min-width:0"><b>${esc(n)}</b><div class="hmeta">${C.sets[i].length} sets: ${C.sets[i].join(' · ')}</div></div><b class="ctot">${C.sets[i].reduce((a,b)=>a+b,0)}</b><button class="icon" data-undo="${i}" aria-label="Remove last ${esc(n)} set">↶</button></div>`:'').join('');
+  $('cLogList').innerHTML=rows||'<div class="empty">Count your reps, then tap <b>Log set</b>.<br>Each set shows up here.</div>';
+  saveC();
+}
+function logCur(){if(C.cur>0){C.sets[C.sel].push(C.cur);C.cur=0;return true}return false}
+function cRep(d){C.cur=Math.max(0,C.cur+d);$('cCnt').textContent=C.cur;buzz(15);saveC()}
+$('cPad').onclick=()=>cRep(1);$('cMinus').onclick=()=>cRep(-1);$('cPlus5').onclick=()=>cRep(5);$('cPlus10').onclick=()=>cRep(10);
+$('cLog').onclick=()=>{if(logCur()){buzz(60);renderCounter()}};
+$('cChips').addEventListener('click',e=>{const b=e.target.closest('[data-ci]');if(!b)return;const i=+b.dataset.ci;if(i===C.sel)return;logCur();C.sel=i;renderCounter()});
+function addName(){const v=$('cNew').value.trim();if(!v)return;logCur();C.names.push(v);C.sets.push([]);C.sel=C.names.length-1;$('cNew').value='';renderCounter()}
+$('cEdit').onclick=()=>{cEditing=!cEditing;renderCounter()};
+$('cChips').addEventListener('input',e=>{const x=e.target;
+  if(x.dataset.cgoal!=null){const n=C.names[+x.dataset.cgoal],v=parseInt(x.value)||0;if(v>0)G[n]=v;else delete G[n];saveG();return}
+  if(x.dataset.cren==null)return;const i=+x.dataset.cren;const nn=x.value.trim()||'Exercise '+(i+1),old=C.names[i];if(old!==nn&&G[old]!=null){G[nn]=G[old];delete G[old];saveG()}C.names[i]=nn;if(i===C.sel)$('cName').textContent=C.names[i]+' · set '+(C.sets[i].length+1);saveC()});
+$('cChips').addEventListener('click',e=>{const b=e.target.closest('[data-cdel]');if(!b||C.names.length<2)return;const i=+b.dataset.cdel;
+  if(C.sets[i].length&&!b.dataset.armed){b.dataset.armed=1;b.textContent='Delete?';b.style.width='auto';b.style.padding='0 10px';b.style.color='var(--danger)';return}
+  if(i===C.sel)C.cur=0;C.names.splice(i,1);C.sets.splice(i,1);if(i<C.sel||C.sel>=C.names.length)C.sel=Math.max(0,C.sel-1);renderCounter()});
+$('cAdd').onclick=addName;$('cNew').addEventListener('keydown',e=>{if(e.key==='Enter')addName()});
+$('cLogList').addEventListener('click',e=>{const b=e.target.closest('[data-undo]');if(b){C.sets[+b.dataset.undo].pop();renderCounter()}});
+let clrArm=0;$('cReset').onclick=()=>{if(Date.now()-clrArm<2500){C=freshC(C.names);renderCounter();$('cReset').textContent='Clear';clrArm=0;return}clrArm=Date.now();$('cReset').textContent='Tap again to clear';setTimeout(()=>{$('cReset').textContent='Clear'},2500)};
+$('cSave').onclick=()=>{
+  logCur();const idx=C.names.map((_,i)=>i).filter(i=>C.sets[i].length);
+  if(!idx.length){renderCounter();$('cSave').textContent='Log a set first';setTimeout(()=>{$('cSave').innerHTML='Finish &amp; save'},2000);return}
+  renderCounter();const n=Math.max(...idx.map(i=>C.sets[i].length));
+  const w={id:Date.now(),date:new Date().toISOString(),duration:Math.round(tEl()/1000),mode:'reps',names:idx.map(i=>C.names[i]),reps:Array.from({length:n},(_,r)=>idx.map(i=>C.sets[i][r]||0)),cfg:{}};
+  showSummary(w,false);
+};
+
+/* ---------- rep counter timer ---------- */
+let T=store.get('hiit.timer',null);
+if(!T||typeof T.accum!=='number')T={mode:'up',goal:600,accum:0,start:null,laps:[],done:false};
+function saveT(){store.set('hiit.timer',T)}
+function tEl(){return T.accum+(T.start?Date.now()-T.start:0)}
+const fmtT=ms=>{const t=Math.floor(Math.max(0,ms)/100);return fmt(Math.floor(t/10))+'.'+(t%10)};
+let tLastSec=-1,tWake=null;
+async function tLock(on){try{if(on){tWake=await navigator.wakeLock.request('screen')}else if(tWake){tWake.release();tWake=null}}catch(e){}}
+function tRender(){
+  const el=tEl(),down=T.mode==='down',run=!!T.start,idle=!run&&el===0;
+  $('tUp').setAttribute('aria-pressed',!down);$('tDown').setAttribute('aria-pressed',down);
+  $('tUp').disabled=$('tDown').disabled=!idle;
+  $('tClock').textContent=down?fmtT(T.goal*1000-el):fmtT(el);
+  $('tLabel').textContent=T.done?"Time's up":down?(run?'Counting down':'Countdown'):(run?'Workout time':'Stopwatch');
+  $('tGoal').hidden=!down;$('tGv').textContent=fmt(T.goal);$('tGm').disabled=$('tGp').disabled=$('tGp10').disabled=!idle;
+  $('tLeft').textContent=run?'Lap':'Reset';$('tLeft').disabled=idle;
+  $('tRight').textContent=run?'Pause':T.done?'Done':el>0?'Resume':'Start';$('tRight').disabled=T.done;
+  $('tBox').classList.toggle('up',T.done);$('tBox').classList.toggle('running',run);
+  $('tLaps').innerHTML=T.laps.map((v,i)=>({n:i+1,split:v-(i?T.laps[i-1]:0),v})).reverse().map(l=>`<li><span>Lap ${l.n}</span><span>${fmtT(l.split)}</span><span>${fmtT(l.v)}</span></li>`).join('');
+  $('tLaps').hidden=!T.laps.length;
+}
+function tTick(){
+  if(!T.start)return;const el=tEl();
+  if(T.mode==='down'){
+    const left=T.goal*1000-el,s=Math.ceil(left/1000);
+    if(left<=0){T.accum=T.goal*1000;T.start=null;T.done=true;saveT();beep(880,.5,.3);setTimeout(()=>beep(880,.5,.3),650);buzz([300,120,300,120,500]);tLock(false);tRender();return}
+    if(s<=3&&s!==tLastSec){tLastSec=s;beep(520,.1,.2)}
+    $('tClock').textContent=fmtT(left);
+  }else $('tClock').textContent=fmtT(el);
+}
+setInterval(tTick,100);
+$('tRight').onclick=()=>{if(T.start){T.accum=tEl();T.start=null;tLock(false)}else{T.start=Date.now();tLastSec=-1;beep(660,.12,.2);tLock(true)}saveT();tRender()};
+$('tLeft').onclick=()=>{if(T.start){T.laps.push(tEl());buzz(30);saveT();tRender()}else tResetAll()};
+function tResetAll(){T.accum=0;T.start=null;T.laps=[];T.done=false;saveT();tLock(false);tRender()}
+$('tUp').onclick=()=>{T.mode='up';saveT();tRender()};
+$('tDown').onclick=()=>{T.mode='down';saveT();tRender()};
+$('tGm').onclick=()=>{T.goal=Math.max(60,T.goal-60);saveT();tRender()};
+$('tGp').onclick=()=>{T.goal=Math.min(10800,T.goal+60);saveT();tRender()};
+$('tGp10').onclick=()=>{T.goal=Math.min(10800,T.goal+600);saveT();tRender()};
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&T.start)tLock(true)});
+tRender();
+
+function goHome(tab){
+  $('summary').hidden=true;$('home').hidden=false;
+  [['setup','tabSetup'],['counter','tabCount'],['history','tabHist']].forEach(([s,t])=>{const on=s===tab;$(t).setAttribute('aria-selected',on);$(s).hidden=!on;$(s).style.display=on?'flex':'none'});
+  if(tab==='history')renderHistory();if(tab==='counter')renderCounter();window.scrollTo(0,0);
+}
+$('tabSetup').onclick=()=>goHome('setup');$('tabCount').onclick=()=>goHome('counter');$('tabHist').onclick=()=>goHome('history');
+$('startBtn').onclick=start;
+/* ---------- settings / theme ---------- */
+function applyTheme(t){document.body.classList.toggle('theme-chevron',t==='chevron');document.querySelectorAll('[data-theme-pick]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.themePick===t))}
+applyTheme(store.get('hiit.theme','original'));
+$('setBtn').onclick=e=>{e.stopPropagation();const m=$('setMenu'),open=m.hidden;m.hidden=!open;$('setBtn').setAttribute('aria-expanded',open)};
+$('setMenu').addEventListener('click',e=>{e.stopPropagation();const b=e.target.closest('[data-theme-pick]');if(b){store.set('hiit.theme',b.dataset.themePick);applyTheme(b.dataset.themePick)}});
+document.addEventListener('click',()=>{if(!$('setMenu').hidden){$('setMenu').hidden=true;$('setBtn').setAttribute('aria-expanded','false')}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('setMenu').hidden){$('setMenu').hidden=true;$('setBtn').setAttribute('aria-expanded','false');$('setBtn').focus()}});
+renderSetup();goHome('counter');
+};
+</script>
+<script>
+// Garage Terminal: on a device no one has signed in on, there's nothing to load
+// first, so start right away. Otherwise wait for the sync module (it starts the
+// app as soon as saved workouts are in), but never longer than 4 seconds.
+(function(){var linked=null;try{linked=localStorage.getItem('gt.repclock.owner')}catch(e){}
+if(!linked)window.__startRepClock();else setTimeout(function(){window.__startRepClock()},4000)})();
+</script>
+</body>
+</html>
