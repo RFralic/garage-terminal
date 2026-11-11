@@ -84,6 +84,11 @@ Only the member can read or write their own (see the REPCLOCK section of `firest
 members, not the sysop. Signing out removes the member's workouts from that device (they stay in the
 account). A count or stopwatch in progress stays on the device.
 
+The Builder tab (muscle group → fire station or home → reps or AMRAP → exercises, then a weight
+rating) saves its workouts into the same `hiit.history` list, with `kind: "builder"`, so they sync the
+same way. The artifact on claude.ai also has its own claude.ai account storage; the import script
+switches that off here so the Google sign-in sync above is the only account storage on this site.
+
 To update RepClock from a newer version of the Claude artifact, save the artifact's HTML and run
 `node scripts/import-repclock.mjs path/to/file.html`; the script stops with an error if the artifact
 changed in a way its edits no longer fit.

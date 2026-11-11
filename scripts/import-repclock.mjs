@@ -12,6 +12,8 @@
 //      (fallback: starts after 4 seconds no matter what)
 //   4. the History note says where workouts are saved ("on this phone" or
 //      "in your account")
+//   5. the artifact's claude.ai account storage is switched off, so its
+//      history stays in localStorage for repclock-sync.js to save
 // The script stops with an error if the artifact's code has changed in a way
 // these edits no longer fit, rather than producing a broken page.
 
@@ -51,9 +53,16 @@ script = script.replace(once(script, '<script>\n(()=>{', 'app start'),
 if (!script.endsWith('})();\n</script>')) throw new Error('RepClock no longer ends with })(); update this script.');
 script = script.slice(0, -'})();\n</script>'.length) + '};\n</script>';
 
-// 4. History note
-script = script.replace(once(script, '<p class="note">Saved on this phone, in this browser.</p>', 'history note'),
-  "<p class=\"note\">${esc(window.__rcNote||'Saved on this phone, in this browser.')}</p>");
+// 4. History note: say where workouts are saved here (the artifact's own note
+//    talks about the claude.ai account, which doesn't apply on this site)
+script = script.replace(once(script, 'function acctNote(){', 'history note'),
+  "function acctNote(){return '<div class=\"acct\">'+esc(window.__rcNote||'Saved on this phone, in this browser.')+'</div>';");
+
+// 5. don't use the claude.ai account storage here: the artifact then keeps its
+//    history in localStorage ("hiit.history"), which repclock-sync.js saves to
+//    the member's Google sign-in account
+script = script.replace(once(script, "goHome('counter');cloudInit();", 'claude.ai storage start'),
+  "goHome('counter');");
 
 const extraStyle = `<style>
 /* Garage Terminal additions: back link + sync status bar */
@@ -79,7 +88,7 @@ const page = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>RepClock · Garage Terminal</title>
-<meta name="description" content="Rep counter, stopwatch and circuit interval timer with workout history.">
+<meta name="description" content="Rep counter, circuit interval timer and workout builder with workout history.">
 <meta name="theme-color" content="#12161f">
 <!-- Site icons: SVG for modern browsers, .ico/.png fallbacks, home-screen icon, web manifest -->
 <link rel="icon" href="/favicon.ico" sizes="32x32">

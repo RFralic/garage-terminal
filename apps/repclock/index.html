@@ -10,7 +10,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>RepClock · Garage Terminal</title>
-<meta name="description" content="Rep counter, stopwatch and circuit interval timer with workout history.">
+<meta name="description" content="Rep counter, circuit interval timer and workout builder with workout history.">
 <meta name="theme-color" content="#12161f">
 <!-- Site icons: SVG for modern browsers, .ico/.png fallbacks, home-screen icon, web manifest -->
 <link rel="icon" href="/favicon.ico" sizes="32x32">
@@ -198,6 +198,100 @@ body.theme-chevron button.chip:not([aria-pressed="true"]):not(.done){background:
 body.theme-chevron{--accent:#c8141b;--work:#c8141b;--work-ink:#ffffff}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) body.theme-chevron{--accent:#e3262d;--work:#e3262d;--work-ink:#ffffff}}
 :root[data-theme="dark"] body.theme-chevron{--accent:#e3262d;--work:#e3262d;--work-ink:#ffffff}
+
+/* ---------- builder tab: step-by-step routine builder, live round timer, weight rating ---------- */
+.tabs button{padding:10px 2px;font-size:.86rem;white-space:nowrap}
+#builder{--b-soft:color-mix(in srgb,var(--accent) 14%,var(--surface));--b-s2:color-mix(in srgb,var(--fg) 7%,var(--surface));--b-cool:var(--rest);--b-cool-soft:color-mix(in srgb,var(--rest) 15%,var(--surface));flex-direction:column;gap:18px}
+.fb-h{margin:0;font-family:var(--display);font-weight:900;font-size:2.4rem;line-height:.95;text-transform:uppercase;text-wrap:balance}
+.fb-sub{margin:6px 0 0;color:var(--muted)}
+.fb-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px}
+.fb-back{width:44px;height:44px;margin-left:-8px;display:grid;place-items:center;border-radius:12px}
+.fb-crumb{font-size:.85rem;color:var(--muted);text-align:right}
+.fb-prog{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.fb-prog span{height:4px;border-radius:2px;background:var(--line)}
+.fb-prog span.on{background:var(--accent)}
+.fb-stack{display:flex;flex-direction:column;gap:10px}
+.fb-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.fb-opt{border-radius:14px;background:var(--surface);border:2px solid var(--line);padding:12px 14px;text-align:left;display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-height:80px}
+.fb-opt[aria-pressed="true"]{background:var(--b-soft);border-color:var(--accent)}
+.fb-opt .nm{font-family:var(--display);font-weight:800;font-size:1.5rem;line-height:1;text-transform:uppercase}
+.fb-opt .ht{font-size:.8rem;color:var(--muted)}
+.fb-opt.tall{min-height:120px}
+.fb-opt.row{flex-direction:row;align-items:center;justify-content:flex-start;gap:12px;min-height:68px}
+.fb-radio{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center}
+.fb-opt[aria-pressed="true"] .fb-radio{border-color:var(--accent)}
+.fb-opt[aria-pressed="true"] .fb-radio::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.fb-locked{display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;background:var(--b-soft);border:2px solid var(--accent)}
+.fb-pill{font-size:.78rem;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--b-s2);white-space:nowrap}
+.fb-chips{display:flex;flex-wrap:wrap;gap:6px}
+.fb-foot{display:flex;flex-direction:column;gap:10px}
+.fb-panel{border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.fb-sec{padding:12px 14px;border-bottom:1px solid var(--line)}
+.fb-sec:last-child{border-bottom:0}
+.fb-srow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.fb-srow b{display:block}
+.fb-srow small{color:var(--muted);font-size:.78rem}
+.fb-step{display:flex;align-items:center;gap:6px}
+.fb-step button{width:44px;height:44px;border-radius:12px;background:var(--b-s2);font-size:1.4rem;font-weight:700}
+.fb-step output{min-width:58px;text-align:center;font-family:var(--display);font-weight:800;font-size:1.9rem;font-variant-numeric:tabular-nums}
+.fb-seg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:4px;border-radius:12px;background:var(--bg)}
+.fb-seg button{height:44px;border-radius:9px;font-weight:700;font-size:.9rem;color:var(--muted)}
+.fb-seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.fb-ex{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px 10px;align-items:center;padding:10px 6px 10px 12px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.fb-num{width:28px;height:28px;border-radius:8px;background:var(--b-soft);color:var(--accent);display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:1.1rem}
+.fb-ex .nm{font-weight:700;overflow-wrap:anywhere}
+.fb-ex .last{font-size:.78rem;color:var(--muted)}
+.fb-acts{display:flex}
+.fb-acts button{width:40px;height:44px;color:var(--muted);border-radius:10px;font-size:1.05rem}
+.fb-wt{grid-column:2/4;display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
+.fb-wt input{width:96px;height:40px;padding:0 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;font-size:1rem;font-variant-numeric:tabular-nums}
+.fb-field{height:48px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;width:100%;min-width:0}
+textarea.fb-field{height:auto;min-height:100px;padding:12px 14px;line-height:1.45;resize:vertical}
+.fb-add{display:flex;gap:8px}
+.fb-add .secondary{flex:none;padding:0 16px}
+.fb-sugg{display:flex;align-items:center;justify-content:space-between;min-height:48px;padding:0 14px;border-radius:12px;border:1px dashed var(--line);text-align:left;width:100%;font-weight:600}
+.fb-sugg span:last-child{color:var(--accent);font-size:1.4rem;font-weight:800}
+.fb-name{margin:0;font-family:var(--display);font-weight:900;font-size:clamp(2.6rem,12vw,3.6rem);line-height:.92;text-transform:uppercase;text-wrap:balance;overflow-wrap:anywhere}
+.fb-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:10px}
+.fb-wtbig{font-family:var(--display);font-weight:900;font-size:1.9rem;line-height:1;padding:6px 14px;border-radius:12px;background:var(--b-soft);border:2px solid var(--accent);font-variant-numeric:tabular-nums}
+.fb-mode{font-size:.9rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.fb-timer{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:18px;background:var(--surface);border:2px solid var(--line)}
+.fb-timer.rest{border-color:var(--b-cool);background:var(--b-cool-soft)}
+.fb-thead{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.85rem;color:var(--muted);font-weight:700}
+.fb-timer.rest .fb-thead>span{color:var(--fg);text-transform:uppercase;letter-spacing:.1em}
+.fb-dots{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.fb-dot{width:20px;height:6px;border-radius:3px;background:var(--line)}
+.fb-dot.done{background:var(--accent)}
+.fb-dot.cur{background:var(--fg)}
+.fb-clock{font-family:var(--display);font-weight:900;font-size:4.2rem;line-height:.9;text-align:center;font-variant-numeric:tabular-nums}
+.fb-timer.lg .fb-clock{font-size:clamp(5rem,30vw,7.5rem)}
+.fb-clock.low{color:var(--accent)}
+.fb-bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.fb-bar i{display:block;height:100%;background:var(--accent)}
+.fb-timer.rest .fb-bar i{background:var(--b-cool)}
+.fb-row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.fb-count{display:flex;flex-direction:column;align-items:center;gap:2px}
+.fb-big{font-family:var(--display);font-weight:900;font-size:7rem;line-height:.88;font-variant-numeric:tabular-nums}
+.fb-count .fb-bar{width:220px;max-width:100%;margin-top:8px}
+.fb-pads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.fb-pads2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.fb-pad{height:80px;border-radius:18px;border:1px solid var(--line);background:var(--surface);font-size:2.2rem;font-weight:700}
+.fb-pad.main{grid-column:span 2;border:0;background:var(--accent);color:var(--work-ink);font-family:var(--display);font-weight:900;font-size:2rem;text-transform:uppercase}
+.fb-pad.alt{height:58px;border:2px solid var(--accent);background:var(--b-soft);font-family:var(--display);font-weight:900;font-size:1.6rem}
+.fb-rate{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.fb-rhead{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.fb-rhead b{overflow-wrap:anywhere;min-width:0}
+.fb-rhead span{font-size:.82rem;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.fb-rates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.fb-rates button{height:58px;border-radius:12px;border:2px solid var(--line);background:var(--b-s2);font-size:.8rem;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.fb-rates button[data-v="down"][aria-pressed="true"]{border-color:var(--b-cool);background:var(--b-cool-soft)}
+.fb-rates button[data-v="good"][aria-pressed="true"]{border-color:var(--fg);background:var(--line)}
+.fb-rates button[data-v="up"][aria-pressed="true"]{border-color:var(--accent);background:var(--b-soft)}
+.acct{font-size:.85rem;line-height:1.45;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+.acct.on{border-color:var(--good);color:var(--fg)}
+.rc-toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);background:var(--fg);color:var(--bg);font-weight:700;font-size:.92rem;padding:12px 18px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:calc(100% - 48px);text-align:center;z-index:30}
+.rc-toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){.rc-toast{transition:none}}
 </style>
 <style>
 /* Garage Terminal additions: back link + sync status bar */
@@ -229,8 +323,11 @@ body.theme-chevron{--accent:#c8141b;--work:#c8141b;--work-ink:#ffffff}
   <div class="tabs" role="tablist">
     <button role="tab" id="tabCount" aria-selected="true">Rep counter</button>
     <button role="tab" id="tabSetup" aria-selected="false">Workout</button>
+    <button role="tab" id="tabBuild" aria-selected="false">Builder</button>
     <button role="tab" id="tabHist" aria-selected="false">History</button>
   </div>
+
+  <section id="builder" hidden></section>
 
   <section id="setup" style="display:flex;flex-direction:column;gap:18px">
     <div class="grid" id="steppers"></div>
@@ -305,6 +402,7 @@ body.theme-chevron{--accent:#c8141b;--work:#c8141b;--work-ink:#ffffff}
 </div>
 
 <div class="wrap" id="summary" hidden></div>
+<div id="rcToast" class="rc-toast" role="status" aria-live="polite"></div>
 
 <script>
 // Garage Terminal: started by src/apps/repclock-sync.js once saved workouts are loaded.
@@ -445,28 +543,86 @@ function showSummary(w,saved){
       sum.querySelector('tbody').addEventListener('input',e=>{const x=e.target;if(x.dataset.r==null)return;w.reps[+x.dataset.r][+x.dataset.i]=Math.max(0,parseInt(x.value)||0);
         const t=totals(w),all=t.reduce((a,b)=>a+b,0);t.forEach((v,i)=>$('t'+i).innerHTML='<b>'+v+'</b>');w.reps.forEach((r,ri)=>$('rt'+ri).textContent=r.reduce((a,b)=>a+b,0));$('ft').textContent=all;$('sAll').textContent=all});
       $('discard').onclick=()=>goHome(w.mode==='reps'?'counter':'setup');
-      $('saveBtn').onclick=()=>{const h=store.get('hiit.history',[]);h.unshift(w);store.set('hiit.history',h);if(w.mode==='reps'){C=freshC(C.names);saveC();tResetAll()}goHome('history')};
+      $('saveBtn').onclick=()=>{histAdd(w);if(w.mode==='reps'){C=freshC(C.names);saveC();tResetAll()}goHome('history')};
     }else $('saveBtn').onclick=()=>goHome('history');
   };draw();window.scrollTo(0,0);
 }
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+/* ---------- account storage: history follows your Claude sign-in, else this browser ---------- */
+let HIST=store.get('hiit.history',[]),cloud=null,acct='connecting',FB=null;
+const sortH=()=>HIST.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+sortH();
+function histChanged(){if(!$('history').hidden)renderHistory();if(FB)FB.onHist()}
+function cloudPut(w){if(!cloud)return Promise.resolve(false);return cloud.doc(String(w.id)).set({kind:w.kind||w.mode||'hiit',date:String(w.date),json:JSON.stringify(w)}).then(()=>true,()=>false)}
+function histAdd(w){
+  HIST.unshift(w);sortH();
+  if(cloud){cloudPut(w).then(ok=>{if(!ok){store.set('hiit.history',[w,...store.get('hiit.history',[])]);toast('Couldn’t reach your account, so this workout is saved in this browser for now.')}})}
+  else store.set('hiit.history',HIST);
+  histChanged();
+}
+function histDel(id){
+  HIST=HIST.filter(w=>String(w.id)!==String(id));
+  if(cloud)cloud.doc(String(id)).delete().catch(()=>{});
+  store.set('hiit.history',store.get('hiit.history',[]).filter(w=>String(w.id)!==String(id)));
+  histChanged();
+}
+async function cloudInit(){
+  const fallback=setTimeout(()=>{if(acct==='connecting'){acct='local';histChanged()}},10000);
+  let db=null;try{db=window.claude?await window.claude.use('db'):null}catch(e){db=null}
+  if(!db){clearTimeout(fallback);acct='signedout';histChanged();return}
+  let uid=null;try{const u=await window.claude.use('user');uid=u?await u.id():null}catch(e){}
+  if(!uid){clearTimeout(fallback);acct='signedout';histChanged();return}
+  const col=db.collection('data/users/'+uid);let first=true;
+  col.onSnapshot(snap=>{
+    clearTimeout(fallback);cloud=col;acct='account';
+    const rows=snap.docs.map(d=>{try{return JSON.parse(d.data().json)}catch(e){return null}}).filter(Boolean);
+    if(first){first=false;
+      const have=new Set(rows.map(w=>String(w.id))),local=store.get('hiit.history',[]),todo=local.filter(w=>!have.has(String(w.id)));
+      if(todo.length){rows.push(...todo);
+        Promise.all(todo.map(w=>cloudPut(w).then(ok=>ok?String(w.id):null))).then(done=>{const up=new Set(done.filter(Boolean));store.set('hiit.history',store.get('hiit.history',[]).filter(w=>!up.has(String(w.id))));if(up.size)toast('Moved '+up.size+' saved workout'+(up.size>1?'s':'')+' from this browser to your account')})}
+    }
+    HIST=rows;sortH();histChanged();
+  },err=>{clearTimeout(fallback);acct='local';histChanged()});
+}
+function acctNote(){return '<div class="acct">'+esc(window.__rcNote||'Saved on this phone, in this browser.')+'</div>';
+  if(acct==='account')return '<div class="acct on">Saved to your Claude account. Sign in on any device to see this history.</div>';
+  if(acct==='connecting')return '<div class="acct">Connecting to your account…</div>';
+  if(acct==='signedout')return '<div class="acct">Sign in to claude.ai to save your history to your account. For now it’s saved in this browser only.</div>';
+  return '<div class="acct">Couldn’t reach your account, so history is saved in this browser for now.</div>';
+}
+let toastT=null;
+function toast(m){const t=$('rcToast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600)}
+const rcLoc=l=>l==='home'?'Home':'Fire station',rcEq=e=>e==='kb'?'Kettlebells':'Weights';
+const rcWt=w=>w===''||w==null?'Bodyweight':esc(w)+' lb';
+const rcRate=r=>r==='up'?'↑ Increase':r==='down'?'↓ Decrease':r==='good'?'✓ Good':'';
+
 /* ---------- history ---------- */
+function builderCard(w,k,d){
+  const ex=w.exercises||[];
+  return `<div class="hcard"><div class="hhead"><b>${d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</b><span class="hmeta">${d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}</span></div>
+    <div class="hmeta"><b style="color:var(--fg)">${esc(w.muscle||'Workout')}</b> · ${rcLoc(w.loc)} · ${rcEq(w.equip)} · ${w.mode==='amrap'?'AMRAP':'Reps'} · ${w.rounds} × ${fmt(w.secs)}${w.restSecs?' · '+fmt(w.restSecs)+' rest':''}</div>
+    <div class="chips">${ex.map(e=>{const n=(e.reps||[]).length,sum=(e.reps||[]).reduce((a,b)=>a+(+b||0),0);
+      return `<span class="chip">${esc(e.name)} · ${rcWt(e.weight)} · ${w.mode==='amrap'?n+' rds':sum+' reps'}${e.rating?' · '+rcRate(e.rating):''}</span>`}).join('')}</div>
+    ${w.notes?`<div class="hmeta" style="font-style:italic;overflow-wrap:anywhere">“${esc(w.notes)}”</div>`:''}
+    <div class="hact"><button data-load="${k}">Repeat</button><button class="del" data-del="${k}">Delete</button></div></div>`;
+}
 function renderHistory(){
-  const h=store.get('hiit.history',[]),el=$('history');
-  if(!h.length){el.innerHTML='<div class="empty">No saved workouts yet.<br>Finish a workout and tap <b>Save workout</b> to see it here.</div>';return}
-  const best={};h.forEach(w=>w.names.forEach((n,i)=>{const t=w.reps.reduce((a,r)=>a+r[i],0);best[n]=Math.max(best[n]||0,t)}));
-  el.innerHTML=`<p class="note">${esc(window.__rcNote||'Saved on this phone, in this browser.')}</p>`+h.map((w,k)=>{const t=totals(w),d=new Date(w.date);
+  const h=HIST,el=$('history');
+  if(!h.length){el.innerHTML=acctNote()+'<div class="empty">No saved workouts yet.<br>Finish a workout and tap <b>Save workout</b> to see it here.</div>';return}
+  const best={};h.forEach(w=>{if(w.kind==='builder'||!w.names)return;w.names.forEach((n,i)=>{const t=w.reps.reduce((a,r)=>a+r[i],0);best[n]=Math.max(best[n]||0,t)})});
+  el.innerHTML=acctNote()+h.map((w,k)=>{const d=new Date(w.date);if(w.kind==='builder')return builderCard(w,k,d);const t=totals(w);
     return `<div class="hcard"><div class="hhead"><b>${d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</b><span class="hmeta">${d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}</span></div>
     <div class="hmeta">${w.mode==='reps'?'Reps only · '+(w.duration?fmt(w.duration)+' · ':'')+w.names.length+' exercises':fmt(w.duration)+' · '+w.reps.length+' rounds · '+w.cfg.work+'s on / '+w.cfg.rest+'s off'} · <b style="color:var(--fg)">${t.reduce((a,b)=>a+b,0)} reps</b></div>
     <div class="chips">${w.names.map((n,i)=>`<span class="chip">${esc(n)} ${t[i]}${t[i]>0&&t[i]===best[n]&&h.length>1?' ★':''}</span>`).join('')}</div>
     <div class="hact"><button data-v="${k}">Details</button><button data-load="${k}">Repeat</button><button class="del" data-del="${k}">Delete</button></div></div>`}).join('');
 }
 $('history').addEventListener('click',e=>{
-  const b=e.target.closest('button');if(!b)return;const h=store.get('hiit.history',[]);
+  const b=e.target.closest('button');if(!b)return;const h=HIST;
   if(b.dataset.v!=null)showSummary(h[+b.dataset.v],true);
+  if(b.dataset.load!=null&&h[+b.dataset.load]&&h[+b.dataset.load].kind==='builder'){FB.load(h[+b.dataset.load]);return}
   if(b.dataset.load!=null){const w=h[+b.dataset.load];if(w.mode==='reps'){C=freshC([...w.names]);saveC();goHome('counter')}else{cfg={...w.cfg,exercises:[...w.names]};renderSetup();goHome('setup')}}
-  if(b.dataset.del!=null){if(b.dataset.armed){h.splice(+b.dataset.del,1);store.set('hiit.history',h);renderHistory()}else{b.dataset.armed=1;b.textContent='Tap again to delete'}}
+  if(b.dataset.del!=null){if(b.dataset.armed){const w=h[+b.dataset.del];if(w)histDel(w.id)}else{b.dataset.armed=1;b.textContent='Tap again to delete'}}
 });
 
 /* ---------- rep counter (no timer) ---------- */
@@ -553,12 +709,236 @@ $('tGp10').onclick=()=>{T.goal=Math.min(10800,T.goal+600);saveT();tRender()};
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&T.start)tLock(true)});
 tRender();
 
+/* ---------- workout builder tab ---------- */
+FB=(()=>{
+const sec=$('builder');
+const BACK='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
+const XI='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const FLAME='<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 2 1.2 3 2.5 3C11.5 8 11 5.5 12 3z"/></svg>';
+const HOUSE='<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>';
+const KB='<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9a4 4 0 0 1 8 0"/><path d="M7 9h10"/><circle cx="12" cy="15" r="6"/></svg>';
+const DOWN='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg>';
+const UP='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+const THUMB='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 11v9H4v-9z"/><path d="M7 11l4-8a2 2 0 0 1 2 2v4h5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 16.8 20H7"/></svg>';
+const MUS=[['Chest','Press, fly, push-up'],['Back','Rows, pulls, deadlift'],['Shoulders','Press, raises'],['Arms','Biceps, triceps'],['Legs','Squat, lunge, hinge'],['Core','Carries, planks'],['Full body','Swings, cleans'],['Conditioning','Circuits, carries']];
+const LIB={
+  'Chest':{weights:['Bench press','Incline dumbbell press','Dumbbell fly','Cable crossover','Push-up','Dips'],kb:['KB floor press','KB squeeze press','KB floor fly','Push-up','KB push-up row']},
+  'Back':{weights:['Deadlift','Bent-over row','Lat pulldown','Seated cable row','Pull-up','Single-arm dumbbell row'],kb:['KB row','KB deadlift','KB swing','KB high pull','KB renegade row']},
+  'Shoulders':{weights:['Overhead press','Dumbbell lateral raise','Arnold press','Face pull','Rear delt fly'],kb:['KB press','KB push press','KB halo','KB upright row','KB bottoms-up press']},
+  'Arms':{weights:['Barbell curl','Hammer curl','Triceps pushdown','Skull crusher','Close-grip bench press'],kb:['KB curl','KB hammer curl','KB overhead triceps extension','KB skull crusher']},
+  'Legs':{weights:['Back squat','Romanian deadlift','Walking lunge','Leg press','Front squat'],kb:['Goblet squat','KB reverse lunge','KB swing','KB step-up','KB single-leg deadlift']},
+  'Core':{weights:['Cable crunch','Hanging knee raise','Farmer carry','Plank','Pallof press'],kb:['KB Russian twist','KB suitcase carry','Turkish get-up','KB windmill','Plank']},
+  'Full body':{weights:['Power clean','Thruster','Deadlift','Burpee','Dumbbell snatch'],kb:['KB swing','KB clean and press','KB thruster','Turkish get-up','KB snatch']},
+  'Conditioning':{weights:['Sled push','Farmer carry','Burpee','Rower','Box jump'],kb:['KB swing','KB snatch','Burpee','KB farmer carry','KB goblet squat']}
+};
+const mmss=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const fresh=()=>({step:'start',muscle:null,loc:null,equip:null,mode:'reps',repStyle:'goal',repGoal:12,rounds:4,secs:180,restSecs:60,exercises:[],custom:'',live:null,ratings:[],notes:'',armDiscard:false});
+let B=fresh();
+
+const past=()=>HIST.filter(w=>w.kind==='builder');
+function lastFor(name){const k=name.toLowerCase();for(const w of past())for(const e of (w.exercises||[]))if(e.name.toLowerCase()===k)return e;return null}
+function suggest(l){if(!l)return'';const w=parseFloat(l.weight);if(isNaN(w))return'';return String(l.rating==='up'?w+5:l.rating==='down'?Math.max(0,w-5):w)}
+
+/* timer */
+let tk=null,lastSec=null,wl=null;
+function wake(){try{if('wakeLock' in navigator&&!wl)navigator.wakeLock.request('screen').then(l=>{wl=l;l.addEventListener('release',()=>{wl=null})}).catch(()=>{})}catch(e){}}
+const total=()=>(B.live&&B.live.phase==='rest'?B.restSecs:B.secs)*1000;
+function tStart(){const L=B.live;if(!L||L.remaining<=0)return;wake();L.endAt=Date.now()+L.remaining;L.running=true;lastSec=null;clearInterval(tk);tk=setInterval(onTick,200);render()}
+function tPause(){const L=B.live;clearInterval(tk);if(!L||!L.running)return;L.remaining=Math.max(0,L.endAt-Date.now());L.running=false}
+function onTick(){
+  const L=B.live;if(!L||!L.running){clearInterval(tk);return}
+  L.remaining=Math.max(0,L.endAt-Date.now());
+  const s=Math.ceil(L.remaining/1000);if(s!==lastSec&&s>0&&s<=3)beep(520,.1,.2);lastSec=s;
+  paint();
+  if(L.remaining<=0){L.running=false;clearInterval(tk);beep(990,.5,.3);buzz([300,120,300]);
+    if(L.phase==='rest'){L.phase='work';L.remaining=B.secs*1000;toast('Rest over. Go.');tStart();return}
+    if(B.mode==='amrap'){advance(null);return}
+    toast('Time. Complete the round when ready.');render()}
+}
+function paint(){const L=B.live,c=$('fbClock'),b=$('fbBar');if(c){c.textContent=mmss(L.remaining);c.classList.toggle('low',L.phase==='work'&&L.remaining<=10000)}if(b)b.style.width=Math.min(100,L.remaining/total()*100).toFixed(1)+'%'}
+function advance(val){
+  const L=B.live;tPause();L.logged[L.ex].push(val);
+  let msg=B.mode==='amrap'?'Round '+(L.round+1)+' done':'Round '+(L.round+1)+' saved: '+val+' reps';
+  if(L.round+1<B.rounds)L.round++;
+  else if(L.ex+1<B.exercises.length){L.ex++;L.round=0;msg='Next up: '+B.exercises[L.ex].name;window.scrollTo(0,0)}
+  else{toast('All rounds done');toFinish();return}
+  L.reps=0;L.running=false;toast(msg);
+  if(B.restSecs>0){L.phase='rest';L.remaining=B.restSecs*1000;tStart()}
+  else{L.phase='work';L.remaining=B.secs*1000;if(B.mode==='amrap')tStart();else render()}
+}
+function toFinish(){tPause();B.ratings=B.exercises.map((_,i)=>B.ratings[i]||null);go('finish')}
+
+/* screens */
+function prog(n){let s='';for(let i=1;i<=4;i++)s+=`<span class="${i<=n?'on':''}"></span>`;return `<div class="fb-prog" aria-label="Step ${n} of 4">${s}</div>`}
+function top(back,crumb,label,icon){return `<div class="fb-top"><button class="fb-back" data-a="go" data-to="${back}" aria-label="${label||'Back'}">${icon||BACK}</button><span class="fb-crumb">${crumb}</span></div>`}
+function stepper(label,sub,k,val,dl,ul){return `<div class="fb-srow"><span><b>${label}</b>${sub?`<small>${sub}</small>`:''}</span><div class="fb-step"><button data-a="step" data-k="${k}" data-d="-1" aria-label="${dl}">−</button><output>${val}</output><button data-a="step" data-k="${k}" data-d="1" aria-label="${ul}">+</button></div></div>`}
+const settingsTxt=()=>(B.mode==='reps'?(B.repStyle==='goal'?'Reps · goal '+B.repGoal:'Reps · counter'):'AMRAP')+' · '+B.rounds+' × '+mmss(B.secs*1000)+' · '+(B.restSecs?mmss(B.restSecs*1000)+' rest':'no rest');
+
+function vStart(){
+  const last=past()[0];
+  return `<div><h2 class="fb-h">Workout builder</h2><p class="fb-sub">Pick a muscle group, where you are, and how you count. Then run it round by round and rate your weights.</p></div>
+  <button class="primary" data-a="begin-build">Build a workout</button>
+  ${last?`<button class="secondary" data-a="repeat-last">Repeat last: ${esc(last.muscle)} · ${rcLoc(last.loc)}</button>`:''}
+  <p class="note">Weight ratings carry forward. Rate an exercise Increase or Decrease and next time it starts 5 lb heavier or lighter.</p>`;
+}
+function vMuscle(){
+  return `<div class="fb-stack">${top('start','Step 1 of 4')}${prog(1)}</div>
+  <div><h2 class="fb-h">What are we working?</h2><p class="fb-sub">Pick a muscle group for today’s routine.</p></div>
+  <div class="fb-grid2">${MUS.map(([n,h])=>`<button class="fb-opt" data-a="muscle" data-v="${esc(n)}" aria-pressed="${B.muscle===n}"><span class="nm">${n}</span><span class="ht">${h}</span></button>`).join('')}</div>
+  <div class="fb-foot"><button class="primary" data-a="go" data-to="location"${B.muscle?'':' disabled style="opacity:.4"'}>Continue</button></div>`;
+}
+function vLocation(){
+  let eq;
+  if(B.loc==='home')eq=`<div class="fb-locked">${KB}<div style="flex:1"><b style="display:block">Kettlebells</b><span style="font-size:.82rem;color:var(--muted)">Default when training at home</span></div><span class="fb-pill">Auto</span></div>`;
+  else if(B.loc==='station')eq=[['weights','Weights','Barbell, dumbbells, machines'],['kb','Kettlebells','Same style as home']].map(([v,n,h])=>`<button class="fb-opt row" data-a="equip" data-v="${v}" aria-pressed="${B.equip===v}"><span class="fb-radio"></span><span><b style="display:block">${n}</b><span class="ht">${h}</span></span></button>`).join('');
+  else eq='<p class="note">Choose a location first.</p>';
+  return `<div class="fb-stack">${top('muscle','Step 2 of 4 · '+esc(B.muscle))}${prog(2)}</div>
+  <h2 class="fb-h">Where are you training?</h2>
+  <div class="fb-grid2"><button class="fb-opt tall" data-a="loc" data-v="station" aria-pressed="${B.loc==='station'}">${FLAME}<span class="nm">Fire station</span></button><button class="fb-opt tall" data-a="loc" data-v="home" aria-pressed="${B.loc==='home'}">${HOUSE}<span class="nm">Home</span></button></div>
+  <div class="fb-stack"><div class="label">Equipment</div>${eq}</div>
+  <div class="fb-foot"><button class="primary" data-a="go" data-to="mode"${B.loc&&B.equip?'':' disabled style="opacity:.4"'}>Continue</button></div>`;
+}
+function vMode(){
+  const reps=B.mode==='reps',goal=B.repStyle==='goal';
+  const first=reps?`<div class="fb-sec fb-stack"><div class="fb-seg"><button data-a="repStyle" data-v="goal" aria-pressed="${goal}">Set a rep goal</button><button data-a="repStyle" data-v="counter" aria-pressed="${!goal}">Rep counter</button></div>${goal?stepper('Rep goal','Per round','repGoal',B.repGoal,'Fewer reps','More reps'):'<p class="note" style="margin:0">No target. Count with the big button each round and the app records what you did.</p>'}</div>`
+    :`<div class="fb-sec"><p class="note" style="margin:0">Work until the clock hits 0:00, rest, then the next round starts on its own. No reps to log.</p></div>`;
+  return `<div class="fb-stack">${top('location','Step 3 of 4 · '+esc(B.muscle)+' · '+rcLoc(B.loc))}${prog(3)}</div>
+  <h2 class="fb-h">How are you counting?</h2>
+  <div class="fb-grid2"><button class="fb-opt" data-a="mode" data-v="reps" aria-pressed="${reps}"><span class="nm">Reps</span><span class="ht">Hit a target each round</span></button><button class="fb-opt" data-a="mode" data-v="amrap" aria-pressed="${!reps}"><span class="nm">AMRAP</span><span class="ht">As many reps as possible</span></button></div>
+  <div class="fb-panel">${first}
+    <div class="fb-sec">${stepper('Rounds','Per exercise','rounds',B.rounds,'Fewer rounds','More rounds')}</div>
+    <div class="fb-sec">${stepper('Work time','Each round','secs',mmss(B.secs*1000),'Less work time','More work time')}</div>
+    <div class="fb-sec">${stepper('Rest time','Between rounds','restSecs',B.restSecs?mmss(B.restSecs*1000):'Off','Less rest','More rest')}</div></div>
+  <div class="fb-foot"><button class="primary" data-a="go" data-to="exercises">Continue</button></div>`;
+}
+function vExercises(){
+  const lib=(LIB[B.muscle]||{})[B.equip]||[],have=B.exercises.map(x=>x.name.toLowerCase());
+  const sugg=lib.filter(n=>have.indexOf(n.toLowerCase())<0);
+  const list=B.exercises.length?B.exercises.map((x,i)=>{const l=lastFor(x.name);
+    return `<div class="fb-ex"><span class="fb-num">${i+1}</span><div style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="last">${l?'Last: '+rcWt(l.weight)+(l.rating?' · rated '+rcRate(l.rating):''):'New exercise'}</div></div>
+    <div class="fb-acts">${i>0?`<button data-a="up" data-i="${i}" aria-label="Move ${esc(x.name)} up">↑</button>`:''}<button data-a="remove" data-i="${i}" aria-label="Remove ${esc(x.name)}">✕</button></div>
+    <div class="fb-wt"><label for="fbw${i}">Weight</label><input id="fbw${i}" type="number" inputmode="decimal" min="0" step="2.5" placeholder="BW" value="${esc(x.weight)}" data-f="w" data-i="${i}"><span>lb</span></div></div>`}).join('')
+    :'<div class="empty" style="padding:16px">Add at least one exercise below.</div>';
+  return `<div class="fb-stack">${top('mode','Step 4 of 4')}${prog(4)}</div>
+  <div class="fb-stack"><h2 class="fb-h">Add exercises</h2><div class="fb-chips"><span class="fb-pill">${esc(B.muscle)}</span><span class="fb-pill">${rcLoc(B.loc)}</span><span class="fb-pill">${rcEq(B.equip)}</span><span class="fb-pill">${settingsTxt()}</span></div></div>
+  <div class="fb-stack"><div class="label">Your routine · ${B.exercises.length}</div>${list}</div>
+  <div class="fb-stack"><div class="label">Suggested for ${esc(B.muscle.toLowerCase())} + ${rcEq(B.equip).toLowerCase()}</div>
+    ${sugg.map(n=>`<button class="fb-sugg" data-a="add" data-v="${esc(n)}" aria-label="Add ${esc(n)}"><span>${esc(n)}</span><span aria-hidden="true">+</span></button>`).join('')}
+    <label for="fbCustom" class="label" style="margin-top:4px">Or add your own</label>
+    <div class="fb-add"><input id="fbCustom" class="fb-field" type="text" placeholder="Exercise name" autocomplete="off" value="${esc(B.custom)}" data-f="custom"><button class="secondary" data-a="addCustom">Add</button></div></div>
+  <div class="fb-foot"><button class="primary" data-a="start"${B.exercises.length?'':' disabled style="opacity:.4"'}>Start workout</button></div>`;
+}
+function vLive(){
+  const L=B.live,ex=B.exercises[L.ex],amrap=B.mode==='amrap',rest=L.phase==='rest';
+  let dots='';for(let i=0;i<B.rounds;i++)dots+=`<span class="fb-dot ${i<L.round?'done':i===L.round?'cur':''}"></span>`;
+  const lbl=L.running?'Pause':L.remaining<=0?'Time’s up':L.remaining<total()?'Resume':'Start';
+  const timer=`<div class="fb-timer${amrap||rest?' lg':''}${rest?' rest':''}"><div class="fb-thead"><span>${rest?'Rest · round '+(L.round+1)+' next':'Round '+(L.round+1)+' of '+B.rounds}</span><div class="fb-dots">${dots}</div></div>
+    <div id="fbClock" class="fb-clock${!rest&&L.remaining<=10000?' low':''}" role="timer">${mmss(L.remaining)}</div>
+    <div class="fb-bar"><i id="fbBar" style="width:${Math.min(100,L.remaining/total()*100).toFixed(1)}%"></i></div>
+    ${rest?`<div class="fb-row2"><button class="secondary" data-a="restAdd">+15 sec</button><button class="primary" style="font-size:1.2rem;padding:12px" data-a="skipRest">Skip rest</button></div>`
+      :`<div class="fb-row2"><button class="secondary" data-a="tReset">Reset</button><button class="primary" style="font-size:1.2rem;padding:12px" data-a="${L.running?'tPause':'tStart'}"${L.remaining<=0?' disabled':''}>${lbl}</button></div>`}</div>`;
+  const lg=L.logged[L.ex];
+  const logged=lg.length?`<div class="fb-chips">${lg.map((r,k)=>`<span class="fb-pill">R${k+1}${amrap?' done':' · '+r}</span>`).join('')}</div>`:'';
+  let body;
+  if(rest)body=logged+`<p class="note">Catch your breath. Round ${L.round+1} of ${esc(ex.name)} starts on its own when rest ends.</p>`;
+  else if(!amrap){const goal=B.repStyle==='goal';
+    body=`<div class="fb-count"><span class="fb-big" aria-live="polite">${L.reps}</span><span style="color:var(--muted)">${goal?'of '+B.repGoal+' reps':'reps'}</span>${goal?`<div class="fb-bar"><i style="width:${Math.min(100,Math.round(L.reps/B.repGoal*100))}%"></i></div>`:''}</div>
+    <div class="fb-pads"><button class="fb-pad" data-a="minus" aria-label="Remove a rep">−</button><button class="fb-pad main" data-a="plus" data-n="1">+1 Rep</button></div>
+    <div class="fb-pads2"><button class="fb-pad alt" data-a="plus" data-n="5" aria-label="Add 5 reps">+5</button><button class="fb-pad alt" data-a="plus" data-n="10" aria-label="Add 10 reps">+10</button></div>
+    ${logged}<div class="fb-foot"><button class="primary" data-a="complete">Complete round ${L.round+1}</button></div>`}
+  else body=logged+`<p class="note">As many reps as possible until 0:00. ${B.restSecs?'Rest starts on its own, then the next round.':'The next round starts on its own.'}</p><div class="fb-foot"><button class="secondary" data-a="endEarly">End round early</button></div>`;
+  return `<div class="fb-top"><button class="fb-back" data-a="endWorkout" aria-label="End workout">${XI}</button><span class="fb-crumb">Exercise ${L.ex+1} of ${B.exercises.length} · ${rcLoc(B.loc)}</span></div>
+  <div><h2 class="fb-name">${esc(ex.name)}</h2><div class="fb-meta"><span class="fb-wtbig">${ex.weight===''?'Bodyweight':esc(ex.weight)+' lb'}</span><span class="fb-mode">${amrap?'AMRAP':(B.repStyle==='goal'?'Reps · goal '+B.repGoal:'Reps')}</span></div></div>
+  ${timer}${body}`;
+}
+function vFinish(){
+  const L=B.live;
+  const cards=B.exercises.map((x,i)=>{const d=L&&L.logged[i]?L.logged[i].length:0;
+    const reps=B.mode==='amrap'?d+' of '+B.rounds+' rounds':(d?L.logged[i].join(' · ')+' reps':'Not logged');
+    const r=B.ratings[i],btn=(v,ic,w)=>`<button data-a="rate" data-i="${i}" data-v="${v}" aria-pressed="${r===v}">${ic}${w}</button>`;
+    return `<div class="fb-rate"><div class="fb-rhead"><b>${esc(x.name)}</b><span>${rcWt(x.weight)}<br>${reps}</span></div><div class="fb-rates" role="group" aria-label="Weight rating for ${esc(x.name)}">${btn('down',DOWN,'Decrease')}${btn('good',THUMB,'Good')}${btn('up',UP,'Increase')}</div></div>`}).join('');
+  return `<div class="fb-top"><button class="fb-back" data-a="go" data-to="live" aria-label="Back to workout">${BACK}</button><span class="fb-crumb">Workout complete</span></div>
+  <div><h2 class="fb-h">Nice work</h2><p class="fb-sub">${esc(B.muscle)} · ${rcLoc(B.loc)} · ${rcEq(B.equip)} · ${settingsTxt()}</p></div>
+  <div class="fb-stack"><div class="label">How was the weight?</div>${cards}</div>
+  <div class="fb-stack"><label for="fbNotes" class="label">Comments</label><textarea id="fbNotes" class="fb-field" placeholder="How did it feel? Anything to change next time?" data-f="notes">${esc(B.notes)}</textarea></div>
+  <div class="fb-foot"><button class="primary" data-a="save">Save workout</button><button class="secondary" data-a="discard">${B.armDiscard?'Tap again to discard':'Discard'}</button></div>`;
+}
+function render(){
+  if(B.step==='live'&&!B.live)B.step='exercises';
+  const v={start:vStart,muscle:vMuscle,location:vLocation,mode:vMode,exercises:vExercises,live:vLive,finish:vFinish}[B.step]||vStart;
+  sec.innerHTML=v();
+}
+function go(s){B.step=s;render();window.scrollTo(0,0)}
+function addEx(name){
+  if(B.exercises.some(x=>x.name.toLowerCase()===name.toLowerCase())){toast(name+' is already in the routine');return}
+  const l=lastFor(name),w=suggest(l);B.exercises.push({name,weight:w});
+  if(l&&l.rating&&l.rating!=='good'&&w!=='')toast('Set to '+w+' lb from your last rating');
+}
+function save(){
+  const L=B.live;
+  histAdd({id:Date.now(),kind:'builder',date:new Date().toISOString(),muscle:B.muscle,loc:B.loc,equip:B.equip,mode:B.mode,repStyle:B.repStyle,repGoal:B.repGoal,rounds:B.rounds,secs:B.secs,restSecs:B.restSecs,
+    exercises:B.exercises.map((x,i)=>({name:x.name,weight:x.weight,reps:L?L.logged[i]:[],rating:B.ratings[i]||null})),notes:(B.notes||'').trim()});
+  tPause();B=fresh();render();toast('Workout saved');goHome('history');
+}
+function act(a,d){
+  const L=B.live;if(a!=='discard')B.armDiscard=false;
+  switch(a){
+    case 'go':go(d.to);return;
+    case 'begin-build':B=fresh();go('muscle');return;
+    case 'repeat-last':{const w=past()[0];if(w)load(w);return}
+    case 'muscle':if(B.muscle!==d.v)B.exercises=[];B.muscle=d.v;break;
+    case 'loc':if(d.v==='home')B.equip='kb';else if(B.loc!=='station')B.equip='weights';if(B.loc!==d.v)B.exercises=[];B.loc=d.v;break;
+    case 'equip':if(B.equip!==d.v)B.exercises=[];B.equip=d.v;break;
+    case 'mode':if(B.mode!==d.v){if(d.v==='amrap'){B.secs=30;B.restSecs=30;B.rounds=3}else{B.secs=180;B.restSecs=60;B.rounds=4}}B.mode=d.v;break;
+    case 'repStyle':B.repStyle=d.v;break;
+    case 'step':{const s=+d.d;
+      if(d.k==='repGoal')B.repGoal=clamp(B.repGoal+s,1,200);
+      if(d.k==='rounds')B.rounds=clamp(B.rounds+s,1,20);
+      if(d.k==='secs')B.secs=clamp(B.secs+s*30,30,1800);
+      if(d.k==='restSecs')B.restSecs=clamp(B.restSecs+s*15,0,600);break}
+    case 'add':addEx(d.v);break;
+    case 'addCustom':{const n=(B.custom||'').trim();if(!n){toast('Type an exercise name first');return}addEx(n);B.custom='';break}
+    case 'remove':B.exercises.splice(+d.i,1);break;
+    case 'up':{const i=+d.i,t=B.exercises[i-1];B.exercises[i-1]=B.exercises[i];B.exercises[i]=t;break}
+    case 'start':if(!B.exercises.length)return;beep(660,.12,.2);
+      B.live={ex:0,round:0,reps:0,remaining:B.secs*1000,endAt:0,running:false,phase:'work',logged:B.exercises.map(()=>[])};B.ratings=[];B.notes='';go('live');return;
+    case 'tStart':beep(660,.12,.2);tStart();return;
+    case 'tPause':tPause();break;
+    case 'tReset':tPause();L.remaining=B.secs*1000;break;
+    case 'restAdd':if(L.running)L.endAt+=15000;L.remaining+=15000;break;
+    case 'skipRest':tPause();L.phase='work';L.remaining=B.secs*1000;tStart();return;
+    case 'plus':L.reps+=+d.n;buzz(15);break;
+    case 'minus':L.reps=Math.max(0,L.reps-1);break;
+    case 'complete':advance(L.reps);return;
+    case 'endEarly':advance(null);return;
+    case 'endWorkout':toFinish();return;
+    case 'rate':B.ratings[+d.i]=B.ratings[+d.i]===d.v?null:d.v;break;
+    case 'save':save();return;
+    case 'discard':if(!B.armDiscard){B.armDiscard=true;break}tPause();B=fresh();toast('Workout discarded');go('start');return;
+  }
+  render();
+}
+function load(w){
+  tPause();B=fresh();
+  Object.assign(B,{muscle:w.muscle,loc:w.loc,equip:w.equip,mode:w.mode||'reps',repStyle:w.repStyle||'goal',repGoal:w.repGoal||12,rounds:w.rounds||4,secs:w.secs||180,restSecs:w.restSecs!=null?w.restSecs:60,step:'exercises'});
+  (w.exercises||[]).forEach(e=>{const l=lastFor(e.name);B.exercises.push({name:e.name,weight:l?suggest(l):(e.weight||'')})});
+  goHome('builder');
+}
+sec.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;act(b.dataset.a,b.dataset)});
+sec.addEventListener('input',e=>{const t=e.target,f=t.dataset.f;if(!f)return;
+  if(f==='w')B.exercises[+t.dataset.i].weight=t.value;else if(f==='custom')B.custom=t.value;else if(f==='notes')B.notes=t.value});
+sec.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.f==='custom'){e.preventDefault();act('addCustom',{})}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&B.live&&B.live.running){wl=null;wake();onTick()}});
+return {render,load,onHist(){if(!sec.hidden&&B.step==='start')render()}};
+})();
+
 function goHome(tab){
   $('summary').hidden=true;$('home').hidden=false;
-  [['setup','tabSetup'],['counter','tabCount'],['history','tabHist']].forEach(([s,t])=>{const on=s===tab;$(t).setAttribute('aria-selected',on);$(s).hidden=!on;$(s).style.display=on?'flex':'none'});
-  if(tab==='history')renderHistory();if(tab==='counter')renderCounter();window.scrollTo(0,0);
+  [['setup','tabSetup'],['counter','tabCount'],['builder','tabBuild'],['history','tabHist']].forEach(([s,t])=>{const on=s===tab;$(t).setAttribute('aria-selected',on);$(s).hidden=!on;$(s).style.display=on?'flex':'none'});
+  if(tab==='history')renderHistory();if(tab==='counter')renderCounter();if(tab==='builder')FB.render();window.scrollTo(0,0);
 }
-$('tabSetup').onclick=()=>goHome('setup');$('tabCount').onclick=()=>goHome('counter');$('tabHist').onclick=()=>goHome('history');
+$('tabSetup').onclick=()=>goHome('setup');$('tabCount').onclick=()=>goHome('counter');$('tabBuild').onclick=()=>goHome('builder');$('tabHist').onclick=()=>goHome('history');
 $('startBtn').onclick=start;
 /* ---------- settings / theme ---------- */
 function applyTheme(t){document.body.classList.toggle('theme-chevron',t==='chevron');document.querySelectorAll('[data-theme-pick]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.themePick===t))}
