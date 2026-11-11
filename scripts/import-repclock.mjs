@@ -10,8 +10,9 @@
 //   3. the app starts when the sync module says so (src/apps/repclock-sync.js),
 //      so a signed-in member's saved workouts are loaded first
 //      (fallback: starts after 4 seconds no matter what)
-//   4. the History note says where workouts are saved ("on this phone" or
-//      "in your account")
+//   4. the History status line says where workouts are saved on this site
+//      ("on this device" or "in your account"), instead of RepClock's own
+//      note about the Claude account
 // The script stops with an error if the artifact's code has changed in a way
 // these edits no longer fit, rather than producing a broken page.
 
@@ -51,9 +52,13 @@ script = script.replace(once(script, '<script>\n(()=>{', 'app start'),
 if (!script.endsWith('})();\n</script>')) throw new Error('RepClock no longer ends with })(); update this script.');
 script = script.slice(0, -'})();\n</script>'.length) + '};\n</script>';
 
-// 4. History note
-script = script.replace(once(script, '<p class="note">Saved on this phone, in this browser.</p>', 'history note'),
-  "<p class=\"note\">${esc(window.__rcNote||'Saved on this phone, in this browser.')}</p>");
+// 4. History status line: RepClock's own note talks about the Claude account
+//    (its claude.ai storage isn't available here); say where workouts are saved
+//    on this site instead.
+script = script.replace(once(script, 'function acctNote(){\n', 'History status line (acctNote)'),
+  'function acctNote(){\n'
+  + "  // Garage Terminal: where workouts are saved on this site (src/apps/repclock-sync.js)\n"
+  + "  if(window.__rcNote)return '<div class=\"acct'+(window.__rcSynced?' on':'')+'\">'+esc(window.__rcNote)+'</div>';\n");
 
 const extraStyle = `<style>
 /* Garage Terminal additions: back link + sync status bar */

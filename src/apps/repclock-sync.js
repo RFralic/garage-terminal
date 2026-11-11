@@ -265,6 +265,7 @@ async function onSession(s) {
   write(OWNER, uid);
 
   window.__rcNote = `Saved to ${name}: your workouts are on every device you sign in on.`;
+  window.__rcSynced = true; // shows the History status line as connected
   watchRepClockWrites();
   if (mustSave) {
     write(DIRTY, '1'); // keep the device copy as the newer one until the save succeeds
