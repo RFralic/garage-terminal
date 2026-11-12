@@ -13,6 +13,7 @@
 const KNOWN = [
   ['garage', 'Garage'],
   ['gym', 'Gym'],
+  ['home', 'Home'],
 ];
 
 const list = document.getElementById('apps-list');

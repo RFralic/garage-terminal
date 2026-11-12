@@ -3,8 +3,9 @@ rules_version = '2';
 // =============================================================================
 // Garage Terminal: Cloud Storage security rules
 //
-// Only library files live in Storage, at library/{slug}/{fileName}, where
-// {slug} is the library item's ID in Firestore (library/{slug}).
+// Library files live at library/{slug}/{fileName}, where {slug} is the
+// library item's ID in Firestore (library/{slug}). Home Projects photos live at
+// homeprojects/{uid}/photos/{photoId}, private to that member.
 //
 //   - Anyone can download a file whose library item is published.
 //   - Draft items' files are visible only to the sysop.
@@ -34,6 +35,16 @@ service firebase.storage {
         && request.resource.size <= 50 * 1024 * 1024;
 
       allow delete: if isAdmin();
+    }
+
+    // Home Projects photos (apps/home-projects): private to the member who
+    // added them. Images only, up to 10 MB each (the app shrinks photos first).
+    match /homeprojects/{uid}/photos/{photoId} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && photoId.matches('^[A-Za-z0-9_-]{1,64}$')
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
     }
 
     match /{everythingElse=**} {

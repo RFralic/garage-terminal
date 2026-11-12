@@ -20,6 +20,8 @@ Live site: https://garage-terminal-15499.web.app
 | `mod/index.html` | Sysop dashboard: reports, held posts, members, settings, mod log (`src/pages/mod.js`) |
 | `apps/repclock/index.html` | RepClock, built from its Claude artifact by `scripts/import-repclock.mjs` (don't edit by hand) |
 | `src/apps/repclock-sync.js` | Saves RepClock workouts and settings to the signed-in member's account |
+| `apps/home-projects/index.html` | Home Projects, built from its Claude artifact by `scripts/import-home-projects.mjs` (don't edit by hand) |
+| `src/apps/homeprojects-backend.js` | Home Projects storage on this site: sign-in, projects (Firestore) and photos (Storage) |
 | `apps/tap-drill-chart/index.html` | Tap Drill Chart, copied from its Claude artifact (re-copy if the artifact changes) |
 | `404.html` | Not-found page |
 | `src/styles/base.css` | Shared look: colors, fonts, header, footer, terminal boxes |
@@ -87,6 +89,16 @@ account). A count or stopwatch in progress stays on the device.
 To update RepClock from a newer version of the Claude artifact, save the artifact's HTML and run
 `node scripts/import-repclock.mjs path/to/file.html`; the script stops with an error if the artifact
 changed in a way its edits no longer fit.
+
+## Home Projects
+
+Home Projects (`/apps/home-projects`) was built on claude.ai, where it stores data through
+`window.claude.use("db" | "user" | "assets")`. On this site the page provides those with the site's
+Google sign-in (`src/apps/homeprojects-backend.js`): projects in Firestore at
+`homeprojects/{uid}/projects/{id}`, photos in Storage at `homeprojects/{uid}/photos/{id}`, both private
+to the member (see the HOME PROJECTS sections of `firestore.rules` and `storage.rules`). Signed out, it
+keeps projects in the browser; the first sign-in adds them to the account. To update from a newer
+artifact: `node scripts/import-home-projects.mjs path/to/file.html`.
 
 ## Adding an app to the home page
 

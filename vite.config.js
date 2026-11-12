@@ -17,7 +17,7 @@ const cleanUrls = {
       if (/^\/(forum|wiki|join|mod)$/.test(path)) req.url = `${path}/${q}`;
       else if (path === '/forum/new') req.url = `/forum/new.html${q}`;
       else if (path.startsWith('/forum/t/')) req.url = `/forum/thread.html${q}`; // same as firebase.json rewrite
-      else if (path === '/apps/tap-drill-chart' || path === '/apps/repclock') req.url = `${path}/${q}`;
+      else if (['/apps/tap-drill-chart', '/apps/repclock', '/apps/home-projects'].includes(path)) req.url = `${path}/${q}`;
       else if (path === '/wiki/add') req.url = `/wiki/add.html${q}`;
       else if (path.startsWith('/wiki/') && path !== '/wiki/' && !path.includes('.')) req.url = `/wiki/doc.html${q}`; // same as firebase.json rewrite
       next();
@@ -46,6 +46,7 @@ export default defineConfig({
         mod: page('mod/index.html'),
         tapDrillChart: page('apps/tap-drill-chart/index.html'),
         repclock: page('apps/repclock/index.html'),
+        homeProjects: page('apps/home-projects/index.html'),
         notFound: page('404.html'),
       },
     },

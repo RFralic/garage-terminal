@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+<!--
+  Home Projects, served at /apps/home-projects. Built by scripts/import-home-projects.mjs
+  from the Claude artifact https://claude.ai/artifact/P6rzcGnqwQksfxxWn3uKiG.
+  Don't edit by hand: re-run the script with a newer artifact file instead.
+  Storage (sign-in, projects, photos): src/apps/homeprojects-backend.js.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Home Projects · Garage Terminal</title>
+<meta name="description" content="Home projects by room: tasks, shopping lists, notes, links and photos.">
+<meta name="theme-color" content="#2f4a43">
+<!-- Site icons: SVG for modern browsers, .ico/.png fallbacks, home-screen icon, web manifest -->
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<!-- Base styles from the artifact's page wrapper -->
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<style>
+/* Layout: shop-manual logbook — room/project plates, then a tabbed task list / inspiration / notes per project, and a to-do / shopping / notes / links sheet per task */
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --surface-2:#f5f6f2; --ink:#1c211d; --muted:#5d665f; --line:#d3d8d1;
+  --accent:#c4561d; --accent-ink:#ffffff; --steel:#2f4a43; --tan:#7d5b2c; --ok:#2f7a4a; --warn:#a86a00; --scrim:rgba(20,24,21,.88);
+  --f-display:"Archivo Narrow","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#151a17; --surface:#1e2420; --surface-2:#252c27; --ink:#e7ebe6; --muted:#9aa49c; --line:#343d37;
+  --accent:#e2753c; --accent-ink:#1a0f08; --steel:#8fb5aa; --tan:#d9b98a; --ok:#6cc48c; --warn:#e0a640; --scrim:rgba(8,10,9,.9); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151a17; --surface:#1e2420; --surface-2:#252c27; --ink:#e7ebe6; --muted:#9aa49c; --line:#343d37;
+  --accent:#e2753c; --accent-ink:#1a0f08; --steel:#8fb5aa; --tan:#d9b98a; --ok:#6cc48c; --warn:#e0a640; --scrim:rgba(8,10,9,.9); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:2rem;text-transform:uppercase}
+h2{font-size:1.5rem;overflow-wrap:anywhere}
+h3{font-size:1.05rem;text-transform:uppercase;letter-spacing:.06em;color:var(--steel)}
+p{margin:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}.small{font-size:.85rem}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:14px;border-bottom:3px solid var(--ink);margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo{flex:none;width:52px;height:52px;display:block;border-radius:12px}
+.top .sub{font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--f-display);font-weight:600}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button,.btn{font:600 .9rem var(--f-body);border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;cursor:pointer;min-height:40px}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.primary:hover{filter:brightness(1.05);border-color:var(--accent)}
+.ghost{background:transparent;border-color:transparent;color:var(--steel)}
+.danger{color:var(--accent);border-color:var(--accent);background:transparent}
+.banner{border:1px solid var(--warn);border-left-width:4px;background:var(--surface-2);padding:10px 14px;border-radius:6px;font-size:.9rem;margin-bottom:16px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+.tabs button{border:none;border-bottom:3px solid transparent;border-radius:0;background:transparent;font-family:var(--f-display);font-size:1rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 12px;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.kindtabs button{font-size:1.1rem}
+.cnt{font:500 .75rem var(--f-mono);color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-left:4px;vertical-align:2px}
+/* cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
+.cardmain{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;flex:1;text-align:left;font:inherit;color:inherit}
+.cardmain:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.plate{color:var(--bg);padding:10px 14px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.plate.room{background:var(--steel)}.plate.project{background:var(--tan)}
+.plate b{font-family:var(--f-display);font-size:1.25rem;letter-spacing:.02em;text-transform:uppercase;min-width:0;overflow-wrap:anywhere}
+.plate span{font-family:var(--f-display);font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;opacity:.9;white-space:nowrap}
+.cbody{padding:12px 14px;display:grid;gap:10px}
+.card dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:.88rem}
+.card dt{color:var(--muted)}.card dd{margin:0;font-family:var(--f-mono);overflow-wrap:anywhere}
+.card .foot{margin-top:auto;border-top:1px solid var(--line);padding:9px 14px;font-size:.82rem;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.between{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.tag{display:inline-block;font:600 .7rem var(--f-display);text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:3px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.tag.ex{color:var(--warn);border-color:var(--warn)}
+.st{display:inline-block;font:600 .72rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.st.plan{color:var(--muted)}.st.prog{color:var(--warn)}.st.hold{color:var(--accent)}.st.done{color:var(--ok)}.st.late{color:var(--accent)}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:28px;text-align:center;display:grid;gap:12px;justify-items:center}
+.empty .actions{justify-content:center}
+/* detail */
+.head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px}
+.head .t{min-width:0;flex:1;display:grid;gap:6px}
+.eyebrow{font:600 .78rem var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.9rem;color:var(--muted)}
+.desc{max-width:65ch}
+.status{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:18px}
+.stat{border:1px solid var(--line);border-left:4px solid var(--line);border-radius:4px;padding:8px 12px;background:var(--surface)}
+.stat.ok{border-left-color:var(--ok)}.stat.warn{border-left-color:var(--warn)}.stat.hot{border-left-color:var(--accent)}
+.stat small{display:block;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.stat b{font-family:var(--f-mono);font-weight:500;font-size:1.15rem}
+section.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px;display:grid;gap:18px}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px 16px}
+label{display:grid;gap:4px;font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;min-width:0}
+input,select,textarea{font:400 .95rem var(--f-body);color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:9px 10px;width:100%;min-width:0;min-height:42px;text-transform:none;letter-spacing:0}
+textarea{min-height:160px;resize:vertical;line-height:1.5}
+.span2{grid-column:1/-1}
+.addrow{display:flex;gap:8px}.addrow input{flex:1}
+.addrow button{flex:none}
+.shopform{display:grid;grid-template-columns:2fr .6fr .8fr 1.2fr auto;gap:8px;align-items:end;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:12px}
+.shopform input{background:var(--surface)}
+.vsec{display:grid;gap:10px}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
+/* checklist rows */
+.list{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
+.item{display:flex;align-items:center;gap:2px;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.check{all:unset;box-sizing:border-box;flex:none;width:52px;min-height:54px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.check:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.box{width:22px;height:22px;border-radius:4px;border:2px solid var(--muted);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:transparent}
+.box.on{background:var(--ok);border-color:var(--ok);color:var(--bg)}
+.item .main{all:unset;box-sizing:border-box;flex:1;min-width:0;display:grid;gap:2px;padding:9px 6px 9px 0;cursor:pointer}
+.item .main:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.item .main.static{cursor:default}
+.item .t{font-weight:500;overflow-wrap:anywhere}
+.item .t.done{color:var(--muted);text-decoration:line-through}
+.item .m{font-size:.82rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.item .side{flex:none;display:flex;align-items:center;gap:6px;padding-right:10px}
+.x{all:unset;cursor:pointer;width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:5px;color:var(--muted);font-size:1.2rem}
+.x:hover{color:var(--accent)}.x:focus-visible{outline:2px solid var(--accent)}
+.price{font-family:var(--f-mono);color:var(--ink);white-space:nowrap}
+.editor{padding:12px;background:var(--surface-2);border-bottom:1px solid var(--line);display:grid;gap:10px}
+.editor .fields{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+.editor input{background:var(--surface)}
+.seg{display:inline-grid;grid-auto-flow:column;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.seg button{border:0;min-height:36px;padding:0 12px;font-family:var(--f-display);text-transform:uppercase;letter-spacing:.04em;background:transparent;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--steel);color:var(--bg)}
+.totals{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.9rem;color:var(--muted)}
+.totals b{font-family:var(--f-mono);font-weight:500;color:var(--ink)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{min-height:36px;padding:0 13px;border-radius:999px;font-weight:500;font-size:.88rem;background:var(--surface)}
+.pill[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:var(--bg)}
+.storehead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:6px}
+/* media */
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.thumb{all:unset;cursor:pointer;position:relative;aspect-ratio:1;max-width:100%;border-radius:6px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb span{position:absolute;left:0;right:0;bottom:0;padding:4px 7px;font-size:.75rem;background:var(--scrim);color:#e7ebe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thumb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.uptile{aspect-ratio:1;max-width:100%;border:1px dashed var(--steel);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;color:var(--steel);font:600 .85rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:8px}
+.uptile b{font-size:1.6rem;line-height:1}
+.uptile input{position:absolute;width:1px;height:1px;opacity:0}
+.uptile:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.links{display:grid;gap:8px}
+.link{display:flex;align-items:center;gap:10px;min-height:54px;padding:6px 6px 6px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px}
+.link a{flex:1;min-width:0;display:grid;color:var(--ink);text-decoration:none}
+.link a b{font-weight:600;overflow-wrap:anywhere}.link a span{font-size:.8rem;color:var(--muted);overflow-wrap:anywhere}
+.link a:hover b{text-decoration:underline}
+.ico{flex:none;width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font:600 .72rem var(--f-display);letter-spacing:.04em;background:var(--surface);color:var(--steel);border:1px solid var(--line)}
+.ico.vid{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.linkform{display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;align-items:end}
+.note{font-size:.82rem;color:var(--muted)}
+/* lightbox */
+.lb{position:fixed;inset:0;z-index:30;background:var(--scrim);display:flex;flex-direction:column;padding:calc(12px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));gap:10px}
+.lb .img{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+.lb img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px}
+.lb .bar2{display:flex;gap:8px;flex-wrap:wrap;align-items:center;max-width:820px;width:100%;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px}
+.lb .bar2 input{flex:1 1 220px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-weight:600;z-index:40;max-width:calc(100% - 32px)}
+.saving{font-size:.8rem;color:var(--muted);min-height:1.2em}
+@media (prefers-reduced-motion:no-preference){.card{transition:transform .12s ease,box-shadow .12s ease}.card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.08)}}
+@media (max-width:640px){.shopform{grid-template-columns:1fr 1fr}.shopform .nm,.shopform button{grid-column:1/-1}.linkform{grid-template-columns:1fr}}
+@media (max-width:520px){h1{font-size:1.6rem}.logo{width:42px;height:42px}section.panel{padding:14px}}
+</style>
+<style>
+/* Garage Terminal additions: back link + sync status bar */
+.gt-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;font:600 .85rem var(--f-body)}
+.gt-back{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-family:var(--f-mono);white-space:nowrap;flex:none}
+.gt-back:hover{color:var(--ink)}
+.gt-back:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.gt-sync{color:var(--muted);text-align:right;overflow-wrap:anywhere}
+.gt-sync a{color:var(--accent);display:inline-flex;align-items:center;min-height:44px}
+.gt-sync[data-state="ok"]{color:var(--ok)}
+</style>
+<script type="module" src="/src/apps/homeprojects-backend.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <!-- Garage Terminal: back link + account sync status (src/apps/homeprojects-backend.js) -->
+  <div class="gt-bar"><a class="gt-back" href="/#apps">&lt; garage_terminal</a><span class="gt-sync" id="gtSync" aria-live="polite"></span></div>
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 52 52" aria-hidden="true"><rect width="52" height="52" rx="12" fill="var(--steel)"></rect><path d="M12 25 26 13l14 12" fill="none" stroke="var(--bg)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16 23v16h20V23" fill="none" stroke="var(--bg)" stroke-width="3.4" stroke-linejoin="round"></path><rect x="22.5" y="29" width="7" height="10" fill="var(--accent)"></rect></svg>
+      <div><h1>Home Projects</h1><div class="sub">Rooms · tasks · shopping lists</div></div>
+    </div>
+    <div class="actions"><span class="saving" id="saving" aria-live="polite"></span><span class="actions" id="topActions"></span></div>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+  <main id="app"><div class="empty muted">Loading your projects…</div></main>
+</div>
+<div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Photo"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// Garage Terminal: the app asks for window.claude.use("db" | "user" | "assets").
+// Here those come from src/apps/homeprojects-backend.js once it knows who's
+// signed in; until then the app's own "Loading your projects…" shows.
+(function(){
+  var ready=new Promise(function(r){window.__gtReady=r});
+  window.claude={use:function(name){return ready.then(function(b){return b.use(name)})}};
+  window.__gtPhoto=window.__gtPhoto||function(){return 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='};
+})();
+</script>
+<script>
+(function(){
+'use strict';
+const P_ST=["Planning","In progress","On hold","Done"];
+const P_CLS={"Planning":"plan","In progress":"prog","On hold":"hold","Done":"done"};
+const T_ST=["To do","In progress","Done"];
+const T_CLS={"To do":"plan","In progress":"prog","Done":"done"};
+const $=s=>document.querySelector(s);
+const app=$("#app");
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const fmtDate=s=>{if(!s)return"—";const d=new Date(String(s).slice(0,10)+"T00:00:00");return isNaN(d)?s:d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})};
+const money=n=>(Number(n)||0).toLocaleString("en-US",{style:"currency",currency:"USD"});
+const safeUrl=u=>{u=String(u||"").trim();if(!u)return"";if(!/^https?:\/\//i.test(u))u="https://"+u;try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:""}catch(e){return""}};
+const hostOf=u=>{try{return new URL(u).hostname.replace(/^www\./,"")}catch(e){return""}};
+const isVideo=u=>/youtube\.com|youtu\.be|vimeo\.com|tiktok\.com/i.test(u||"");
+const cost=s=>(Number(s.price)||0)*(Number(s.qty)||1);
+const num=(v,d)=>{const n=parseFloat(v);return isFinite(n)?n:d};
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+
+let db=null,col=null,assets=null,items=[],offline=false,loaded=false,deferRender=false;
+let listTab=(()=>{const v=lsGet("hp-tab");return v==="project"||v==="shop"?v:"room"})();
+let view={pid:null,tid:null,ptab:"tasks",ttab:"todo",edit:false,confirm:null,newKind:null,editShop:null,shopStore:"all",showGot:false};
+let lb=null; // {idx, confirm}
+const timers={},writing={},again={};
+
+/* ---------- storage ---------- */
+function lsLoad(){try{return JSON.parse(localStorage.getItem("hp-local")||"[]")}catch(e){return[]}}
+function lsSave(){try{localStorage.setItem("hp-local",JSON.stringify(items))}catch(e){}}
+const getP=id=>items.find(p=>p.id===id);
+const getT=(p,id)=>p&&(p.tasks||[]).find(t=>t.id===id);
+function setSaving(t){$("#saving").textContent=t}
+function toast(t){const el=$("#toast");el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,3200)}
+function showBanner(t){const b=$("#banner");b.textContent=t;b.hidden=!t}
+
+function save(p,now){
+  p.updatedAt=new Date().toISOString();
+  if(offline){lsSave();setSaving("Saved in this browser");return}
+  clearTimeout(timers[p.id]);timers[p.id]=setTimeout(()=>flush(p.id),now?0:700);
+}
+async function flush(id){
+  delete timers[id];
+  if(writing[id]){again[id]=true;return}
+  const p=getP(id);if(!p||!col)return;
+  writing[id]=true;setSaving("Saving…");
+  try{const {id:_x,...data}=p;await col.doc(id).set(JSON.parse(JSON.stringify(data)));setSaving("Saved")}
+  catch(e){setSaving("");toast("Couldn't save ("+(e&&e.code||"error")+"). Your change is still here; edit again to retry.")}
+  writing[id]=false;
+  if(again[id]){delete again[id];flush(id)}
+}
+async function removeP(id){
+  const p=getP(id);
+  const ids=[];if(p){(p.photos||[]).forEach(x=>ids.push(x.id));(p.tasks||[]).forEach(t=>(t.photos||[]).forEach(x=>ids.push(x.id)))}
+  items=items.filter(x=>x.id!==id);clearTimeout(timers[id]);delete timers[id];
+  if(assets)ids.forEach(a=>assets.delete(a).catch(()=>{}));
+  if(offline){lsSave();return}
+  try{await col.doc(id).delete()}catch(e){toast("Couldn't delete it. Try again.")}
+}
+
+async function init(){
+  const fb=setTimeout(()=>{if(!loaded)goOffline("Couldn't reach your saved projects, so changes are kept in this browser only for now.")},10000);
+  try{db=window.claude?await window.claude.use("db"):null}catch(e){db=null}
+  if(!db){clearTimeout(fb);goOffline("Sign in to save projects to your account. For now, changes are kept in this browser only.");return}
+  let me=null;try{const u=await window.claude.use("user");me=u?await u.id():null}catch(e){}
+  if(!me){clearTimeout(fb);goOffline("Sign in to keep your own project list. For now, changes are kept in this browser only.");return}
+  try{assets=await window.claude.use("assets")}catch(e){assets=null}
+  col=db.collection("data/users/"+me);
+  col.onSnapshot(snap=>{
+    clearTimeout(fb);loaded=true;offline=false;showBanner("");
+    const inc=snap.docs.map(d=>Object.assign({id:d.id},JSON.parse(JSON.stringify(d.data()||{}))));
+    const busy=id=>timers[id]||writing[id];
+    const next=inc.map(x=>busy(x.id)?(getP(x.id)||x):x);
+    items.forEach(l=>{if(busy(l.id)&&!next.find(x=>x.id===l.id))next.push(l)});
+    items=next;
+    if(view.pid&&!getP(view.pid)){view.pid=null;view.tid=null}
+    softRender();
+  },err=>{clearTimeout(fb);goOffline("Saved projects couldn't load ("+(err&&err.message||"error")+"). Changes are kept in this browser only.")});
+}
+function goOffline(msg){if(offline)return;offline=true;loaded=true;items=lsLoad();showBanner(msg);render()}
+const typing=()=>{const a=document.activeElement;return a&&(app.contains(a)||$("#lb").contains(a))&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)};
+function softRender(){if(typing()){deferRender=true;return}render()}
+document.addEventListener("focusout",()=>setTimeout(()=>{if(deferRender&&!typing()){deferRender=false;render()}},60));
+
+/* ---------- helpers ---------- */
+function stats(p){
+  const ts=p.tasks||[];const s={tasks:ts.length,done:0,todoOpen:0,shopLeft:0,est:0,spent:0,media:(p.photos||[]).length+(p.links||[]).length};
+  ts.forEach(t=>{if(t.status==="Done")s.done++;(t.todos||[]).forEach(x=>{if(!x.done)s.todoOpen++});
+    (t.shop||[]).forEach(x=>{if(x.got)s.spent+=cost(x);else{s.shopLeft++;s.est+=cost(x)}});
+    s.media+=(t.photos||[]).length+(t.links||[]).length});
+  return s;
+}
+const isLate=p=>p.target&&p.status!=="Done"&&p.target<today();
+const kindWord=(k,pl)=>k==="room"?(pl?"rooms":"room"):(pl?"projects":"project");
+const allStores=()=>{const set=new Set();items.forEach(p=>(p.tasks||[]).forEach(t=>(t.shop||[]).forEach(s=>{if((s.store||"").trim())set.add(s.store.trim())})));return [...set].sort()};
+const storeList=()=>`<datalist id="stores">${allStores().map(s=>`<option value="${esc(s)}"></option>`).join("")}</datalist>`;
+const checkBox=(on,act,attrs,label)=>`<button class="check" data-act="${act}" ${attrs} role="checkbox" aria-checked="${!!on}" aria-label="${esc(label)}"><span class="box ${on?"on":""}">✓</span></button>`;
+
+/* ---------- render ---------- */
+function render(){
+  const top=$("#topActions");
+  if(!loaded){return}
+  if(!view.pid){
+    top.innerHTML=listTab==="shop"?"":`<button class="primary" data-act="new" data-kind="${listTab}">+ Add ${kindWord(listTab)}</button>`;
+    renderList();return;
+  }
+  const p=getP(view.pid);if(!p){view.pid=null;view.tid=null;return render()}
+  if(view.tid){
+    const t=getT(p,view.tid);if(!t){view.tid=null;return render()}
+    top.innerHTML=`<button class="ghost" data-act="back-p">← ${esc(p.name||"Project")}</button>`;
+    renderTask(p,t);
+  }else{
+    top.innerHTML=`<button class="ghost" data-act="back-list">← All ${kindWord(p.kind,1)}</button>`;
+    renderProject(p);
+  }
+  renderLb();
+}
+
+function renderList(){
+  const count=k=>k==="shop"?items.reduce((n,p)=>n+stats(p).shopLeft,0):items.filter(p=>p.kind===k).length;
+  const tabs=`<nav class="tabs kindtabs" role="tablist">${[["room","Rooms"],["project","Projects"],["shop","Shopping list"]].map(([k,l])=>`<button role="tab" data-act="ltab" data-v="${k}" aria-selected="${k===listTab}">${l} <span class="cnt">${count(k)}</span></button>`).join("")}</nav>`;
+  if(listTab==="shop"){app.innerHTML=tabs+renderShopAll();return}
+  const k=listTab;
+  const newForm=view.newKind===k?`<section class="panel" style="margin-bottom:16px"><form data-form="new-p" class="vsec">
+      <h3>New ${kindWord(k)}</h3>
+      <div class="fields">
+        <label>Name<input id="np-name" name="name" required maxlength="80" placeholder="${k==="room"?"Master bath":"Build a garden shed"}"></label>
+        <label>${k==="room"?"Floor / area":"Where"}<input id="np-area" name="area" maxlength="60" placeholder="${k==="room"?"Upstairs":"Back yard"}"></label>
+        <label>Status<select id="np-status" name="status">${P_ST.map(s=>`<option>${s}</option>`).join("")}</select></label>
+      </div>
+      <div class="actions"><button class="primary" type="submit">Create ${kindWord(k)}</button><button type="button" class="ghost" data-act="new-cancel">Cancel</button></div>
+    </form></section>`:"";
+  const list=items.filter(p=>p.kind===k).sort((a,b)=>((a.status==="Done")-(b.status==="Done"))||(a.name||"").localeCompare(b.name||""));
+  if(!list.length){
+    app.innerHTML=tabs+newForm+(view.newKind===k?"":`<div class="empty"><h2>No ${kindWord(k,1)} yet</h2>
+      <p class="muted desc">${k==="room"?"Add a room like the kitchen or garage, then break it into tasks, each with its own to-dos, shopping list, notes, links and photos.":"Add a project like a deck rebuild or a shed, then break it into tasks, each with its own to-dos, shopping list, notes, links and photos."}</p>
+      <div class="actions"><button class="primary" data-act="new" data-kind="${k}">+ Add ${kindWord(k)}</button><button data-act="example" data-kind="${k}">Load an example</button></div></div>`);
+    return;
+  }
+  app.innerHTML=tabs+newForm+`<div class="grid">${list.map(card).join("")}</div>`;
+  if(view.newKind===k)setTimeout(()=>{const i=$("#np-name");i&&i.focus()},0);
+}
+function card(p){
+  const s=stats(p);const pct=s.tasks?Math.round(s.done/s.tasks*100):0;
+  return `<div class="card"><button class="cardmain" data-act="open-p" data-id="${esc(p.id)}" aria-label="Open ${esc(p.name)}">
+    <div class="plate ${p.kind==="room"?"room":"project"}"><b>${esc(p.name||"Untitled")}</b><span>${esc(p.area||"")}</span></div>
+    <div class="cbody">
+      <div class="between"><span class="st ${P_CLS[p.status]||"plan"}">${esc(p.status||"Planning")}</span><span class="mono small muted">${s.done} of ${s.tasks} tasks done</span></div>
+      <div class="bar" aria-hidden="true"><i style="width:${pct}%"></i></div>
+      <dl><dt>Open to-dos</dt><dd>${s.todoOpen}</dd><dt>Still to buy</dt><dd>${s.shopLeft?`${s.shopLeft} · ${money(s.est)}`:"—"}</dd>
+      <dt>Target</dt><dd>${p.target?fmtDate(p.target)+(isLate(p)?" (past due)":""):"—"}</dd></dl>
+    </div>
+    <div class="foot"><span>Updated <span class="mono">${fmtDate(p.updatedAt||p.createdAt)}</span></span>${p.example?'<span class="tag ex">Example</span>':`<span>${s.media} links &amp; pics</span>`}</div>
+  </button></div>`;
+}
+
+function renderShopAll(){
+  const rows=[];items.forEach(p=>(p.tasks||[]).forEach(t=>(t.shop||[]).forEach(s=>rows.push({p,t,s}))));
+  if(!rows.length)return `<div class="empty"><h2>Nothing on the list</h2><p class="muted desc">Items you add to any task's shopping list show up here, grouped by store, so you can check them off in the aisle.</p></div>`;
+  const left=rows.filter(r=>!r.s.got);
+  const stores=[...new Set(left.map(r=>(r.s.store||"").trim()||"Any store"))].sort((a,b)=>(a==="Any store")-(b==="Any store")||a.localeCompare(b));
+  if(view.shopStore!=="all"&&!stores.includes(view.shopStore))view.shopStore="all";
+  const shown=rows.filter(r=>(view.showGot||!r.s.got)&&(view.shopStore==="all"||((r.s.store||"").trim()||"Any store")===view.shopStore));
+  const groups={};shown.forEach(r=>{const k=(r.s.store||"").trim()||"Any store";(groups[k]=groups[k]||[]).push(r)});
+  const gk=Object.keys(groups).sort((a,b)=>(a==="Any store")-(b==="Any store")||a.localeCompare(b));
+  const est=left.reduce((n,r)=>n+cost(r.s),0);
+  return `<div class="status"><div class="stat hot"><small>Items to buy</small><b>${left.length}</b></div><div class="stat"><small>Estimated cost</small><b>${money(est)}</b></div><div class="stat"><small>Stores</small><b>${stores.length}</b></div></div>
+  <div class="vsec" style="margin-bottom:14px"><div class="pills" role="group" aria-label="Store">${["all",...stores].map(s=>`<button class="pill" data-act="shop-store" data-v="${esc(s)}" aria-pressed="${view.shopStore===s}">${s==="all"?"All stores":esc(s)}</button>`).join("")}
+    <button class="pill" data-act="shop-got" aria-pressed="${view.showGot}">Show bought</button></div></div>
+  ${gk.length?gk.map(k=>{const g=groups[k];const sub=g.filter(r=>!r.s.got).reduce((n,r)=>n+cost(r.s),0);
+    return `<div class="vsec" style="margin-bottom:16px"><div class="storehead"><h3>${esc(k)}</h3><span class="mono small muted">${money(sub)}</span></div><div class="list">${g.map(({p,t,s})=>`<div class="item">
+      ${checkBox(s.got,"shop-toggle",`data-pid="${esc(p.id)}" data-tid="${esc(t.id)}" data-id="${esc(s.id)}"`,(s.got?"Mark not bought: ":"Mark bought: ")+s.name)}
+      <button class="main" data-act="shop-go" data-pid="${esc(p.id)}" data-tid="${esc(t.id)}"><span class="t ${s.got?"done":""}">${esc(s.name)}</span>
+      <span class="m"><span>${esc(p.name)} › ${esc(t.title)}</span><span>qty ${esc(s.qty||1)}</span></span></button>
+      <div class="side"><span class="price">${s.price!==""&&s.price!=null?money(cost(s)):""}</span></div></div>`).join("")}</div></div>`}).join("")
+  :`<div class="empty"><p class="muted">Everything here is bought. Turn on "Show bought" to see it.</p></div>`}`;
+}
+
+function renderProject(p){
+  const s=stats(p);
+  const planned=s.est+s.spent;const budget=num(p.budget,0);
+  const statBoxes=`<div class="status">
+    <div class="stat ${s.tasks&&s.done===s.tasks?"ok":""}"><small>Tasks done</small><b>${s.done} of ${s.tasks}</b></div>
+    <div class="stat ${s.todoOpen?"warn":""}"><small>Open to-dos</small><b>${s.todoOpen}</b></div>
+    <div class="stat ${s.shopLeft?"hot":""}"><small>Still to buy</small><b>${money(s.est)}</b></div>
+    <div class="stat ${budget&&planned>budget?"hot":budget?"ok":""}"><small>${budget?"Planned of budget":"Bought so far"}</small><b>${budget?`${money(planned)} / ${money(budget)}`:money(s.spent)}</b></div></div>`;
+  const tabs=[["tasks","Tasks",s.tasks],["media","Inspiration",(p.photos||[]).length+(p.links||[]).length],["notes","Notes",null]];
+  app.innerHTML=`<div class="head"><div class="t">
+      <span class="eyebrow">${p.kind==="room"?"Room":"Project"}${p.area?" · "+esc(p.area):""}</span>
+      <h2>${esc(p.name||"Untitled")}</h2>
+      <div class="meta"><span class="st ${P_CLS[p.status]||"plan"}">${esc(p.status||"Planning")}</span>${p.target?`<span>Target <span class="mono">${fmtDate(p.target)}</span></span>`:""}${isLate(p)?'<span class="st late">Past due</span>':""}${p.example?'<span class="tag ex">Example</span>':""}</div>
+      ${p.desc?`<p class="desc">${esc(p.desc)}</p>`:""}
+    </div>${view.edit?"":`<button data-act="edit">Edit details</button>`}</div>
+    ${view.edit?editProject(p):statBoxes+`<nav class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-act="ptab" data-v="${k}" aria-selected="${view.ptab===k}">${l}${n!=null?` <span class="cnt">${n}</span>`:""}</button>`).join("")}</nav>
+    ${view.ptab==="tasks"?taskList(p):view.ptab==="media"?`<section class="panel">${media(p)}</section>`:notesPanel(p.notes,"Project notes","Measurements, paint colors, contractor quotes, what's behind the wall…")}`}`;
+}
+function editProject(p){
+  return `<section class="panel"><form data-form="edit-p" class="vsec"><h3>Details</h3>
+    <div class="fields">
+      <label>Name<input id="ep-name" name="name" required maxlength="80" value="${esc(p.name)}"></label>
+      <label>Type<select id="ep-kind" name="kind"><option value="room" ${p.kind==="room"?"selected":""}>Room</option><option value="project" ${p.kind!=="room"?"selected":""}>Project</option></select></label>
+      <label>Floor / area<input id="ep-area" name="area" maxlength="60" value="${esc(p.area)}"></label>
+      <label>Status<select id="ep-status" name="status">${P_ST.map(s=>`<option ${p.status===s?"selected":""}>${s}</option>`).join("")}</select></label>
+      <label>Target date<input id="ep-target" name="target" type="date" value="${esc(p.target)}"></label>
+      <label>Budget ($)<input id="ep-budget" name="budget" type="number" inputmode="decimal" min="0" step="1" value="${esc(p.budget)}" placeholder="Optional"></label>
+      <label class="span2">Description<textarea id="ep-desc" name="desc" style="min-height:80px" maxlength="600" placeholder="What you're doing and why">${esc(p.desc)}</textarea></label>
+    </div>
+    <div class="between"><div class="actions"><button class="primary" type="submit">Save details</button><button type="button" class="ghost" data-act="edit-cancel">Cancel</button></div>
+    ${view.confirm==="p"?`<div class="confirm"><span>Delete this ${kindWord(p.kind)}, its tasks and photos?</span><button type="button" class="danger" data-act="del-p-yes">Delete</button><button type="button" data-act="confirm-no">Keep</button></div>`:`<button type="button" class="danger" data-act="del-p">Delete ${kindWord(p.kind)}</button>`}</div>
+  </form></section>`;
+}
+function taskList(p){
+  const ts=[...(p.tasks||[])].sort((a,b)=>(a.status==="Done")-(b.status==="Done"));
+  return `<section class="panel">
+    <form data-form="add-task" class="addrow"><input id="nt-title" name="title" required maxlength="100" placeholder="New task, e.g. Patch drywall" aria-label="New task"><button class="primary" type="submit">Add task</button></form>
+    ${ts.length?`<div class="list">${ts.map(t=>{const td=(t.todos||[]);const open=td.filter(x=>!x.done).length;const sh=(t.shop||[]).filter(x=>!x.got).length;const md=(t.links||[]).length+(t.photos||[]).length;
+      return `<div class="item">${checkBox(t.status==="Done","task-toggle",`data-id="${esc(t.id)}"`,(t.status==="Done"?"Reopen: ":"Mark done: ")+t.title)}
+      <button class="main" data-act="open-t" data-id="${esc(t.id)}"><span class="t ${t.status==="Done"?"done":""}">${esc(t.title)}</span>
+      <span class="m">${td.length?`<span>${td.length-open} of ${td.length} to-dos</span>`:""}${sh?`<span>${sh} to buy</span>`:""}${md?`<span>${md} links &amp; pics</span>`:""}${!td.length&&!sh&&!md?"<span>Nothing added yet</span>":""}</span></button>
+      <div class="side"><span class="st ${T_CLS[t.status]||"plan"}">${esc(t.status||"To do")}</span><span class="muted" aria-hidden="true">›</span></div></div>`}).join("")}</div>`
+    :`<p class="muted">No tasks yet. Break the job into steps you can check off, like "Pull old vanity" or "Run new supply lines".</p>`}
+  </section>`;
+}
+function notesPanel(val,label,ph){
+  return `<section class="panel"><label>${label}<textarea id="notes" data-live="notes" placeholder="${esc(ph)}">${esc(val)}</textarea></label><p class="note">Saves as you type.</p></section>`;
+}
+
+function renderTask(p,t){
+  const td=t.todos||[],sh=t.shop||[];
+  const tabs=[["todo","To-do",td.filter(x=>!x.done).length],["shop","Shopping",sh.filter(x=>!x.got).length],["notes","Notes",null],["media","Links & pics",(t.links||[]).length+(t.photos||[]).length]];
+  app.innerHTML=`<div class="head"><div class="t">
+      <span class="eyebrow">${esc(p.name)} › Task</span>
+      ${view.edit?`<form data-form="edit-t" class="addrow"><input id="et-title" name="title" required maxlength="100" value="${esc(t.title)}" aria-label="Task name"><button class="primary" type="submit">Save</button><button type="button" class="ghost" data-act="edit-cancel">Cancel</button></form>
+        ${view.confirm==="t"?`<div class="confirm"><span>Delete this task and everything on it?</span><button class="danger" data-act="del-t-yes">Delete</button><button data-act="confirm-no">Keep</button></div>`:`<div><button class="danger" data-act="del-t">Delete task</button></div>`}`
+      :`<h2>${esc(t.title)}</h2>`}
+      <div class="seg" role="group" aria-label="Task status">${T_ST.map(s=>`<button data-act="t-status" data-v="${s}" aria-pressed="${(t.status||"To do")===s}">${s}</button>`).join("")}</div>
+    </div>${view.edit?"":`<button data-act="edit">Rename</button>`}</div>
+    <nav class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-act="ttab" data-v="${k}" aria-selected="${view.ttab===k}">${l}${n!=null?` <span class="cnt">${n}</span>`:""}</button>`).join("")}</nav>
+    ${view.ttab==="todo"?todoPanel(t):view.ttab==="shop"?shopPanel(t):view.ttab==="notes"?notesPanel(t.notes,"Task notes","Sizes, model numbers, steps that worked, what to do differently…"):`<section class="panel">${media(t)}</section>`}`;
+}
+function todoPanel(t){
+  const td=[...(t.todos||[])].sort((a,b)=>a.done-b.done);
+  return `<section class="panel">
+    <form data-form="add-todo" class="addrow"><input id="nd-text" name="text" required maxlength="160" placeholder="Add a to-do, e.g. Shut off water" aria-label="New to-do"><button class="primary" type="submit">Add</button></form>
+    ${td.length?`<div class="list">${td.map(x=>`<div class="item">${checkBox(x.done,"todo-toggle",`data-id="${esc(x.id)}"`,(x.done?"Mark not done: ":"Mark done: ")+x.text)}
+      <div class="main static"><span class="t ${x.done?"done":""}">${esc(x.text)}</span></div>
+      <div class="side"><button class="x" data-act="todo-del" data-id="${esc(x.id)}" aria-label="Remove ${esc(x.text)}">×</button></div></div>`).join("")}</div>`
+    :`<p class="muted">No to-dos yet.</p>`}</section>`;
+}
+function shopPanel(t){
+  const sh=[...(t.shop||[])].sort((a,b)=>a.got-b.got);
+  const left=sh.filter(x=>!x.got),got=sh.filter(x=>x.got);
+  return `<section class="panel">
+    <div class="totals"><span>Still to buy <b>${left.length}</b> · <b>${money(left.reduce((n,x)=>n+cost(x),0))}</b></span><span>Bought <b>${money(got.reduce((n,x)=>n+cost(x),0))}</b></span></div>
+    <form data-form="add-shop" class="shopform">
+      <label class="nm">Item<input id="ns-name" name="name" required maxlength="120" placeholder="2x4x8 stud"></label>
+      <label>Qty<input id="ns-qty" name="qty" type="number" inputmode="decimal" min="0" step="any" value="1"></label>
+      <label>Price each<input id="ns-price" name="price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></label>
+      <label>Store<input id="ns-store" name="store" list="stores" maxlength="60" placeholder="Home Depot"></label>
+      <button class="primary" type="submit">Add item</button>
+    </form>${storeList()}
+    ${sh.length?`<div class="list">${sh.map(x=>view.editShop===x.id?`<form class="editor" data-form="edit-shop" data-id="${esc(x.id)}">
+        <div class="fields"><label class="span2">Item<input id="es-name" name="name" required maxlength="120" value="${esc(x.name)}"></label>
+        <label>Qty<input id="es-qty" name="qty" type="number" inputmode="decimal" min="0" step="any" value="${esc(x.qty)}"></label>
+        <label>Price each<input id="es-price" name="price" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(x.price)}"></label>
+        <label>Store<input id="es-store" name="store" list="stores" maxlength="60" value="${esc(x.store)}"></label>
+        <label class="span2">Link to product<input id="es-url" name="url" type="url" inputmode="url" maxlength="500" value="${esc(x.url)}" placeholder="https://"></label></div>
+        <div class="between"><div class="actions"><button class="primary" type="submit">Save item</button><button type="button" class="ghost" data-act="shop-cancel">Cancel</button></div><button type="button" class="danger" data-act="shop-del" data-id="${esc(x.id)}">Remove</button></div></form>`
+      :`<div class="item">${checkBox(x.got,"shop-toggle",`data-pid="${esc(view.pid)}" data-tid="${esc(t.id)}" data-id="${esc(x.id)}"`,(x.got?"Mark not bought: ":"Mark bought: ")+x.name)}
+        <button class="main" data-act="shop-edit" data-id="${esc(x.id)}" aria-label="Edit ${esc(x.name)}"><span class="t ${x.got?"done":""}">${esc(x.name)}</span>
+        <span class="m"><span>qty ${esc(x.qty||1)}</span>${x.store?`<span>${esc(x.store)}</span>`:""}${x.price!==""&&x.price!=null?`<span>${money(x.price)} each</span>`:""}${safeUrl(x.url)?"<span>has link</span>":""}</span></button>
+        <div class="side">${safeUrl(x.url)?`<a class="btn ghost" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener noreferrer" aria-label="Open product page">↗</a>`:""}<span class="price">${x.price!==""&&x.price!=null?money(cost(x)):""}</span></div></div>`).join("")}</div>`
+    :`<p class="muted">Nothing to buy yet. Items here also land on the Shopping list tab, grouped by store.</p>`}
+  </section>`;
+}
+function media(o){
+  const ph=o.photos||[],ln=o.links||[];
+  return `<div class="vsec"><h3>Photos</h3>
+    <div class="thumbs">${ph.map((x,i)=>`<button class="thumb" data-act="photo" data-i="${i}" aria-label="Open photo ${i+1}${x.caption?": "+esc(x.caption):""}"><img src="${esc(window.__gtPhoto(x.id))}" data-gtphoto="${esc(x.id)}" alt="" loading="lazy">${x.caption?`<span>${esc(x.caption)}</span>`:""}</button>`).join("")}
+      ${assets?`<label class="uptile"><b>+</b>Add photos<input id="up" type="file" accept="image/*" multiple data-act-change="upload"></label>`:""}</div>
+    ${assets?`<p class="note" id="upnote">Before-and-after shots, inspiration pics, the label on the old part.</p>`:`<p class="note">${offline?"Sign in to add photos. Links still work here.":"Photo uploads aren’t available right now."}</p>`}
+  </div>
+  <div class="vsec"><h3>Links &amp; how-to videos</h3>
+    ${ln.length?`<div class="links">${ln.map(l=>{const u=safeUrl(l.url);const v=isVideo(u);return `<div class="link"><span class="ico ${v?"vid":""}" aria-hidden="true">${v?"▶":"WEB"}</span>
+      <a href="${esc(u)}" target="_blank" rel="noopener noreferrer"><b>${esc(l.label||hostOf(u)||u)}</b><span>${v?"Video · ":""}${esc(hostOf(u))}</span></a>
+      <button class="x" data-act="link-del" data-id="${esc(l.id)}" aria-label="Remove link ${esc(l.label||u)}">×</button></div>`}).join("")}</div>`:`<p class="muted">No links yet. Save YouTube how-tos, product pages or Pinterest boards.</p>`}
+    <form data-form="add-link" class="linkform">
+      <label>Label<input id="nl-label" name="label" maxlength="100" placeholder="How to tile a shower niche"></label>
+      <label>Link<input id="nl-url" name="url" required inputmode="url" maxlength="500" placeholder="youtube.com/watch?v=…"></label>
+      <button class="primary" type="submit">Add link</button>
+    </form></div>`;
+}
+const mediaTarget=()=>{const p=getP(view.pid);return view.tid?getT(p,view.tid):p};
+
+/* ---------- lightbox ---------- */
+function renderLb(){
+  const el=$("#lb");
+  const o=view.pid&&lb?mediaTarget():null;const ph=o&&o.photos||[];
+  if(!o||!ph[lb.idx]){lb=null;el.hidden=true;el.innerHTML="";return}
+  const x=ph[lb.idx];
+  el.hidden=false;
+  el.innerHTML=`<div class="img"><img src="${esc(window.__gtPhoto(x.id))}" data-gtphoto="${esc(x.id)}" alt="${esc(x.caption||"Project photo")}"></div>
+    <div class="bar2">
+      ${ph.length>1?`<button data-act="lb-prev" aria-label="Previous photo">‹</button><span class="mono small muted">${lb.idx+1}/${ph.length}</span><button data-act="lb-next" aria-label="Next photo">›</button>`:""}
+      <input id="lb-cap" data-live="caption" maxlength="120" value="${esc(x.caption)}" placeholder="Caption, e.g. Before" aria-label="Caption">
+      ${lb.confirm?`<span class="small">Delete this photo?</span><button class="danger" data-act="lb-del-yes">Delete</button><button data-act="lb-keep">Keep</button>`:`${assets?`<button class="danger" data-act="lb-del">Delete</button>`:""}`}
+      <button class="primary" data-act="lb-close">Close</button>
+    </div>`;
+}
+
+/* ---------- photos ---------- */
+async function shrink(file){
+  try{
+    const url=URL.createObjectURL(file);
+    const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
+    const M=1800;let w=img.naturalWidth,h=img.naturalHeight;const s=Math.min(1,M/Math.max(w,h));w=Math.round(w*s);h=Math.round(h*s);
+    const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);URL.revokeObjectURL(url);
+    const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.84));return b||file;
+  }catch(e){return file}
+}
+async function upload(files){
+  if(!assets||!files.length)return;
+  const pid=view.pid,tid=view.tid;
+  let ok=0;
+  for(let i=0;i<files.length;i++){
+    const n=$("#upnote");if(n)n.textContent=`Uploading ${i+1} of ${files.length}…`;
+    try{
+      const blob=await shrink(files[i]);
+      const r=await assets.upload(blob);
+      const p=getP(pid);const o=tid?getT(p,tid):p;if(!o)break;
+      (o.photos=o.photos||[]).push({id:r.id,caption:"",at:new Date().toISOString()});
+      save(p,true);ok++;
+    }catch(e){toast(e&&e.code==="unsupported_type"?"That file type can't be stored. Try a JPEG or PNG.":e&&e.code==="quota_exceeded"?"Photo storage is full. Delete a few photos first.":"A photo didn't upload ("+(e&&e.code||"error")+"). Try again.")}
+  }
+  if(ok)toast(ok===1?"Photo added":ok+" photos added");
+  render();
+}
+
+/* ---------- examples ---------- */
+const T=(title,status,todos,shop,links,notes)=>({id:uid(),title,status,notes:notes||"",todos:todos.map(([text,done])=>({id:uid(),text,done:!!done})),
+  shop:shop.map(([name,qty,price,store,got])=>({id:uid(),name,qty,price,store,got:!!got,url:""})),links:links.map(([label,url])=>({id:uid(),label,url})),photos:[]});
+function example(kind){
+  const base={id:uid(),kind,example:true,photos:[],notes:"",createdAt:new Date().toISOString()};
+  if(kind==="room")return Object.assign(base,{name:"Kitchen",area:"Main floor",status:"In progress",target:"",budget:"600",
+    desc:"Swap the faucet, repaint the cabinet doors and add under-cabinet lights.",
+    links:[{id:uid(),label:"Painted shaker cabinet ideas",url:"https://www.pinterest.com/search/pins/?q=painted%20shaker%20kitchen%20cabinets"}],
+    tasks:[
+      T("Replace kitchen faucet","In progress",[["Measure hole spacing under the sink",1],["Shut off water and open the tap"],["Disconnect and remove old faucet"],["Install new faucet, check for leaks"]],
+        [["Pull-down kitchen faucet",1,189,"Home Depot"],["Braided supply line, 20 in",2,9.98,"Home Depot"],["Plumber's putty",1,4.48,"Lowe's",1]],
+        [["How to replace a kitchen faucet","https://www.youtube.com/results?search_query=how+to+replace+a+kitchen+faucet"]],
+        "Shutoffs are 3/8 in compression. Old faucet is a 3-hole deck plate, 8 in spread."),
+      T("Paint cabinet doors","To do",[["Pull doors, label each hinge"],["Degrease and scuff-sand"],["Prime both sides"],["Two coats of cabinet enamel"]],
+        [["Cabinet enamel, 1 gal",1,64.99,"Sherwin-Williams"],["Bonding primer, 1 qt",1,21.98,"Home Depot"],["4 in foam roller, 2-pack",2,6.97,"Home Depot"],["220-grit sanding sponge",3,3.98,"Lowe's"]],
+        [["Painting kitchen cabinets, start to finish","https://www.youtube.com/results?search_query=painting+kitchen+cabinets+step+by+step"]]),
+      T("Under-cabinet LED lights","To do",[["Measure each cabinet run"],["Find an outlet or plan a switched circuit"]],[["Plug-in LED light bar kit, 3-pack",1,59.99,"Amazon"]],[])
+    ]});
+  return Object.assign(base,{name:"Refinish back deck",area:"Back yard",status:"Planning",target:"",budget:"350",
+    desc:"Wash, sand and re-stain the deck boards and rails before next summer.",links:[],
+    tasks:[
+      T("Replace soft boards","To do",[["Probe boards with a screwdriver, mark soft ones"],["Pull and replace marked boards"]],[["5/4x6x12 treated deck board",4,14.48,"Lowe's"],["Deck screws, 5 lb",1,39.98,"Lowe's"]],[]),
+      T("Wash and sand","To do",[["Wash with deck cleaner"],["Let dry 48 hours"],["Sand with 60 then 80 grit"]],[["Deck cleaner, 1 gal",1,24.97,"Home Depot"]],
+        [["How to refinish a deck","https://www.youtube.com/results?search_query=how+to+refinish+a+wood+deck"]]),
+      T("Stain","To do",[["Check forecast for 2 dry days"],["Stain rails first, then boards"]],[["Semi-transparent deck stain, 5 gal",1,189,"Home Depot"],["Stain pad applicator",2,9.97,"Home Depot"]],[])
+    ]});
+}
+
+/* ---------- events ---------- */
+function go(v){Object.assign(view,{edit:false,confirm:null,editShop:null},v);lb=null;render();window.scrollTo(0,0)}
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-act]");if(!b||b.tagName==="LABEL")return;
+  const a=b.dataset.act,d=b.dataset;const p=getP(view.pid);const t=p&&view.tid?getT(p,view.tid):null;
+  switch(a){
+    case"ltab":listTab=d.v;lsSet("hp-tab",d.v);view.newKind=null;render();break;
+    case"new":listTab=d.kind;go({pid:null,tid:null,newKind:d.kind});break;
+    case"new-cancel":view.newKind=null;render();break;
+    case"example":{const x=example(d.kind);items.push(x);save(x,true);go({pid:x.id,tid:null,ptab:"tasks"});break}
+    case"open-p":go({pid:d.id,tid:null,ptab:"tasks",newKind:null});break;
+    case"back-list":listTab=p?p.kind:listTab;go({pid:null,tid:null});break;
+    case"back-p":go({tid:null});break;
+    case"ptab":view.ptab=d.v;render();break;
+    case"ttab":view.ttab=d.v;view.editShop=null;render();break;
+    case"edit":view.edit=true;view.confirm=null;render();setTimeout(()=>{const i=$("#ep-name")||$("#et-title");i&&i.focus()},0);break;
+    case"edit-cancel":view.edit=false;view.confirm=null;render();break;
+    case"confirm-no":view.confirm=null;render();break;
+    case"del-p":view.confirm="p";render();break;
+    case"del-p-yes":{const k=p.kind;await removeP(p.id);listTab=k;toast("Deleted");go({pid:null,tid:null});break}
+    case"del-t":view.confirm="t";render();break;
+    case"del-t-yes":{const ids=(t.photos||[]).map(x=>x.id);p.tasks=p.tasks.filter(x=>x.id!==t.id);save(p,true);if(assets)ids.forEach(i=>assets.delete(i).catch(()=>{}));toast("Task deleted");go({tid:null});break}
+    case"open-t":go({tid:d.id,ttab:"todo"});break;
+    case"task-toggle":{const x=getT(p,d.id);x.status=x.status==="Done"?"To do":"Done";save(p);render();break}
+    case"t-status":t.status=d.v;save(p);render();break;
+    case"todo-toggle":{const x=t.todos.find(y=>y.id===d.id);x.done=!x.done;save(p);render();break}
+    case"todo-del":t.todos=t.todos.filter(y=>y.id!==d.id);save(p);render();break;
+    case"shop-toggle":{const pp=getP(d.pid),tt=getT(pp,d.tid);const x=tt&&(tt.shop||[]).find(y=>y.id===d.id);if(!x)break;x.got=!x.got;save(pp);render();break}
+    case"shop-edit":view.editShop=d.id;render();setTimeout(()=>{const i=$("#es-name");i&&i.focus()},0);break;
+    case"shop-cancel":view.editShop=null;render();break;
+    case"shop-del":t.shop=t.shop.filter(y=>y.id!==d.id);view.editShop=null;save(p);render();break;
+    case"shop-go":go({pid:d.pid,tid:d.tid,ttab:"shop"});break;
+    case"shop-store":view.shopStore=d.v;render();break;
+    case"shop-got":view.showGot=!view.showGot;render();break;
+    case"link-del":{const o=mediaTarget();o.links=(o.links||[]).filter(y=>y.id!==d.id);save(p);render();break}
+    case"photo":lb={idx:+d.i,confirm:false};renderLb();setTimeout(()=>{const c=$("[data-act=lb-close]");c&&c.focus()},0);break;
+    case"lb-close":lb=null;renderLb();break;
+    case"lb-prev":case"lb-next":{const n=(mediaTarget().photos||[]).length;lb.idx=(lb.idx+(a==="lb-next"?1:-1)+n)%n;lb.confirm=false;renderLb();break}
+    case"lb-del":lb.confirm=true;renderLb();break;
+    case"lb-keep":lb.confirm=false;renderLb();break;
+    case"lb-del-yes":{const o=mediaTarget();const x=o.photos[lb.idx];o.photos.splice(lb.idx,1);save(p,true);if(assets&&x)assets.delete(x.id).catch(()=>{});lb=null;toast("Photo deleted");render();break}
+  }
+});
+document.addEventListener("submit",e=>{
+  const f=e.target.closest("[data-form]");if(!f)return;e.preventDefault();
+  const v=Object.fromEntries(new FormData(f).entries());Object.keys(v).forEach(k=>v[k]=String(v[k]).trim());
+  const p=getP(view.pid);const t=p&&view.tid?getT(p,view.tid):null;
+  switch(f.dataset.form){
+    case"new-p":{if(!v.name)return;const x={id:uid(),kind:view.newKind,name:v.name,area:v.area,status:v.status||"Planning",target:"",budget:"",desc:"",notes:"",tasks:[],links:[],photos:[],createdAt:new Date().toISOString()};
+      items.push(x);save(x,true);go({pid:x.id,tid:null,newKind:null,ptab:"tasks"});setTimeout(()=>{const i=$("#nt-title");i&&i.focus()},0);break}
+    case"edit-p":Object.assign(p,{name:v.name||p.name,kind:v.kind==="room"?"room":"project",area:v.area,status:v.status,target:v.target,budget:v.budget,desc:v.desc});
+      save(p,true);view.edit=false;view.confirm=null;render();toast("Details saved");break;
+    case"add-task":if(!v.title)return;(p.tasks=p.tasks||[]).push({id:uid(),title:v.title,status:"To do",notes:"",todos:[],shop:[],links:[],photos:[]});save(p);render();refocus("#nt-title");break;
+    case"edit-t":if(!v.title)return;t.title=v.title;save(p);view.edit=false;view.confirm=null;render();break;
+    case"add-todo":if(!v.text)return;(t.todos=t.todos||[]).push({id:uid(),text:v.text,done:false});save(p);render();refocus("#nd-text");break;
+    case"add-shop":if(!v.name)return;(t.shop=t.shop||[]).push({id:uid(),name:v.name,qty:num(v.qty,1)||1,price:v.price===""?"":num(v.price,""),store:v.store,got:false,url:""});save(p);render();refocus("#ns-name");break;
+    case"edit-shop":{const x=t.shop.find(y=>y.id===f.dataset.id);if(!x)break;Object.assign(x,{name:v.name||x.name,qty:num(v.qty,1)||1,price:v.price===""?"":num(v.price,""),store:v.store,url:v.url});view.editShop=null;save(p);render();break}
+    case"add-link":{const u=safeUrl(v.url);if(!u){toast("That link doesn't look right. Paste a full web address.");return}const o=mediaTarget();(o.links=o.links||[]).push({id:uid(),label:v.label,url:u});save(p);render();refocus("#nl-url");break}
+  }
+});
+function refocus(sel){setTimeout(()=>{const i=$(sel);i&&i.focus()},0)}
+document.addEventListener("input",e=>{
+  const el=e.target;if(!el.dataset||!el.dataset.live)return;
+  const p=getP(view.pid);if(!p)return;
+  if(el.dataset.live==="notes"){const o=view.tid?getT(p,view.tid):p;o.notes=el.value;save(p)}
+  if(el.dataset.live==="caption"&&lb){const o=mediaTarget();const x=o.photos[lb.idx];if(x){x.caption=el.value;save(p)}}
+});
+document.addEventListener("change",e=>{if(e.target.id==="up"){const fs=[...e.target.files];e.target.value="";upload(fs)}});
+document.addEventListener("keydown",e=>{if(!lb)return;if(e.key==="Escape"){lb=null;renderLb()}else if(e.target.tagName!=="INPUT"&&(e.key==="ArrowRight"||e.key==="ArrowLeft")){const n=(mediaTarget().photos||[]).length;lb.idx=(lb.idx+(e.key==="ArrowRight"?1:-1)+n)%n;renderLb()}});
+
+init();
+})();
+</script>
+</body>
+</html>
