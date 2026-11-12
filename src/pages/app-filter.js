@@ -1,4 +1,6 @@
-// app-filter.js: the category buttons above /apps on the home page.
+// app-filter.js: the controls above /apps on the home page:
+//   - category buttons (All · Garage · Gym · …), below
+//   - the Grid / List switch (at the end of this file)
 //
 // Each app card in index.html has a category field:
 //   <article class="app" data-category="garage">
@@ -60,3 +62,23 @@ bar.replaceChildren(
 );
 bar.hidden = false;
 select(''); // "All" by default
+
+// ---------- Grid / List view ----------------------------------------------------
+// Grid: the full cards. List: one compact row per app (icon, name, Open link),
+// no description or screenshot; the styles for it are in home.css
+// (.apps[data-view="list"]). The choice is remembered in this browser only.
+
+const VIEW_KEY = 'gt.apps.view';
+const viewSwitch = document.getElementById('apps-view');
+
+function setView(v) {
+  list.dataset.view = v;
+  for (const b of viewSwitch.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === v));
+  try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage blocked: still works for this visit */ }
+}
+
+let savedView = 'grid';
+try { if (localStorage.getItem(VIEW_KEY) === 'list') savedView = 'list'; } catch { /* use grid */ }
+for (const b of viewSwitch.querySelectorAll('[data-view]')) b.addEventListener('click', () => setView(b.dataset.view));
+setView(savedView);
+viewSwitch.hidden = false;

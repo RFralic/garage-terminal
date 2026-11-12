@@ -21,4 +21,20 @@ h1{margin:0;font-family:var(--mono);font-weight:700;font-size:clamp(32px,6vw,62p
 .shot img{display:block;width:100%;height:100%;object-fit:cover;object-position:top}
 .dirs a{color:var(--soft);text-decoration:none;min-height:44px;display:inline-flex;align-items:center}
 .dirs a:hover{color:var(--fg)}
-.app-filter{margin-bottom:16px}
+/* Filter chips (left) and the Grid / List switch (right) above the apps */
+.apps-bar{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:8px 16px;margin-bottom:16px}
+.view-toggle{display:flex;gap:6px;flex:none}
+.view-toggle .chip svg{width:14px;height:14px;margin-right:7px;fill:currentColor}
+.view-toggle .chip[aria-pressed="true"]{border-color:var(--green);color:var(--green)}
+
+/* List view: one compact row per app (icon, name, Open link); no description or screenshot */
+.apps[data-view="list"]{grid-template-columns:1fr;gap:8px}
+.apps[data-view="list"] .app{padding:6px 16px;gap:0}
+.apps[data-view="list"] .apphead{align-items:center;gap:14px}
+.apps[data-view="list"] .apphead img{width:36px;height:36px;border-radius:9px}
+.apps[data-view="list"] .apphead div{flex:1;flex-direction:row;align-items:center;justify-content:space-between;gap:12px}
+.apps[data-view="list"] .app h3{flex:1;min-width:0}
+.apps[data-view="list"] .apphead p:not(.meta),.apps[data-view="list"] .shot{display:none}
+/* list rows keep just the "Open app" link (the "Web app ·" label is hidden) */
+.apps[data-view="list"] .meta{flex:none;margin-top:0!important;font-size:0}
+.apps[data-view="list"] .meta a{display:inline-flex;align-items:center;min-height:44px;font-size:13px;white-space:nowrap}
