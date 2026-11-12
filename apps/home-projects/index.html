@@ -140,6 +140,8 @@ textarea{min-height:160px;resize:vertical;line-height:1.5}
 .pill{min-height:36px;padding:0 13px;border-radius:999px;font-weight:500;font-size:.88rem;background:var(--surface)}
 .pill[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:var(--bg)}
 .storehead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:6px}
+.shopfilters{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 14px}
+.shopfilters select:disabled{opacity:.6}
 /* media */
 .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
 .thumb{all:unset;cursor:pointer;position:relative;aspect-ratio:1;max-width:100%;border-radius:6px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line)}
@@ -234,7 +236,7 @@ const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
 
 let db=null,col=null,assets=null,items=[],offline=false,loaded=false,deferRender=false;
 let listTab=(()=>{const v=lsGet("hp-tab");return v==="project"||v==="shop"?v:"room"})();
-let view={pid:null,tid:null,ptab:"tasks",ttab:"todo",edit:false,confirm:null,newKind:null,editShop:null,shopStore:"all",showGot:false};
+let view={pid:null,tid:null,ptab:"tasks",ttab:"todo",edit:false,confirm:null,newKind:null,editShop:null,shopStore:"all",showGot:false,shopP:"all",shopT:"all"};
 let lb=null; // {idx, confirm}
 const timers={},writing={},again={};
 
@@ -368,8 +370,19 @@ function card(p){
 }
 
 function renderShopAll(){
-  const rows=[];items.forEach(p=>(p.tasks||[]).forEach(t=>(t.shop||[]).forEach(s=>rows.push({p,t,s}))));
-  if(!rows.length)return `<div class="empty"><h2>Nothing on the list</h2><p class="muted desc">Items you add to any task's shopping list show up here, grouped by store, so you can check them off in the aisle.</p></div>`;
+  const all=[];items.forEach(p=>(p.tasks||[]).forEach(t=>(t.shop||[]).forEach(s=>all.push({p,t,s}))));
+  if(!all.length)return `<div class="empty"><h2>Nothing on the list</h2><p class="muted desc">Items you add to any task's shopping list show up here, grouped by store, so you can check them off in the aisle.</p></div>`;
+  /* filters: one room or project, then one of its tasks (only ones with items to buy are offered) */
+  const withItems=items.filter(p=>(p.tasks||[]).some(t=>(t.shop||[]).length)).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  if(view.shopP!=="all"&&!withItems.some(p=>p.id===view.shopP)){view.shopP="all";view.shopT="all"}
+  const fp=view.shopP==="all"?null:getP(view.shopP);
+  const taskOpts=fp?(fp.tasks||[]).filter(t=>(t.shop||[]).length):[];
+  if(view.shopT!=="all"&&!taskOpts.some(t=>t.id===view.shopT))view.shopT="all";
+  const rows=all.filter(r=>(!fp||r.p.id===fp.id)&&(view.shopT==="all"||r.t.id===view.shopT));
+  const optGroup=(k,label)=>{const ps=withItems.filter(p=>(p.kind==="room")===(k==="room"));return ps.length?`<optgroup label="${label}">${ps.map(p=>`<option value="${esc(p.id)}" ${view.shopP===p.id?"selected":""}>${esc(p.name||"Untitled")}</option>`).join("")}</optgroup>`:""};
+  const filters=`<div class="shopfilters">
+    <label>Room or project<select id="sf-p" data-shopf="p"><option value="all">All rooms &amp; projects</option>${optGroup("room","Rooms")}${optGroup("project","Projects")}</select></label>
+    <label>Task<select id="sf-t" data-shopf="t" ${fp?"":"disabled"}><option value="all">${fp?"All tasks":"Pick a room or project first"}</option>${taskOpts.map(t=>`<option value="${esc(t.id)}" ${view.shopT===t.id?"selected":""}>${esc(t.title)}</option>`).join("")}</select></label></div>`;
   const left=rows.filter(r=>!r.s.got);
   const stores=[...new Set(left.map(r=>(r.s.store||"").trim()||"Any store"))].sort((a,b)=>(a==="Any store")-(b==="Any store")||a.localeCompare(b));
   if(view.shopStore!=="all"&&!stores.includes(view.shopStore))view.shopStore="all";
@@ -378,7 +391,7 @@ function renderShopAll(){
   const gk=Object.keys(groups).sort((a,b)=>(a==="Any store")-(b==="Any store")||a.localeCompare(b));
   const est=left.reduce((n,r)=>n+cost(r.s),0);
   return `<div class="status"><div class="stat hot"><small>Items to buy</small><b>${left.length}</b></div><div class="stat"><small>Estimated cost</small><b>${money(est)}</b></div><div class="stat"><small>Stores</small><b>${stores.length}</b></div></div>
-  <div class="vsec" style="margin-bottom:14px"><div class="pills" role="group" aria-label="Store">${["all",...stores].map(s=>`<button class="pill" data-act="shop-store" data-v="${esc(s)}" aria-pressed="${view.shopStore===s}">${s==="all"?"All stores":esc(s)}</button>`).join("")}
+  <div class="vsec" style="margin-bottom:14px">${filters}<div class="pills" role="group" aria-label="Store">${["all",...stores].map(s=>`<button class="pill" data-act="shop-store" data-v="${esc(s)}" aria-pressed="${view.shopStore===s}">${s==="all"?"All stores":esc(s)}</button>`).join("")}
     <button class="pill" data-act="shop-got" aria-pressed="${view.showGot}">Show bought</button></div></div>
   ${gk.length?gk.map(k=>{const g=groups[k];const sub=g.filter(r=>!r.s.got).reduce((n,r)=>n+cost(r.s),0);
     return `<div class="vsec" style="margin-bottom:16px"><div class="storehead"><h3>${esc(k)}</h3><span class="mono small muted">${money(sub)}</span></div><div class="list">${g.map(({p,t,s})=>`<div class="item">
@@ -644,7 +657,8 @@ document.addEventListener("input",e=>{
   if(el.dataset.live==="notes"){const o=view.tid?getT(p,view.tid):p;o.notes=el.value;save(p)}
   if(el.dataset.live==="caption"&&lb){const o=mediaTarget();const x=o.photos[lb.idx];if(x){x.caption=el.value;save(p)}}
 });
-document.addEventListener("change",e=>{if(e.target.id==="up"){const fs=[...e.target.files];e.target.value="";upload(fs)}});
+document.addEventListener("change",e=>{if(e.target.id==="up"){const fs=[...e.target.files];e.target.value="";upload(fs)}
+  else if(e.target.dataset&&e.target.dataset.shopf){if(e.target.dataset.shopf==="p"){view.shopP=e.target.value;view.shopT="all"}else view.shopT=e.target.value;render();const s=$("#sf-"+e.target.dataset.shopf);s&&s.focus()}});
 document.addEventListener("keydown",e=>{if(!lb)return;if(e.key==="Escape"){lb=null;renderLb()}else if(e.target.tagName!=="INPUT"&&(e.key==="ArrowRight"||e.key==="ArrowLeft")){const n=(mediaTarget().photos||[]).length;lb.idx=(lb.idx+(e.key==="ArrowRight"?1:-1)+n)%n;renderLb()}});
 
 init();
