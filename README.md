@@ -22,6 +22,9 @@ Live site: https://garage-terminal-15499.web.app
 | `src/apps/repclock-sync.js` | Saves RepClock workouts and settings to the signed-in member's account |
 | `apps/home-projects/index.html` | Home Projects, built from its Claude artifact by `scripts/import-home-projects.mjs` (don't edit by hand) |
 | `src/apps/homeprojects-backend.js` | Home Projects storage on this site: sign-in, projects (Firestore) and photos (Storage) |
+| `apps/logbook/index.html`, `apps/project-tracker/index.html` | Engine & Vehicle Logbook and Project Tracker, built from the Logbook repo by `scripts/import-logbook.mjs` (don't edit by hand) |
+| `src/apps/logbook-backend.js` | Logbook and Project Tracker sign-in and storage on this site (Firestore) |
+| `public/apps/sw.js` | Keeps the Logbook and Project Tracker pages for offline use |
 | `apps/tap-drill-chart/index.html` | Tap Drill Chart, copied from its Claude artifact (re-copy if the artifact changes) |
 | `404.html` | Not-found page |
 | `src/styles/base.css` | Shared look: colors, fonts, header, footer, terminal boxes |
@@ -99,6 +102,22 @@ Google sign-in (`src/apps/homeprojects-backend.js`): projects in Firestore at
 to the member (see the HOME PROJECTS sections of `firestore.rules` and `storage.rules`). Signed out, it
 keeps projects in the browser; the first sign-in adds them to the account. To update from a newer
 artifact: `node scripts/import-home-projects.mjs path/to/file.html`.
+
+## Engine & Vehicle Logbook and Project Tracker
+
+The Logbook (`/apps/logbook`) and Project Tracker (`/apps/project-tracker`) were first built in their own
+Firebase project (`vehicle-logbook-c7e27`, code in github.com/RFralic/vehicle_logbook). Here they use this
+site's Google sign-in (`src/apps/logbook-backend.js`), with data in Firestore at
+`logbook/{uid}/records/{id}` (engines, vehicles, parts), `logbook/{uid}/projects/{id}` and
+`logbook/{uid}/trackerSettings/{id}`, private to the member (see the LOGBOOK section of `firestore.rules`).
+No forum handle is needed. Both pages keep working offline: Firestore's offline cache holds the records and
+`public/apps/sw.js` holds the pages. The Logbook has its own home-screen manifest (`public/logbook.webmanifest`).
+
+To update them from newer Logbook files: `node scripts/import-logbook.mjs path/to/vehicle_logbook/public`.
+
+Moving records over from the old project is a one-time GitHub action, "Copy Logbook data"
+(`scripts/copy-logbook-data.mjs`). It needs a second secret, `LOGBOOK_SERVICE_ACCOUNT`: the old project's
+service account key. Run it as a dry run first; it never changes the old project.
 
 ## Adding an app to the home page
 
