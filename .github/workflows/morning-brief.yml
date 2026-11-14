@@ -1,0 +1,41 @@
+# Sends Morning Brief emails (scripts/send-briefs.mjs). Runs every 30 minutes;
+# each member's brief goes out on the first run after their chosen time.
+# GitHub may start scheduled runs a few minutes late, which is fine here.
+#
+# Needs secrets: FIREBASE_SERVICE_ACCOUNT (already set), GMAIL_ADDRESS,
+# GMAIL_APP_PASSWORD (a Google "app password" for that Gmail account).
+name: Morning Brief
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morning-brief
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Send briefs that are due
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          echo "$SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          node scripts/send-briefs.mjs
+          rm -f "$RUNNER_TEMP/sa.json"
