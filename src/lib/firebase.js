@@ -14,7 +14,13 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  connectFirestoreEmulator,
+} from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
@@ -54,7 +60,21 @@ if (!isLocal && APP_CHECK_SITE_KEY) {
 }
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Pages that must keep working with no signal (the Logbook and Project Tracker,
+// used out in the garage) set window.__gtOfflineCache = true before this module
+// loads. Their records are then also kept in this browser, so they open and
+// save offline and sync when the connection comes back. Other pages keep the
+// default in-memory cache.
+function startFirestore() {
+  if (!globalThis.__gtOfflineCache) return getFirestore(app);
+  try {
+    return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  } catch {
+    return getFirestore(app); // e.g. private browsing without IndexedDB
+  }
+}
+export const db = startFirestore();
 // Cloud Functions live in us-east1 (same as the database); see functions/index.js.
 export const functions = getFunctions(app, 'us-east1');
 // Library files (PDFs, ebooks...). Access is controlled by storage.rules.

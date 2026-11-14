@@ -7,7 +7,8 @@ rules_version = '2';
 // decide. Anything not explicitly allowed here is denied.
 //
 // Sections: members (users, handles, private, admins) · forum (settings, areas,
-// threads, posts) · moderation (reports, modlog) · library · RepClock (per-member workouts) · Home Projects (per-member projects).
+// threads, posts) · moderation (reports, modlog) · library · RepClock (per-member workouts) · Home Projects (per-member projects) ·
+// Logbook + Project Tracker (per-member records, projects, tracker settings).
 //
 // Cloud Functions use the Admin SDK, which bypasses these rules. That's how:
 //   - counters (replyCount, lastReplyAt, postCount) are kept up to date, and
@@ -416,6 +417,23 @@ service cloud.firestore {
     match /homeprojects/{uid}/projects/{projectId} {
       allow read, delete: if isSelf(uid);
       allow create, update: if isSelf(uid) && projectId.matches('^[A-Za-z0-9_-]{1,64}$');
+    }
+
+    // =========================================================================
+    // LOGBOOK (apps/logbook) + PROJECT TRACKER (apps/project-tracker)
+    // =========================================================================
+
+    // Private to the member: nobody else can read or write them, not even the
+    // sysop. Docs are in the apps' own format (src/apps/logbook-backend.js):
+    //   logbook/{uid}/records/{id}          engines, vehicles, parts (inventory)
+    //   logbook/{uid}/projects/{id}         Project Tracker projects and jobs
+    //   logbook/{uid}/trackerSettings/{id}  Project Tracker counter and shop info
+    match /logbook/{uid}/{part}/{docId} {
+      allow read, delete: if isSelf(uid) && part in ['records', 'projects', 'trackerSettings'];
+      allow create, update: if isSelf(uid)
+        && part in ['records', 'projects', 'trackerSettings']
+        && docId.matches('^[A-Za-z0-9_-]{1,64}$')
+        && request.resource.data is map;
     }
   }
 }

@@ -1,0 +1,18 @@
+{
+  "id": "/apps/logbook",
+  "name": "Engine & Vehicle Logbook",
+  "short_name": "Logbook",
+  "description": "Specs, part numbers and service history for your small engines and vehicles, synced across your devices.",
+  "start_url": "/apps/logbook",
+  "scope": "/apps/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eef0ec",
+  "theme_color": "#2f4a43",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/img/logbook-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/img/logbook-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/img/logbook-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

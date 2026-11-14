@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="en">
+<!--
+  Project Tracker, served at /apps/project-tracker. Built by scripts/import-logbook.mjs from the
+  Logbook repo (github.com/RFralic/vehicle_logbook, public/).
+  Don't edit by hand: re-run the script with the newer Logbook files instead.
+  Sign-in and storage: src/apps/logbook-backend.js.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Project Tracker · Garage Terminal</title>
+<meta name="theme-color" content="#151a17">
+<link rel="icon" href="/img/logbook-192.png" type="image/png"><link rel="apple-touch-icon" href="/img/logbook-192.png"><link rel="manifest" href="/logbook.webmanifest">
+<style>
+/* Garage Terminal additions: back link + who's signed in */
+.gt-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;font:600 .85rem var(--f-body);color:var(--muted)}
+.gt-bar.gt-solo{max-width:640px;margin:0 auto;padding:8px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+.gt-back{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-family:var(--f-mono);white-space:nowrap;flex:none}
+.gt-back:hover{color:var(--ink)}
+.gt-back:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.gt-sync{text-align:right;overflow-wrap:anywhere}
+.gt-sync[data-state="ok"]{color:var(--ok)}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single-column phone-first shop app — list, project, task and shopping views; dark by choice to match the Logbook */
+:root{
+  --bg:#151a17; --surface:#1e2420; --surface-2:#252c27; --line:#343d37;
+  --ink:#e7ebe6; --muted:#9aa49c; --steel:#8fb5aa; --tan:#d9b98a;
+  --accent:#e2753c; --on-accent:#1a0f08; --ok:#6cc48c; --warn:#e0a640; --danger:#ef7b6b;
+  --f-display:"Archivo Narrow","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg)}
+body{color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:640px;margin:0 auto;padding-block:8px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;margin:0;line-height:1.1;text-transform:uppercase;text-wrap:balance}
+h1{font-size:28px}
+h2{font-size:16px;letter-spacing:.06em;color:var(--steel)}
+.eyebrow{font-family:var(--f-display);font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+a{color:var(--steel)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:600;text-decoration:none}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#151a17}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--steel);padding:0 6px}
+.btn.dashed{border-style:dashed;background:transparent;color:var(--muted);font-weight:500;width:100%}
+.btn.danger{background:transparent;border-color:var(--danger);color:var(--danger)}
+.btn.sm{min-height:36px;padding:0 10px;font-size:14px}
+.row{display:flex;gap:8px;align-items:center}
+.between{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:52px}
+header.app{display:flex;flex-direction:column;gap:12px;padding-bottom:14px;border-bottom:3px solid var(--ink)}
+input[type=text],input[type=search],input[type=url],input[type=tel],input[type=date],input[type=number],select,textarea{width:100%;min-width:0;min-height:44px;padding:0 12px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+textarea{padding:10px 12px;min-height:110px;resize:vertical;line-height:1.45}
+label.f{display:flex;flex-direction:column;gap:4px;font-family:var(--f-display);font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+label.f input,label.f select,label.f textarea{font-family:var(--f-body);font-size:15px;letter-spacing:0;text-transform:none;color:var(--ink)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{min-height:44px;padding:0 10px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--muted);font-family:var(--f-display);font-size:15px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.cnt{font-family:var(--f-mono);font-size:12px;opacity:.75;margin-left:4px}
+.card{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden;text-align:left;padding:0;color:var(--ink);width:100%}
+.plate{padding:10px 14px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;color:#151a17}
+.plate.mine{background:var(--steel)}.plate.customer{background:var(--tan)}
+.plate b{font-family:var(--f-display);font-size:19px;text-transform:uppercase;letter-spacing:.02em;line-height:1.15;min-width:0;overflow-wrap:anywhere}
+.plate span{flex:none;font-family:var(--f-display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.card .body{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.card .foot{border-top:1px solid var(--line);padding:8px 14px;display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted)}
+.bar{flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.bar.big{height:8px}
+.st-progress{color:var(--warn)}.st-waiting{color:var(--accent)}.st-done{color:var(--ok)}.st-notstarted{color:var(--muted)}.st-pickup{color:var(--ok)}
+.list{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.item{display:flex;align-items:center;gap:4px;background:var(--surface);border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.check{flex:none;width:48px;min-height:56px;border:0;background:transparent;display:flex;align-items:center;justify-content:center}
+.box{width:24px;height:24px;border-radius:5px;border:2px solid var(--muted);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:transparent}
+.box.on{background:var(--ok);border-color:var(--ok);color:#151a17}
+.box.ordered{background:var(--warn);border-color:var(--warn);color:#151a17}
+.item .main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding:10px 12px 10px 0;border:0;background:transparent;text-align:left;color:var(--ink)}
+.item .main .t{font-weight:500;overflow-wrap:anywhere}
+.item .main .t.done{color:var(--muted);text-decoration:line-through}
+.item .chev{flex:none;padding-right:12px;color:var(--muted)}
+.chip{display:inline-block;padding:1px 8px;border-radius:4px;font-family:var(--f-display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border:1px solid currentColor;white-space:nowrap}
+.chip.order{color:var(--accent)}.chip.ordered{color:var(--warn)}.chip.stock{color:var(--ok)}.chip.late{color:var(--danger)}
+.check.cap{flex-direction:column;gap:3px;min-height:64px;width:60px;padding-top:12px;justify-content:flex-start}
+.check.cap small{font-family:var(--f-display);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+label.exp{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;margin-top:2px}
+label.exp>span:first-child{font-family:var(--f-display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+label.exp input{width:auto;min-height:40px;padding:0 10px}
+.price{font-family:var(--f-mono);color:var(--tan)}
+button.chip{background:transparent;min-height:32px}
+.tag{display:inline-block;padding:1px 8px;border-radius:4px;font-family:var(--f-display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#151a17}
+.tag.mine{background:var(--steel)}.tag.customer{background:var(--tan)}
+.tag.sup{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:#c9d1cb;font-size:14px}
+.pill[aria-pressed=true]{background:var(--ink);color:#151a17;border-color:var(--ink)}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.seg button{min-height:40px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-family:var(--f-display);font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.seg button[aria-pressed=true]{background:var(--ink);color:#151a17}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.stat.hot{border-left:4px solid var(--accent)}
+.stat small{display:block;font-family:var(--f-display);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.stat b{font-family:var(--f-mono);font-weight:500;font-size:20px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.panel.sub{background:var(--surface-2)}
+section{display:flex;flex-direction:column;gap:8px}
+dl.kv{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;font-size:14px}
+dl.kv dt{color:var(--muted)}dl.kv dd{margin:0;overflow-wrap:anywhere}
+.link{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.link a{flex:1;min-width:0;display:flex;flex-direction:column;color:var(--ink);text-decoration:none}
+.link a span{overflow-wrap:anywhere}
+.ico{flex:none;width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--surface-2);color:var(--steel);border:1px solid var(--line);font-family:var(--f-mono)}
+.ico.vid{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.empty{padding:28px 16px;border:1px dashed var(--line);border-radius:8px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:12px;align-items:center}
+.note{font-size:12px;color:var(--muted)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:#151a17;padding:10px 16px;border-radius:8px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
+.confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px}
+.saving{font-size:12px;color:var(--muted);min-height:16px}
+@media (max-width:380px){.grid2{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .12s}.card:hover{border-color:var(--muted)}}
+/* ---- additions for the live version ---- */
+.sr{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+label.btn{cursor:pointer;position:relative}
+a.btn{text-decoration:none}
+.signin{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:28px 20px;display:flex;flex-direction:column;gap:14px;align-items:flex-start}
+.gbtn{gap:10px}.gbtn svg{width:20px;height:20px;background:#fff;border-radius:50%;padding:2px}
+#print{display:none}
+@media print{
+  body.printing #app,body.printing .toast{display:none!important}
+  body.printing #print{display:block}
+  html,body{background:#fff!important}
+}
+/* print view: plain black on white, letter-size friendly */
+#print{color:#111;background:#fff;font-family:Helvetica,Arial,sans-serif;font-size:11pt;line-height:1.35}
+#print .ph{display:flex;justify-content:space-between;gap:24px;border-bottom:2px solid #222;padding-bottom:10px;margin-bottom:16px}
+#print .ph h1{font-family:Helvetica,Arial,sans-serif;font-size:18pt;text-transform:none;margin:0}
+#print .ph .doc{text-align:right}#print .ph .doc b{font-size:20pt;display:block}
+#print .sub{color:#555;font-size:10pt}
+#print .two{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:16px}
+#print .lab{font-size:8pt;font-weight:700;color:#777;letter-spacing:.06em;text-transform:uppercase;margin:12px 0 4px}
+#print table{width:100%;border-collapse:collapse;margin:4px 0 10px}
+#print th{font-size:8pt;color:#777;text-align:left;border-bottom:1px solid #999;padding:4px 6px 4px 0;text-transform:uppercase;letter-spacing:.05em}
+#print td{padding:5px 6px 5px 0;border-bottom:1px solid #ddd;vertical-align:top}
+#print .r{text-align:right}
+#print .tot{margin-left:auto;width:260px}#print .tot td{border:0}#print .tot .big td{font-weight:700;font-size:13pt;border-top:1.5px solid #222}
+#print ul{list-style:none;padding:0;margin:0}#print li{padding:2px 0 2px 20px;position:relative}
+#print li::before{content:"";position:absolute;left:0;top:5px;width:10px;height:10px;border:1px solid #333}
+#print li.done::after{content:"✓";position:absolute;left:1px;top:-1px;font-size:11pt}
+#print .foot{text-align:center;color:#555;margin-top:28px}
+@page{size:letter;margin:0.6in}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>window.fbReady=new Promise((res,rej)=>{window.fbResolve=res;window.fbReject=rej;setTimeout(()=>rej(new Error("timeout")),15000)});</script>
+<!-- Garage Terminal: sign-in and storage from this site (src/apps/logbook-backend.js), kept offline too -->
+<script>window.__gtOfflineCache=true</script>
+<script type="module" src="/src/apps/logbook-backend.js"></script>
+</head>
+<body>
+<!-- Garage Terminal: back link + who's signed in (src/apps/logbook-backend.js) -->
+<div class="gt-bar gt-solo"><a class="gt-back" href="/#apps">&lt; garage_terminal</a><span class="gt-sync" id="gtSync" aria-live="polite"></span></div>
+<div class="wrap" id="app"><p class="muted">Loading your projects…</p></div>
+<div class="toast" id="toast" hidden></div>
+<div id="print" aria-hidden="true"></div>
+
+<script>
+(function(){
+'use strict';
+const STATUSES=['Not started','In progress','Waiting on parts','Ready for pickup','Done'];
+const ST_CLASS={'Not started':'st-notstarted','In progress':'st-progress','Waiting on parts':'st-waiting','Ready for pickup':'st-pickup','Done':'st-done'};
+const PART_ST=['To order','Ordered','In stock'];
+const PART_CLASS={'To order':'order','Ordered':'ordered','In stock':'stock'};
+const app=document.getElementById('app');
+let db=null, projects={}, ready=false, offline=false;
+let FB=null, user=null, signedOut=false, authErr='', unsubs=[];
+let machines=[]; /* Logbook engines and vehicles: [{id,name}] */
+let shop={name:'',phone:'',email:'',address:'',footer:'',rate:''};
+let counterLast=0, counterLoaded=false, projectsLoaded=false, backfilled=false;
+const JOB_PREFIX='J-';
+const fmtJob=n=>JOB_PREFIX+String(n).padStart(3,'0');
+const jobLabel=p=>p&&p.kind==='customer'&&p.jobNo?fmtJob(p.jobNo):'';
+function nextJobNo(){
+  const maxE=Math.max(0,counterLast,...Object.values(projects).map(p=>Number(p.jobNo)||0));
+  const n=maxE+1;counterLast=n;
+  if(db)db.doc('settings/counter').set({lastJobNo:n}).catch(()=>{});
+  return n;
+}
+function backfillJobNos(){
+  if(backfilled||!counterLoaded||!projectsLoaded)return;backfilled=true;
+  Object.entries(projects).filter(([,p])=>p.kind==='customer'&&!p.jobNo).sort((a,b)=>(a[1].createdAt||0)-(b[1].createdAt||0))
+    .forEach(([id,p])=>{p.jobNo=nextJobNo();save(id)});
+}
+let view={name:'list',tab:'all',q:'',pid:null,tid:null,shopJob:'all',shopStatus:'order',shopSup:'all',editing:null,confirm:null};
+const timers={};
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2)).replace(/[^a-zA-Z0-9-]/g,'').slice(0,36);
+const safeUrl=u=>{try{const x=new URL(u);return (x.protocol==='https:'||x.protocol==='http:')?x.href:''}catch(e){return ''}};
+const isVideo=u=>/youtube\.com|youtu\.be|vimeo\.com/i.test(u||'');
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const fmtDate=s=>{const d=new Date(s+'T00:00:00');return isNaN(d)?s:d.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
+const hasPrice=x=>x&&x.price!==undefined&&x.price!==null&&x.price!==''&&isFinite(+x.price);
+/* units: '' = each (whole count), 'qt' quarts, 'gal' gallons (decimals allowed) */
+const UNITS=[['','Each'],['qt','Quarts'],['gal','Gallons']];
+const isFluid=x=>x&&(x.unit==='qt'||x.unit==='gal');
+const numStr=n=>{const v=Number(n)||1;return String(Math.round(v*100)/100)};
+const qtyText=x=>isFluid(x)?`${numStr(x.qty)} ${x.unit}`:`qty ${numStr(x.qty)}`;
+const qtyShort=x=>isFluid(x)?`${numStr(x.qty)} ${x.unit}`:`× ${numStr(x.qty)}`;
+const perText=x=>isFluid(x)?`per ${x.unit}`:'each';
+const idText=x=>[x.brand,x.num].filter(Boolean).join(' · ');
+function parseQty(v,unit){const n=parseFloat(v);if(unit==='qt'||unit==='gal')return isFinite(n)&&n>0?Math.min(9999,Math.round(n*100)/100):1;return Math.max(1,Math.min(999,Math.round(isFinite(n)?n:1)))}
+const money=n=>(Number(n)||0).toLocaleString('en-US',{style:'currency',currency:'USD'});
+/* ---------- time clock (customer jobs) ---------- */
+const timeLog=p=>(p&&p.time&&Array.isArray(p.time.log))?p.time.log:[];
+const entryStart=e=>e.manual?new Date((e.date||today())+'T12:00:00').getTime():e.start;
+const tMs=e=>e.manual?(Number(e.minutes)||0)*60000:Math.max(0,(e.end||Date.now())-e.start);
+const running=p=>timeLog(p).find(e=>!e.manual&&!e.end);
+const doneMs=p=>timeLog(p).filter(e=>e.manual||e.end).reduce((n,e)=>n+tMs(e),0);
+const totalMs=p=>timeLog(p).reduce((n,e)=>n+tMs(e),0);
+const fmtDur=ms=>{const m=Math.floor(ms/60000);return `${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m`};
+const fmtClock=ms=>{const s=Math.max(0,Math.floor(ms/1000));return `${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`};
+const hrsQ=ms=>Math.round(ms/3600000*4)/4;
+const clockT=ms=>new Date(ms).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+const dayOf=ms=>{const d=new Date(ms);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const hhmm=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+const atLocal=(date,hm)=>new Date(date+'T'+(hm||'00:00')+':00').getTime();
+const runningJob=()=>Object.entries(projects).find(([,p])=>p.kind==='customer'&&running(p));
+setInterval(()=>{document.querySelectorAll('[data-tick]').forEach(el=>{const v=Date.now()-(+el.dataset.tick)+(+el.dataset.base||0);el.textContent=el.dataset.fmt==='dur'?fmtDur(v):fmtClock(v)})},1000);
+function renderClock(id,p){
+  const r=running(p),log=timeLog(p).slice().sort((a,b)=>entryStart(b)-entryStart(a)),base=doneMs(p);
+  let h=`<section><div class="between"><h2>Time on this job</h2><span class="mono" style="font-size:18px">${r?`<span data-tick="${r.start}" data-base="${base}" data-fmt="dur">${fmtDur(totalMs(p))}</span>`:fmtDur(base)}</span></div>`;
+  h+=r?`<div class="panel" style="gap:10px;border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--surface))">
+      <div class="between" style="align-items:center"><div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow" style="color:var(--ok)">● On the clock</span><span class="mono" style="font-size:34px;line-height:1.1" data-tick="${r.start}">${fmtClock(Date.now()-r.start)}</span><span class="small muted">since ${esc(clockT(r.start))}${dayOf(r.start)!==today()?' on '+esc(fmtDate(dayOf(r.start))):''}</span></div></div>
+      <button class="btn primary" data-act="clockout" data-pid="${id}" style="min-height:52px;font-size:17px">■ Clock out</button></div>`
+    :`<button class="btn" data-act="clockin" data-pid="${id}" style="min-height:56px;font-size:17px;background:var(--ok);border-color:var(--ok);color:#151a17;font-weight:700">▶ Clock in</button>`;
+  if(log.length){h+=`<div class="list">${log.map(e=>view.editTime===e.id?editTimeForm(e):`<div class="item" style="padding:10px 12px;gap:10px;align-items:center">
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-weight:500">${esc(fmtDate(e.manual?e.date:dayOf(e.start)))}</span>
+      <span class="small muted">${e.manual?'Added by hand':`${esc(clockT(e.start))} – ${e.end?esc(clockT(e.end)):'now'}`}${e.note?' · '+esc(e.note):''}</span></div>
+      <span class="mono">${!e.manual&&!e.end?`<span data-tick="${e.start}" data-fmt="dur">${fmtDur(tMs(e))}</span>`:fmtDur(tMs(e))}</span>
+      <button class="btn ghost sm" data-act="edittime" data-tid="${e.id}" aria-label="Edit this time">Edit</button></div>`).join('')}</div>`}
+  h+=view.editing==='addtime'?`<form class="panel sub" data-form="addtime">
+      <label class="f">Date<input id="at-date" type="date" name="date" value="${today()}" required></label>
+      <div class="grid2"><label class="f">Hours<input type="number" name="h" min="0" max="99" step="1" inputmode="numeric" placeholder="0"></label><label class="f">Minutes<input type="number" name="m" min="0" max="59" step="1" inputmode="numeric" placeholder="0"></label></div>
+      <label class="f">Note (optional)<input type="text" name="note" maxlength="120" placeholder="e.g. Forgot to clock in"></label>
+      <div class="grid2"><button class="btn primary" type="submit">Add time</button><button class="btn" type="button" data-act="addtime">Cancel</button></div></form>`
+    :`<button class="btn ghost" data-act="addtime" style="border:1px dashed var(--line)">+ Add time by hand</button>`;
+  return h+`<span class="note">Tap Edit on any entry to fix the times. The total feeds the Labor box below.</span></section>`;
+}
+function editTimeForm(e){
+  return `<form class="panel sub" data-form="edittime" data-tid="${e.id}" style="border-radius:0;border:0;border-bottom:1px solid var(--line)">
+    <label class="f">Date<input type="date" name="date" required value="${esc(e.manual?e.date:dayOf(e.start))}"></label>
+    ${e.manual?`<div class="grid2"><label class="f">Hours<input type="number" name="h" min="0" max="99" step="1" value="${Math.floor((e.minutes||0)/60)}"></label><label class="f">Minutes<input type="number" name="m" min="0" max="59" step="1" value="${(e.minutes||0)%60}"></label></div>`
+      :`<div class="grid2"><label class="f">Clocked in<input type="time" name="start" required value="${hhmm(e.start)}"></label>${e.end?`<label class="f">Clocked out<input type="time" name="end" required value="${hhmm(e.end)}"></label>`:'<span class="small muted" style="align-self:end">Still on the clock</span>'}</div>`}
+    <label class="f">Note (optional)<input type="text" name="note" maxlength="120" value="${esc(e.note||'')}"></label>
+    <div class="grid2"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-act="edittime" data-tid="">Cancel</button></div>
+    ${view.confirm==='deltime'?`<div class="confirm"><span>Delete this time entry?</span><button type="button" class="btn danger sm" data-act="deltime-yes" data-tid="${e.id}">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:`<button type="button" class="btn danger sm" data-act="deltime">Delete entry</button>`}
+  </form>`;
+}
+function clockIn(pid){
+  const rj=runningJob();let msg='Clocked in';
+  if(rj&&rj[0]!==pid){running(rj[1]).end=Date.now();save(rj[0]);msg=`Clocked out of ${jobLabel(rj[1])||rj[1].title} and into ${jobLabel(projects[pid])||projects[pid].title}`}
+  const p=projects[pid];if(running(p))return;p.time={log:[...timeLog(p),{id:uid(),start:Date.now()}]};save(pid);toast(msg);render();
+}
+function clockOut(pid){const p=projects[pid];const r=p&&running(p);if(!r)return;r.end=Date.now();p.time={log:[...timeLog(p)]};save(pid);toast('Clocked out: '+fmtDur(tMs(r)));render()}
+
+
+/* ---------- Logbook inventory (live: users/{uid}/records where kind == "part") ---------- */
+let inv=null; /* {parts:[{id,name,brand,number,qty,location}]} */
+/* Part-number matching: copied exactly from the Logbook (index.html) */
+const normPN=v=>String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"");;
+function pnMatch(a,b){const x=normPN(a),y=normPN(b);if(!x||!y)return false;if(x===y)return true;
+  const [sh,lo]=x.length<=y.length?[x,y]:[y,x];return sh.length>=5&&/\d/.test(sh)&&lo.includes(sh)}
+const partHits=(p,num)=>pnMatch(p.number,num)||(p.brand&&pnMatch((p.brand||"")+(p.number||""),num));;
+function invLookup(x){if(!inv||!x||!x.num)return null;const hits=inv.parts.filter(ip=>partHits(ip,x.num)||(x.brand&&partHits(ip,x.brand+x.num)));
+  if(!hits.length)return{found:false,hits:[]};const qty=hits.reduce((n,h)=>n+(parseFloat(h.qty)||0),0);const locs=[...new Set(hits.map(h=>(h.location||'').trim()).filter(Boolean))];return{found:true,qty:Math.round(qty*100)/100,locs,hits}}
+function invChip(p,x){if(!p||p.kind!=='mine'||!inv)return '';const r=invLookup(x);if(!r)return x.num?'':`<span class="small muted">Add a part # to check inventory</span>`;
+  return r.found?`<span class="small" style="color:var(--ok);font-weight:600">In inventory: ${esc(numStr(r.qty))}${r.locs.length?' · '+esc(r.locs.join(', ')):''}</span>`:`<span class="small muted">Not in inventory</span>`}
+/* Logbook machine names and record ids: copied from the Logbook (index.html) */
+const kindOf=e=>e&&e.kind==="vehicle"?"vehicle":e&&e.kind==="part"?"part":"engine";;
+const K=e=>({engine:{one:'engine'},vehicle:{one:'vehicle'},part:{one:'part'}})[kindOf(e)];
+const dname=e=>{if(!e)return"";if((e.name||"").trim())return e.name.trim();
+  const mm=(kindOf(e)==="vehicle"?[e.year,e.make,e.model]:[e.make,e.model]).map(x=>(x||"").trim()).filter(Boolean).join(" ");
+  return mm||(e.equipment&&kindOf(e)!=="vehicle"?e.equipment:"")||"Unnamed "+(K(e)?K(e).one:"item")};
+const uid_lb=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+/* "Logbook entry": the linked Logbook engine/vehicle (live name), or the old free text */
+function lbName(p){const m=p&&p.logbookId&&machines.find(x=>x.id===p.logbookId);return m?m.name:(p&&p.logbook)||''}
+function logbookSelect(p){p=p||{};const id=p.logbookId||'';const linked=id&&machines.some(m=>m.id===id);
+  const keep=(p.logbook&&!linked)?`<option value="__keep" selected>${esc(p.logbook)} (not linked)</option>`:'';
+  return `<label class="f">Logbook entry${p.title===undefined?' (optional)':''}<select name="logbookSel">${keep}<option value="" ${!id&&!keep?'selected':''}>(none)</option>${machines.map(m=>`<option value="${esc(m.id)}" ${m.id===id?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label>
+  ${machines.length?'':'<span class="note">Your Logbook engines and vehicles show up here.</span>'}`}
+function applyLogbook(p,v){if(v==='__keep')return;if(!v){p.logbookId='';p.logbook='';return}const m=machines.find(x=>x.id===v);if(!m)return;p.logbookId=v;p.logbook=m.name}
+/* "Add to inventory" (My equipment, parts marked Received) */
+function invAddUI(pid,tid,x){
+  if(!inv||!x||!(x.name||x.num))return '';const key='inv:'+pid+':'+x.id;
+  if(view.confirm===key){const r=invLookup(x);const n=Math.max(1,Math.ceil(Number(x.qty)||1));
+    return `<form class="panel sub" data-form="invadd" data-pid="${pid}" data-tid="${tid}" data-xid="${x.id}" style="gap:8px;padding:10px">
+      <span class="small">${r&&r.found?`You have <b>${esc(numStr(r.qty))}</b> in your Logbook inventory${r.locs.length?' ('+esc(r.locs.join(', '))+')':''}. Add to it:`:`Adds <b>${esc(x.name||x.num)}</b> to your Logbook inventory${x.num?'':' (no part #, so it can\'t be matched later)'}:`}</span>
+      <div class="row"><label class="f" style="flex:1">How many<input type="number" name="n" min="1" max="9999" step="1" inputmode="numeric" value="${n}"></label></div>
+      <div class="grid2"><button class="btn primary" type="submit">Add to inventory</button><button class="btn" type="button" data-act="cancel">Cancel</button></div></form>`}
+  return `<span class="row" style="gap:8px;flex-wrap:wrap">${x.invAddedOn?`<span class="small" style="color:var(--ok)">Added to inventory ${esc(fmtDate(x.invAddedOn))}</span>`:''}<button class="btn sm" data-act="invadd" data-key="${key}">${x.invAddedOn?'Add again':'Add to inventory'}</button></span>`}
+function addToInventory(pid,tid,xid,n){
+  const {p,x}=findPart(pid,tid,xid);if(!p||!x||!db)return;const now=new Date().toISOString();const r=invLookup(x);let msg;
+  if(r&&r.found){const hit=r.hits[0];const cur=Math.max(0,parseInt(hit.qty,10)||0);
+    db.records.merge(hit.id,{qty:String(cur+n),updatedAt:now}).catch(()=>toast('Could not update your inventory'));
+    msg=`Inventory: ${hit.name||hit.number} now ${cur+n}`}
+  else{/* same record shape as the Logbook's Add part form (openPart in index.html) */
+    db.records.set(uid_lb(),{kind:"part",name:x.name||'',brand:x.brand||'',number:x.num||'',category:"",qty:String(n),reorderAt:"",location:"",cost:"",source:"",fits:[],notes:"",createdAt:now,updatedAt:now}).catch(()=>toast('Could not add to your inventory'));
+    msg=`Added ${x.name||x.num} to your inventory`}
+  x.invAddedOn=today();save(pid);view.confirm=null;toast(msg);render()}
+
+function laborCost(p){const l=p.labor||{};const h=+l.hours,r=+l.rate;const ok=isFinite(h)&&isFinite(r)&&h>0&&r>0;return{hours:ok?h:(isFinite(h)&&h>0?h:0),rate:isFinite(r)&&r>0?r:0,total:ok?Math.round(h*r*100)/100:0,has:ok,desc:(l.desc||'').trim()}}
+function partsCost(p){let total=0,missing=0,count=0;(p.tasks||[]).forEach(t=>(t.parts||[]).forEach(x=>{if(hasPrice(x)){total+=x.price*(x.qty||1);count++}else missing++}));return{total:Math.round(total*100)/100,missing,count}}
+function setPartStatus(x,s){x.status=s;if(s==='Ordered'){if(!x.orderedOn)x.orderedOn=today();delete x.receivedOn}else if(s==='In stock'){if(!x.receivedOn)x.receivedOn=today()}else{delete x.orderedOn;delete x.receivedOn;delete x.expected}}
+const hostOf=u=>{try{return new URL(u).hostname.replace(/^www\./,'')}catch(e){return ''}};
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.hidden=false;clearTimeout(timers.toast);timers.toast=setTimeout(()=>{t.hidden=true},2200)}
+
+function blankProject(kind){return{title:'',kind:kind||'mine',status:'Not started',logbook:'',machine:'',customer:{name:'',phone:'',dropOff:'',promised:'',complaint:''},notes:'',tasks:[],createdAt:Date.now(),updatedAt:Date.now()}}
+function progress(p){const t=p.tasks||[];const d=t.filter(x=>x.done).length;return{d,n:t.length,pct:t.length?Math.round(d/t.length*100):0}}
+function allParts(p){const out=[];(p.tasks||[]).forEach(t=>(t.parts||[]).forEach(x=>out.push({...x,taskId:t.id,taskTitle:t.title})));return out}
+function brands(){const s=new Set();Object.values(projects).forEach(p=>allParts(p).forEach(x=>{if(x.brand&&x.brand.trim())s.add(x.brand.trim())}));return [...s].sort((a,b)=>a.localeCompare(b))}
+function partFields(x,sups,isNew){
+  const p=projects[view.pid]||{};const fl=isFluid(x);
+  return `<div class="grid2"><label class="f">Brand<input type="text" name="brand" maxlength="60" list="brand-list" value="${esc(x.brand||'')}" placeholder="e.g. Kohler"></label><label class="f">Part #<input type="text" name="num" maxlength="60" class="mono" value="${esc(x.num||'')}"></label></div>
+    <div class="grid2"><label class="f">Amount<input type="number" name="qty" min="${fl?'0.1':'1'}" max="9999" step="${fl?'0.1':'1'}" value="${esc(numStr(x.qty))}" inputmode="decimal" data-qtyfor="1"></label>
+    <label class="f">Measured in<select name="unit" data-unitsel="1">${UNITS.map(([v,l])=>`<option value="${v}" ${(x.unit||'')===v?'selected':''}>${l}</option>`).join('')}</select></label></div>
+    ${p.kind==='customer'&&isNew?`<label class="f"><span data-pricelabel="1">Price ${perText(x)} ($)</span><input type="number" name="price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" class="mono"></label>`:''}
+    <div class="grid2"><label class="f">Supplier<input type="text" name="supplier" maxlength="60" list="sup-list" value="${esc(x.supplier||'')}" placeholder="e.g. Tractor Supply"></label>
+    ${isNew?`<label class="f">Status<select name="status">${PART_ST.map(s=>`<option>${s}</option>`).join('')}</select></label>`:'<span></span>'}</div>
+    <span class="note">For fluids, pick Quarts or Gallons and enter the amount (decimals OK, like 4.5).</span>`;
+}
+function suppliers(){const s=new Set();Object.values(projects).forEach(p=>allParts(p).forEach(x=>{if(x.supplier&&x.supplier.trim())s.add(x.supplier.trim())}));return [...s].sort((a,b)=>a.localeCompare(b))}
+
+/* ---------- saving ---------- */
+function save(pid){
+  const p=projects[pid];if(!p)return;p.updatedAt=Date.now();
+  if(!db){return}
+  clearTimeout(timers['s'+pid]);
+  timers['s'+pid]=setTimeout(async()=>{
+    try{const cur=projects[pid];if(cur)await db.doc('projects/'+pid).set(JSON.parse(JSON.stringify(cur)));timers['s'+pid]=null}
+    catch(e){ if(e&&e.code==='unavailable'){setTimeout(()=>save(pid),1500)} else toast(e&&e.code==='quota_exceeded'?'Storage is full: delete an old project.':'Could not save. Check your connection.') }
+  },350);
+}
+async function removeProject(pid){delete projects[pid];if(db){try{await db.doc('projects/'+pid).delete()}catch(e){toast('Could not delete. Try again.')}}}
+
+/* ---------- sign-in (same Google account as the Logbook) ---------- */
+const GLOGO='<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.2l7.8 6C12.3 13.4 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.8c-.5-1.4-.8-3-.8-4.8s.3-3.3.8-4.8l-7.8-6C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.8l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.7-3.9-13.6-9.7l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg>';
+function renderSignIn(){
+  return `<div class="top"><a class="btn ghost" href="/apps/logbook">← Logbook</a></div>
+  <section class="signin"><h1>Project Tracker</h1>
+    <p class="muted" style="margin:0">Sign in with the same Google account as your Logbook. Your projects are saved to your account, and the tracker checks your Logbook inventory. Nobody else can see them.</p>
+    <button class="btn primary gbtn" data-act="signin">${GLOGO}<span>Sign in with Google</span></button>
+    ${authErr?`<p style="color:var(--danger);margin:0">${esc(authErr)}</p>`:''}</section>`;
+}
+/* same popup-then-redirect handling as the Logbook's signIn() */
+async function signIn(){
+  authErr="";
+  try{await FB.signIn()}catch(e){
+    const c=e&&e.code||"";
+    if(c==="auth/popup-closed-by-user"||c==="auth/cancelled-popup-request")return;
+    if(c==="auth/popup-blocked"||c==="auth/operation-not-supported-in-this-environment"){try{await FB.signInRedirect();return}catch(x){}}
+    authErr=c==="auth/unauthorized-domain"?"This web address isn't allowed to sign in yet. Add it under Authentication → Settings → Authorized domains in Firebase.":"Couldn't sign in ("+c+"). Try again.";
+    render();
+  }
+}
+
+/* ---------- views ---------- */
+function go(patch){view={...view,editing:null,confirm:null,editPart:null,editTime:null,...patch};render();window.scrollTo(0,0)}
+
+function render(){
+  const a=document.activeElement;const keepId=a&&a.id&&(a.tagName==='TEXTAREA'||a.tagName==='INPUT')?a.id:null;const sel=keepId?[a.selectionStart,a.selectionEnd]:null;
+  let html='';
+  if(signedOut)html=renderSignIn();
+  else if(!ready)html='<p class="muted">Loading your projects…</p>';
+  else if(view.name==='project'&&projects[view.pid])html=renderProject();
+  else if(view.name==='task'&&projects[view.pid]&&(projects[view.pid].tasks||[]).find(t=>t.id===view.tid))html=renderTask();
+  else if(view.name==='shop')html=renderShop();
+  else if(view.name==='new')html=renderNew();
+  else if(view.name==='shopinfo')html=renderShopInfo();
+  else {view.name='list';html=renderList()}
+  app.innerHTML=html;
+  if(keepId){const el=document.getElementById(keepId);if(el){el.focus();try{el.setSelectionRange(sel[0],sel[1])}catch(e){}}}
+}
+
+function renderList(){
+  const all=Object.entries(projects).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));
+  const q=view.q.trim().toLowerCase();
+  const match=([id,p])=>{if(view.tab!=='all'&&p.kind!==view.tab)return false;if(!q)return true;
+    const hay=[jobLabel(p),p.jobNo,p.title,p.machine,p.logbook,p.notes,p.customer&&p.customer.name,...(p.tasks||[]).flatMap(t=>[t.title,t.notes,...(t.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier])])].join(' ').toLowerCase();return hay.includes(q)};
+  const shown=all.filter(match);
+  const c={all:all.length,mine:all.filter(x=>x[1].kind==='mine').length,customer:all.filter(x=>x[1].kind==='customer').length};
+  const toOrder=all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='To order').length,0);
+  let h=`<header class="app">
+    <div class="between" style="align-items:center"><a class="btn ghost sm" href="/apps/logbook" style="padding:0">← Logbook</a><button class="btn ghost sm" data-act="shopinfo" aria-label="Shop info: name and contact" style="flex:none">⚙ Shop info</button></div>
+    <div class="between"><div style="min-width:0"><div class="eyebrow">Garage Terminal${offline?' · not syncing':' · saved to your account'}</div><h1>Project Tracker</h1></div>
+    <div class="row" style="flex:none"><button class="btn" data-act="shop" data-job="all">Parts${toOrder?` <span class="mono">${toOrder}</span>`:''}</button><button class="btn primary" data-act="new">+ New</button></div></div>
+    <label for="q" class="f" style="position:absolute;left:-9999px">Search projects</label>
+    <input id="q" type="search" placeholder="Search projects, parts, notes…" value="${esc(view.q)}" data-input="q">
+  </header>
+  ${(()=>{const rj=runningJob();if(!rj)return '';const [rid,rp]=rj;const r=running(rp);return `<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:10px;border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--surface))">
+    <button class="btn ghost" data-act="open" data-pid="${rid}" style="flex:1;min-width:0;justify-content:flex-start;text-align:left;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0"><span class="eyebrow" style="color:var(--ok)">● On the clock</span><span style="font-weight:600;overflow-wrap:anywhere">${esc((jobLabel(rp)?jobLabel(rp)+' · ':'')+(rp.title||''))}</span><span class="mono" data-tick="${r.start}">${fmtClock(Date.now()-r.start)}</span></button>
+    <button class="btn primary sm" data-act="clockout" data-pid="${rid}" style="flex:none">■ Clock out</button></div>`})()}
+  <div class="tabs" role="tablist" aria-label="Filter projects">
+    ${[['all','All'],['mine','My equipment'],['customer','Customers']].map(([k,l])=>`<button role="tab" aria-selected="${view.tab===k}" data-act="tab" data-tab="${k}">${l}<span class="cnt">${c[k]}</span></button>`).join('')}
+  </div>`;
+  if(!all.length){h+=`<div class="empty"><b style="color:var(--ink)">No projects yet</b><span>Start one for your own machine, or a customer job.</span><div class="row"><button class="btn primary" data-act="new" data-kind="mine">+ My equipment</button><button class="btn" data-act="new" data-kind="customer">+ Customer job</button></div>${importButton()}</div>`}
+  else if(!shown.length){h+=`<div class="empty">Nothing matches. Try another search or filter.</div>`}
+  else h+=shown.map(([id,p])=>{const pr=progress(p);const next=(p.tasks||[]).find(t=>!t.done);const parts=allParts(p);const to=parts.filter(x=>x.status==='To order').length;const od=parts.filter(x=>x.status==='Ordered').length;
+    const sub=p.kind==='customer'?`Customer: ${esc((p.customer&&p.customer.name)||'—')}${p.machine?' · '+esc(p.machine):''}`:(lbName(p)||p.machine?`${lbName(p)?'Logbook: ':''}${esc(lbName(p)||p.machine)}`:'My equipment');
+    return `<button class="card" data-act="open" data-pid="${id}">
+      <div class="plate ${p.kind}"><b>${esc(p.title||'Untitled project')}</b><span class="${jobLabel(p)?'mono':''}" style="${jobLabel(p)?'font-size:14px;letter-spacing:0':''}">${p.kind==='customer'?(jobLabel(p)||'Customer'):'Mine'}</span></div>
+      <div class="body"><span class="small muted">${sub}</span>
+      <div class="row"><div class="bar"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n}</span></div>
+      <span class="small"><span class="muted">Next:</span> ${next?esc(next.title):(pr.n?'All tasks done':'Add the first task')}</span>${p.kind==='mine'&&inv?(()=>{const ps=allParts(p).filter(x=>x.num);if(!ps.length)return '';const n=ps.filter(x=>{const r=invLookup(x);return r&&r.found}).length;return `<span class="small" style="color:${n?'var(--ok)':'var(--muted)'}">${n} of ${ps.length} part${ps.length===1?'':'s'} in inventory</span>`})():''}</div>
+      <div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(p.status)}${running(p)?' <span style="color:var(--ok)">· ● on the clock</span>':''}</span><span>${to?to+' to order':od?od+' ordered':parts.length?'Parts in':'No parts yet'}</span></div>
+    </button>`}).join('');
+  return h;
+}
+
+function renderNew(){
+  const k=view.kind||'mine';
+  return `<div class="top"><button class="btn ghost" data-act="home">← Projects</button></div>
+  <h1>New project</h1>
+  <div class="seg" style="grid-template-columns:repeat(2,minmax(0,1fr))" role="group" aria-label="Project type">
+    <button aria-pressed="${k==='mine'}" data-act="newkind" data-kind="mine">My equipment</button>
+    <button aria-pressed="${k==='customer'}" data-act="newkind" data-kind="customer">Customer job</button>
+  </div>
+  <form class="panel" data-form="new">
+    <label class="f">Project name<input id="n-title" type="text" name="title" required maxlength="120" placeholder="${k==='mine'?'e.g. Ford 8N restoration':'e.g. Craftsman mower: no start'}"></label>
+    <label class="f">Machine<input type="text" name="machine" maxlength="120" placeholder="Make, model, serial"></label>
+    ${k==='mine'?logbookSelect():
+    `<div class="grid2"><label class="f">Customer<input type="text" name="cname" maxlength="80"></label><label class="f">Phone<input type="tel" name="cphone" maxlength="40"></label></div>
+    <div class="grid2"><label class="f">Dropped off<input type="date" name="drop"></label><label class="f">Promised by<input type="date" name="promised"></label></div>
+    <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px"></textarea></label>`}
+    <button class="btn primary" type="submit">Create project</button>
+  </form>`;
+}
+
+function renderProject(){
+  const id=view.pid,p=projects[id],pr=progress(p),parts=allParts(p);
+  const to=parts.filter(x=>x.status==='To order').length,od=parts.filter(x=>x.status==='Ordered').length,st=parts.filter(x=>x.status==='In stock').length;
+  const c=p.customer||{};
+  let h=`<div class="top"><button class="btn ghost" data-act="home">← Projects</button><button class="btn sm" data-act="editp">${view.editing==='p'?'Close':'Edit details'}</button></div>
+  <div class="card" style="cursor:default">
+    <div class="plate ${p.kind}" style="flex-direction:column;align-items:flex-start;gap:2px"><span>${p.kind==='customer'?'Customer job'+(jobLabel(p)?' · <span class="mono" style="font-size:14px;letter-spacing:0">'+esc(jobLabel(p))+'</span>':''):'My equipment'}</span><b style="font-size:24px">${esc(p.title||'Untitled project')}</b></div>
+    <div class="body">
+      ${p.kind==='customer'?`<dl class="kv">${p.machine?`<dt>Machine</dt><dd>${esc(p.machine)}</dd>`:''}${c.dropOff?`<dt>Dropped off</dt><dd>${esc(c.dropOff)}</dd>`:''}${c.promised?`<dt>Promised</dt><dd style="color:var(--warn);font-weight:600">${esc(c.promised)}</dd>`:''}</dl>${c.complaint?`<p style="margin:0" class="small"><span class="muted">Complaint:</span> ${esc(c.complaint)}</p>`:''}`
+      :`${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}${lbName(p)?`<span class="small">Logbook: <b>${esc(lbName(p))}</b></span>`:''}`}
+      <label class="f">Status<select data-input="status" id="p-status">${STATUSES.map(s=>`<option ${s===p.status?'selected':''}>${s}</option>`).join('')}</select></label>
+      <div class="row"><div class="bar big"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n} done</span></div>
+    </div>
+  </div>`;
+  if(p.kind==='customer')h+=renderClock(id,p);
+  if(p.kind==='customer'){
+    const hasInfo=(c.name||'').trim()||(c.phone||'').trim();
+    h+=`<section><div class="between"><h2>Customer info</h2>${hasInfo&&view.editing!=='c'?`<button class="btn sm" data-act="editc">Edit</button>`:''}</div>`;
+    if(jobLabel(p))h+=`<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px;border-color:var(--tan)">
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="eyebrow">Job number</span><span class="mono" style="font-size:28px;font-weight:500;line-height:1.1;user-select:all">${esc(jobLabel(p))}</span><span class="note">Write this on tags for the machine and its parts.</span></div>
+        <button class="btn sm" data-act="copyjob" style="flex:none">Copy</button></div>`;
+    if(view.editing==='c'||!hasInfo){
+      h+=`<form class="panel" data-form="editc">
+        <label class="f">Name<input id="c-name" type="text" name="cname" maxlength="80" autocomplete="off" value="${esc(c.name)}" placeholder="Customer's name"></label>
+        <label class="f">Phone<input type="tel" name="cphone" maxlength="40" autocomplete="off" inputmode="tel" value="${esc(c.phone)}" placeholder="Phone number"></label>
+        <div class="row"><button class="btn primary" type="submit" style="flex:1">Save customer info</button>${hasInfo?`<button class="btn" type="button" data-act="cancelc">Cancel</button>`:''}</div>
+      </form>`;
+    } else {
+      h+=`<div class="panel" style="gap:10px">
+        <div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Name</span><span style="font-size:17px;font-weight:600;overflow-wrap:anywhere">${esc(c.name||'—')}</span></div>
+        <div class="between"><div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="eyebrow">Phone</span><span class="mono" style="font-size:17px;user-select:all;overflow-wrap:anywhere">${esc(c.phone||'—')}</span></div>
+        ${c.phone?`<button class="btn sm" data-act="copyphone">Copy number</button>`:''}</div>
+      </div>`;
+    }
+    h+=`</section>`;
+  }
+  if(view.editing==='p'){
+    h+=`<form class="panel" data-form="editp">
+      <label class="f">Project name<input type="text" name="title" required maxlength="120" value="${esc(p.title)}"></label>
+      <label class="f">Project type<select name="kind"><option value="mine" ${p.kind==='mine'?'selected':''}>My equipment</option><option value="customer" ${p.kind==='customer'?'selected':''}>Customer job</option></select></label>
+      <label class="f">Machine<input type="text" name="machine" maxlength="120" value="${esc(p.machine)}"></label>
+      ${p.kind==='mine'?logbookSelect(p):
+      `<div class="grid2"><label class="f">Dropped off<input type="date" name="drop" value="${esc(c.dropOff)}"></label><label class="f">Promised by<input type="date" name="promised" value="${esc(c.promised)}"></label></div>
+      <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px">${esc(c.complaint)}</textarea></label>`}
+      <button class="btn primary" type="submit">Save details</button>
+      ${view.confirm==='delp'?`<div class="confirm"><span>Delete this project and all its tasks?</span><button type="button" class="btn danger sm" data-act="delp-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:`<button type="button" class="btn danger" data-act="delp">Delete project</button>`}
+    </form>`;
+  }
+  h+=`<section><div class="between"><h2>Checklist</h2><span class="note">tap a task for notes, parts and links</span></div>
+  ${(p.tasks||[]).length?`<div class="list">${p.tasks.map(t=>{const tp=t.parts||[];const meta=[tp.length?`${tp.length} part${tp.length>1?'s':''}`:'',(t.links||[]).length?`${t.links.length} link${t.links.length>1?'s':''}`:'',t.notes&&t.notes.trim()?'notes':''].filter(Boolean).join(' · ');
+    return `<div class="item"><button class="check" data-act="toggle" data-tid="${t.id}" aria-label="${t.done?'Mark not done':'Mark done'}: ${esc(t.title)}"><span class="box ${t.done?'on':''}">✓</span></button>
+    <button class="main" data-act="task" data-tid="${t.id}"><span class="t ${t.done?'done':''}">${esc(t.title)}</span>${meta?`<span class="small muted">${meta}</span>`:''}</button><span class="chev" aria-hidden="true">›</span></div>`}).join('')}</div>`:''}
+  <form class="row" data-form="addtask"><label for="newtask" style="position:absolute;left:-9999px">New task</label><input id="newtask" type="text" name="title" maxlength="160" placeholder="+ Add a task" required><button class="btn sm" type="submit">Add</button></form>
+  </section>
+  <section><h2>${p.kind==='customer'?'Parts &amp; labor':'Parts for this project'}</h2>
+  ${p.kind==='customer'?(()=>{const pc=partsCost(p);return `<div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;gap:12px;border-color:var(--tan)">
+    <div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Parts total</span><span class="mono" style="font-size:24px">${money(pc.total)}</span></div>
+    <span class="small ${pc.missing?'':'muted'}" style="text-align:right;${pc.missing?'color:var(--warn)':''}">${pc.missing?`${pc.missing} part${pc.missing>1?'s':''} without a price`:pc.count?`${pc.count} part${pc.count>1?'s':''} priced`:'No parts yet'}</span></div>`})():''}
+  ${p.kind==='customer'?renderLabor(p):''}
+  <div class="stats"><div class="stat ${to?'hot':''}"><small>To order</small><b>${to}</b></div><div class="stat"><small>Ordered</small><b>${od}</b></div><div class="stat"><small>In stock</small><b>${st}</b></div></div>
+  <button class="btn" data-act="shop" data-job="${id}">Shopping list, filtered to this project →</button></section>
+  ${p.kind==='customer'?renderDocs(p):''}
+  <section><h2>Project notes</h2><label for="p-notes" style="position:absolute;left:-9999px">Project notes</label><textarea id="p-notes" data-input="pnotes" maxlength="20000" placeholder="Plans, serial numbers, anything about the whole project">${esc(p.notes)}</textarea><span class="note">Saves as you type.</span></section>`;
+  return h;
+}
+
+function renderLabor(p){const l=p.labor||{};const lc=laborCost(p);const pc=partsCost(p);
+  const rate=l.rate!==undefined&&l.rate!==''?l.rate:(shop.rate||'');
+  return `<div class="panel" style="gap:10px;border-color:var(--tan)">
+    <div class="between" style="align-items:baseline"><span class="eyebrow">Labor</span><span class="mono" style="font-size:18px">${lc.has?money(lc.total):'<span class="muted small">none</span>'}</span></div>
+    <label class="f">What was done (optional)<input id="lab-desc" type="text" maxlength="160" value="${esc(l.desc||'')}" placeholder="e.g. Carb rebuild and tune-up" data-labor="desc"></label>
+    <div class="grid2"><label class="f">Hours<input id="lab-hours" type="number" min="0" step="0.25" inputmode="decimal" class="mono" value="${esc(l.hours||'')}" placeholder="0" data-labor="hours"></label>
+    <label class="f">Rate ($/hr)<input id="lab-rate" type="number" min="0" step="0.01" inputmode="decimal" class="mono" value="${esc(rate)}" placeholder="0.00" data-labor="rate"></label></div>
+    ${totalMs(p)>=60000&&hrsQ(totalMs(p))!==+(l.hours||0)?`<button class="btn sm" data-act="usetime">Use clocked time: ${numStr(hrsQ(totalMs(p)))} hr${running(p)?' (so far)':''}</button>`:''}
+    <span class="small muted">${lc.has?`${numStr(lc.hours)} hr × ${money(lc.rate)}/hr. `:'Leave hours empty and labor won\'t show on the invoice. '}${shop.rate?'':'Set a default rate under Shop info.'}</span>
+  </div>
+  <div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;border-color:var(--tan)"><div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Job total</span><span class="mono" style="font-size:24px">${money(pc.total+lc.total)}</span></div><span class="small muted" style="text-align:right">Parts ${money(pc.total)}${lc.has?`<br>Labor ${money(lc.total)}`:''}</span></div>`}
+function shopForm(){return `<form class="panel" data-form="shop">
+      <p class="small muted" style="margin:0">Printed at the top of every invoice and report. You only fill this in once.</p>
+      <label class="f">Shop name<input id="s-name" type="text" name="name" maxlength="80" value="${esc(shop.name)}" placeholder="e.g. Ryan's Small Engine Repair"></label>
+      <div class="grid2"><label class="f">Phone<input type="tel" name="phone" maxlength="40" value="${esc(shop.phone)}"></label><label class="f">Email<input type="text" name="email" maxlength="80" value="${esc(shop.email)}"></label></div>
+      <label class="f">Address (optional)<input type="text" name="address" maxlength="160" value="${esc(shop.address)}"></label>
+      <label class="f">Default labor rate, $ per hour (optional)<input type="number" name="rate" min="0" step="0.01" inputmode="decimal" class="mono" value="${esc(shop.rate)}" placeholder="e.g. 65.00"></label>
+      <label class="f">Note at the bottom of invoices (optional)<input type="text" name="footer" maxlength="200" value="${esc(shop.footer)}" placeholder="e.g. Thank you! Payment due on pickup."></label>
+      <button class="btn primary" type="submit">Save shop info</button>
+    </form>`}
+function renderShopInfo(){
+  return `<div class="top"><button class="btn ghost" data-act="home">← Projects</button></div>
+  <div><span class="eyebrow">Settings</span><h1>Shop info</h1><span class="small muted">Your shop's name and contact details for customer invoices and work reports.</span></div>
+  ${shopForm()}
+  <section><h2>Import from test version</h2><div class="panel" style="gap:10px"><span class="small muted">Bring in the projects, job numbers and shop info from the claude.ai test version: in the test version, save your backup file, then pick it here. Projects you already have are skipped.</span>${importButton()}</div></section>
+  ${user?`<p class="small muted">Signed in as ${esc(user.email||user.displayName||'')}. <button class="btn ghost sm" data-act="signout">Sign out</button></p>`:''}`;
+}
+function importButton(){return `<label class="btn">Import from test version<input type="file" accept=".json,application/json" data-importfile="1" class="sr"></label>`}
+/* Import a project-tracker-backup.json from the test version:
+   {app:"project-tracker", version:1, projects:[{id,...}], settings:{counter, shop}} */
+async function importBackup(text){
+  if(!db||!projectsLoaded){toast('Still loading your projects. Try again in a moment.');return}
+  let j;try{j=JSON.parse(text)}catch(e){toast("That isn't a Project Tracker backup file.");return}
+  if(!j||j.app!=='project-tracker'||!Array.isArray(j.projects)){toast("That file doesn't look like a Project Tracker backup.");return}
+  let added=0,skipped=0,bad=0;const writes=[];
+  for(const raw of j.projects){
+    const id=raw&&String(raw.id||'');if(!/^[A-Za-z0-9_-]{1,100}$/.test(id)||(raw.kind!=='mine'&&raw.kind!=='customer')){bad++;continue}
+    if(projects[id]){skipped++;continue}
+    const {id:_,...data}=raw;const clean=JSON.parse(JSON.stringify(data));projects[id]=clean;added++;
+    writes.push(db.doc('projects/'+id).set(clean));
+  }
+  const s=j.settings||{};
+  const cn=typeof s.counter==='number'?s.counter:Number(s.counter&&s.counter.lastJobNo)||0;
+  const maxJob=Math.max(cn,...j.projects.map(p=>Number(p&&p.jobNo)||0));
+  if(maxJob>counterLast){counterLast=maxJob;writes.push(db.doc('settings/counter').set({lastJobNo:maxJob}))}
+  let shopNote='';
+  if(s.shop&&typeof s.shop==='object'){
+    if(!shop.name){shop={name:String(s.shop.name||''),phone:String(s.shop.phone||''),email:String(s.shop.email||''),address:String(s.shop.address||''),footer:String(s.shop.footer||''),rate:s.shop.rate||''};writes.push(db.doc('settings/shop').set({...shop}));shopNote=' and your shop info'}
+    else shopNote=' (kept your current shop info)'}
+  render();
+  toast(`Imported ${added} project${added===1?'':'s'}${shopNote}${skipped?` · ${skipped} already here`:''}${bad?` · ${bad} unreadable`:''}`);
+  Promise.all(writes).catch(()=>toast('Some imported items could not be saved. Check your connection.'));
+}
+function renderDocs(p){
+  const pc=partsCost(p);const done=(p.tasks||[]).filter(t=>t.done).length;
+  let h=`<section><div class="between"><h2>Invoice &amp; report</h2><button class="btn ghost sm" data-act="editshop">${view.editing==='shop'?'Close':'Shop info'}</button></div>`;
+  if(view.editing==='shop')h+=shopForm();
+  h+=`<div class="panel" style="gap:10px">
+    <div class="grid2">
+      <button class="btn primary" data-act="pdf" data-kind="invoice">Invoice (PDF)</button>
+      <button class="btn" data-act="pdf" data-kind="report">Work report (PDF)</button>
+      <button class="btn" data-act="print" data-kind="invoice">Print invoice</button>
+      <button class="btn" data-act="print" data-kind="report">Print work report</button>
+    </div>
+    <span class="small muted">Invoice: parts${laborCost(p).has?', labor':''} and the total${pc.missing?` <span style="color:var(--warn)">(${pc.missing} part${pc.missing>1?'s':''} still without a price)</span>`:''}. Work report: the complaint, ${done} completed task${done===1?'':'s'} and parts used, no prices. Save the PDF to send it, or Print to print it straight away.</span>
+    ${!shop.name?`<span class="small" style="color:var(--warn)">Add your shop info first so your name prints at the top.</span>`:''}
+  </div></section>`;
+  return h;
+}
+
+/* ---------- PDFs (jsPDF) ---------- */
+const pdfText=s=>String(s??'').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[–—]/g,'-').replace(/…/g,'...').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g,'');
+function longDate(s){const d=s?new Date(s+'T00:00:00'):new Date();return isNaN(d)?String(s):d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}
+function buildPdf(p,kind){
+  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',format:'letter'});
+  const W=612,M=54,R=W-M;let y=M;const c=p.customer||{};const job=jobLabel(p);
+  const ensure=h=>{if(y+h>792-M){doc.addPage();y=M}};
+  const line=(x1,y1,x2,y2,w=0.75,g=180)=>{doc.setDrawColor(g);doc.setLineWidth(w);doc.line(x1,y1,x2,y2)};
+  const txt=(s,x,yy,o)=>doc.text(pdfText(s),x,yy,o);
+  // header: shop
+  doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(20);txt(shop.name||'Your shop name',M,y+4);
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(90);
+  const sub=[shop.phone,shop.email].filter(Boolean).join('   ');let hy=y+20;
+  if(shop.address){txt(shop.address,M,hy);hy+=13}
+  if(sub){txt(sub,M,hy);hy+=13}
+  doc.setFont('helvetica','bold');doc.setFontSize(22);doc.setTextColor(20);txt(kind==='invoice'?'INVOICE':'WORK REPORT',R,y+4,{align:'right'});
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(90);
+  txt((kind==='invoice'?'Invoice ':'Job ')+(job||'-'),R,y+20,{align:'right'});txt('Date: '+longDate(),R,y+33,{align:'right'});
+  y=Math.max(hy,y+40)+10;line(M,y,R,y,1.5,40);y+=24;
+  // customer block
+  doc.setFontSize(9);doc.setTextColor(120);doc.setFont('helvetica','bold');txt('CUSTOMER',M,y);txt('MACHINE',M+270,y);
+  doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(20);
+  let cy=y+15;txt(c.name||'-',M,cy);if(c.phone){cy+=14;txt(c.phone,M,cy)}
+  let my=y+15;const mach=doc.splitTextToSize(pdfText(p.machine||p.title||'-'),R-(M+270));doc.text(mach,M+270,my);my+=14*mach.length;
+  doc.setFontSize(10);doc.setTextColor(90);
+  if(c.dropOff){txt('Dropped off: '+longDate(c.dropOff),M+270,my);my+=13}
+  y=Math.max(cy,my)+22;
+  if(kind==='report'){
+    doc.setFontSize(11);doc.setTextColor(20);doc.setFont('helvetica','bold');txt(p.title||'Work report',M,y);y+=18;doc.setFont('helvetica','normal');
+    if(c.complaint){doc.setFontSize(9);doc.setTextColor(120);doc.setFont('helvetica','bold');txt("CUSTOMER'S COMPLAINT",M,y);y+=14;doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(20);
+      const L=doc.splitTextToSize(pdfText(c.complaint),R-M);ensure(L.length*14);doc.text(L,M,y);y+=L.length*14+14}
+    const doneT=(p.tasks||[]).filter(t=>t.done),open=(p.tasks||[]).filter(t=>!t.done);
+    doc.setFontSize(9);doc.setTextColor(120);doc.setFont('helvetica','bold');ensure(30);txt('WORK PERFORMED',M,y);y+=16;doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(20);
+    if(!doneT.length){txt('No completed work recorded yet.',M,y);y+=16}
+    doneT.forEach(t=>{const L=doc.splitTextToSize(pdfText(t.title),R-M-18);ensure(L.length*14+4);doc.setDrawColor(40);doc.setLineWidth(1);doc.rect(M,y-8,8,8);doc.line(M+1.5,y-4,M+3.5,y-1.5);doc.line(M+3.5,y-1.5,M+7,y-7);doc.text(L,M+18,y);y+=L.length*14+4});
+    if(open.length){y+=8;doc.setFontSize(9);doc.setTextColor(120);doc.setFont('helvetica','bold');ensure(30);txt('NOT DONE / RECOMMENDED',M,y);y+=16;doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(60);
+      open.forEach(t=>{const L=doc.splitTextToSize(pdfText(t.title),R-M-18);ensure(L.length*14+4);doc.setDrawColor(120);doc.rect(M,y-8,8,8);doc.text(L,M+18,y);y+=L.length*14+4})}
+    const parts=allParts(p);if(parts.length){y+=12;ensure(40);doc.setFontSize(9);doc.setTextColor(120);doc.setFont('helvetica','bold');txt('PARTS',M,y);txt('BRAND / PART #',M+300,y);txt('QTY',R,y,{align:'right'});y+=6;line(M,y,R,y);y+=14;doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(20);
+      parts.forEach(x=>{const L=doc.splitTextToSize(pdfText(x.name),290);const I=doc.splitTextToSize(pdfText(idText(x)||'-'),130);const n=Math.max(L.length,I.length);ensure(n*13+6);doc.text(L,M,y);doc.text(I,M+300,y);txt(isFluid(x)?qtyText(x):numStr(x.qty),R,y,{align:'right'});y+=n*13+6})}
+  } else {
+    // invoice table
+    const cols={part:M,num:M+200,qty:M+370,each:M+440,amt:R};
+    doc.setFontSize(9);doc.setTextColor(120);doc.setFont('helvetica','bold');txt('PART',cols.part,y);txt('BRAND / PART #',cols.num,y);txt('QTY',cols.qty,y,{align:'right'});txt('PRICE EACH',cols.each,y,{align:'right'});txt('AMOUNT',cols.amt,y,{align:'right'});
+    y+=6;line(M,y,R,y);y+=15;doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(20);
+    const parts=allParts(p);
+    if(!parts.length){txt('No parts on this job.',M,y);y+=16}
+    parts.forEach(x=>{const q=x.qty||1;const L=doc.splitTextToSize(pdfText(x.name),190);const I=doc.splitTextToSize(pdfText(idText(x)||'-'),105);const n=Math.max(L.length,I.length);ensure(n*13+8);doc.text(L,cols.part,y);doc.text(I,cols.num,y);txt(isFluid(x)?qtyText(x):numStr(q),cols.qty,y,{align:'right'});
+      txt(hasPrice(x)?money(x.price)+(isFluid(x)?'/'+x.unit:''):'-',cols.each,y,{align:'right'});txt(hasPrice(x)?money(x.price*q):'-',cols.amt,y,{align:'right'});y+=n*13+8});
+    y+=2;line(M,y,R,y);y+=22;
+    const pc=partsCost(p),lc=laborCost(p);
+    if(lc.has){ensure(60);doc.setFontSize(9);doc.setTextColor(120);doc.setFont('helvetica','bold');txt('LABOR',cols.part,y);txt('HOURS',cols.qty,y,{align:'right'});txt('RATE',cols.each,y,{align:'right'});txt('AMOUNT',cols.amt,y,{align:'right'});
+      y+=6;line(M,y,R,y);y+=15;doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(20);
+      const L=doc.splitTextToSize(pdfText(lc.desc||'Labor'),300);ensure(L.length*13+8);doc.text(L,cols.part,y);txt(numStr(lc.hours),cols.qty,y,{align:'right'});txt(money(lc.rate)+'/hr',cols.each,y,{align:'right'});txt(money(lc.total),cols.amt,y,{align:'right'});y+=L.length*13+8;
+      y+=2;line(M,y,R,y);y+=22}
+    ensure(80);
+    doc.setFontSize(11);doc.setTextColor(60);txt('Parts',cols.each,y,{align:'right'});txt(money(pc.total),cols.amt,y,{align:'right'});y+=16;
+    if(lc.has){txt('Labor',cols.each,y,{align:'right'});txt(money(lc.total),cols.amt,y,{align:'right'});y+=16}
+    y-=8;line(cols.qty-30,y,R,y,1.2,40);y+=20;
+    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(20);txt('TOTAL',cols.each,y,{align:'right'});txt(money(pc.total+lc.total),cols.amt,y,{align:'right'});y+=20;
+    if(pc.missing){doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(150);txt(pc.missing+' part'+(pc.missing>1?'s have':' has')+' no price and '+(pc.missing>1?'are':'is')+' not included.',R,y,{align:'right'});y+=14}
+  }
+  // footer
+  const foot=kind==='invoice'?(shop.footer||'Thank you for your business.'):'Thank you for your business.';
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(90);ensure(40);y=Math.max(y+30,792-M-10);txt(foot,W/2,y,{align:'center'});
+  return doc.output('arraybuffer');
+}
+async function savePdf(p,kind){
+  if(!window.jspdf){toast('PDF maker is still loading. Try again in a moment.');return}
+  const who=((p.customer&&p.customer.name)||p.title||'customer').replace(/[\\/:*?"<>|]+/g,'').slice(0,40);
+  const name=`${kind==='invoice'?'Invoice':'Work report'} ${jobLabel(p)||''} ${who}.pdf`.replace(/\s+/g,' ').trim();
+  try{const data=buildPdf(p,kind);const url=URL.createObjectURL(new Blob([data],{type:'application/pdf'}));
+    const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);toast('PDF saved')}
+  catch(e){toast('Could not create the PDF.')}
+}
+
+/* ---------- Print (same content as the PDFs, as a page the browser prints) ---------- */
+function buildPrintHtml(p,kind){
+  const c=p.customer||{};const job=jobLabel(p);const parts=allParts(p);
+  let h=`<div class="ph"><div><h1>${esc(shop.name||'Your shop name')}</h1>${shop.address?`<div class="sub">${esc(shop.address)}</div>`:''}${[shop.phone,shop.email].filter(Boolean).length?`<div class="sub">${esc([shop.phone,shop.email].filter(Boolean).join('   '))}</div>`:''}</div>
+    <div class="doc"><b>${kind==='invoice'?'INVOICE':'WORK REPORT'}</b><div class="sub">${kind==='invoice'?'Invoice ':'Job '}${esc(job||'-')}</div><div class="sub">Date: ${esc(longDate())}</div></div></div>
+  <div class="two"><div><div class="lab">Customer</div><div>${esc(c.name||'-')}</div>${c.phone?`<div>${esc(c.phone)}</div>`:''}</div>
+    <div><div class="lab">Machine</div><div>${esc(p.machine||p.title||'-')}</div>${c.dropOff?`<div class="sub">Dropped off: ${esc(longDate(c.dropOff))}</div>`:''}</div></div>`;
+  if(kind==='report'){
+    h+=`<div style="font-weight:700;font-size:12pt">${esc(p.title||'Work report')}</div>`;
+    if(c.complaint)h+=`<div class="lab">Customer's complaint</div><div>${esc(c.complaint)}</div>`;
+    const doneT=(p.tasks||[]).filter(t=>t.done),open=(p.tasks||[]).filter(t=>!t.done);
+    h+=`<div class="lab">Work performed</div>${doneT.length?`<ul>${doneT.map(t=>`<li class="done">${esc(t.title)}</li>`).join('')}</ul>`:'<div>No completed work recorded yet.</div>'}`;
+    if(open.length)h+=`<div class="lab">Not done / recommended</div><ul>${open.map(t=>`<li>${esc(t.title)}</li>`).join('')}</ul>`;
+    if(parts.length)h+=`<div class="lab">Parts</div><table><tr><th>Part</th><th>Brand / part #</th><th class="r">Qty</th></tr>${parts.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(idText(x)||'-')}</td><td class="r">${esc(isFluid(x)?qtyText(x):numStr(x.qty))}</td></tr>`).join('')}</table>`;
+  }else{
+    const pc=partsCost(p),lc=laborCost(p);
+    h+=`<table><tr><th>Part</th><th>Brand / part #</th><th class="r">Qty</th><th class="r">Price each</th><th class="r">Amount</th></tr>
+      ${parts.length?parts.map(x=>{const q=x.qty||1;return `<tr><td>${esc(x.name)}</td><td>${esc(idText(x)||'-')}</td><td class="r">${esc(isFluid(x)?qtyText(x):numStr(q))}</td><td class="r">${hasPrice(x)?esc(money(x.price)+(isFluid(x)?'/'+x.unit:'')):'-'}</td><td class="r">${hasPrice(x)?esc(money(x.price*q)):'-'}</td></tr>`}).join(''):'<tr><td colspan="5">No parts on this job.</td></tr>'}</table>`;
+    if(lc.has)h+=`<table><tr><th>Labor</th><th class="r">Hours</th><th class="r">Rate</th><th class="r">Amount</th></tr><tr><td>${esc(lc.desc||'Labor')}</td><td class="r">${esc(numStr(lc.hours))}</td><td class="r">${esc(money(lc.rate))}/hr</td><td class="r">${esc(money(lc.total))}</td></tr></table>`;
+    h+=`<table class="tot"><tr><td class="r">Parts</td><td class="r">${esc(money(pc.total))}</td></tr>${lc.has?`<tr><td class="r">Labor</td><td class="r">${esc(money(lc.total))}</td></tr>`:''}<tr class="big"><td class="r">TOTAL</td><td class="r">${esc(money(pc.total+lc.total))}</td></tr></table>`;
+    if(pc.missing)h+=`<div class="sub" style="text-align:right">${pc.missing} part${pc.missing>1?'s have':' has'} no price and ${pc.missing>1?'are':'is'} not included.</div>`;
+  }
+  h+=`<div class="foot">${esc(kind==='invoice'?(shop.footer||'Thank you for your business.'):'Thank you for your business.')}</div>`;
+  return h;
+}
+function printDoc(p,kind){
+  const el=document.getElementById('print');el.innerHTML=buildPrintHtml(p,kind);document.body.classList.add('printing');
+  const done=()=>{document.body.classList.remove('printing');el.innerHTML='';window.removeEventListener('afterprint',done)};
+  window.addEventListener('afterprint',done);window.print();
+}
+
+function renderTask(){
+  const p=projects[view.pid],t=p.tasks.find(x=>x.id===view.tid),i=p.tasks.indexOf(t);
+  const sups=suppliers();
+  let h=`<div class="top"><button class="btn ghost" data-act="open" data-pid="${view.pid}">← ${esc(p.title||'Project')}</button><button class="btn sm" data-act="edittask">${view.editing==='t'?'Close':'Edit'}</button></div>
+  <div style="display:flex;flex-direction:column;gap:10px"><span class="eyebrow">${jobLabel(p)?`<span class="mono" style="letter-spacing:0;color:var(--tan)">${esc(jobLabel(p))}</span> · `:''}Task ${i+1} of ${p.tasks.length} · ${t.done?'<span style="color:var(--ok)">Done</span>':'Open'}</span><h1>${esc(t.title)}</h1>
+  <button class="btn ${t.done?'':'ok'}" data-act="toggle" data-tid="${t.id}">${t.done?'Mark not done':'✓ Mark task done'}</button></div>`;
+  if(view.editing==='t'){h+=`<form class="panel" data-form="edittask"><label class="f">Task name<input type="text" name="title" required maxlength="160" value="${esc(t.title)}"></label><button class="btn primary" type="submit">Save</button>
+    ${view.confirm==='delt'?`<div class="confirm"><span>Delete this task, its notes, parts and links?</span><button type="button" class="btn danger sm" data-act="delt-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:`<button type="button" class="btn danger" data-act="delt">Delete task</button>`}</form>`}
+  h+=`<section><h2>Notes &amp; research</h2><label for="t-notes" style="position:absolute;left:-9999px">Task notes</label><textarea id="t-notes" data-input="tnotes" maxlength="20000" placeholder="Specs, torque values, what you found, what worked">${esc(t.notes)}</textarea><span class="note">Saves as you type.</span></section>
+  <section><div class="between"><h2>Parts</h2><span class="note">tap a status to change it</span></div>
+  ${(t.parts||[]).length?`<div class="list">${t.parts.map(x=>view.editPart===x.id?`<form class="panel sub" data-form="editpart" data-xid="${x.id}" style="border-radius:0;border:0;border-bottom:1px solid var(--line)">
+    <label class="f">Part<input id="ep-name" type="text" name="name" required maxlength="120" value="${esc(x.name)}"></label>
+    ${partFields(x,sups)}
+    <div class="grid2"><button class="btn primary" type="submit">Save part</button><button class="btn" type="button" data-act="editpart" data-xid="">Cancel</button></div>
+  </form>`:`<div class="item" style="padding:10px 12px;gap:10px;align-items:flex-start">
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><span style="font-weight:500;overflow-wrap:anywhere">${esc(x.name)}</span>
+    <span class="mono small muted">${x.brand?`<span style="color:var(--text)">${esc(x.brand)}</span> · `:''}${esc(x.num||'no part #')} · ${esc(qtyText(x))}</span>${invChip(p,x)}${x.supplier?`<span><span class="tag sup">${esc(x.supplier)}</span></span>`:''}
+    ${p.kind==='customer'?`<label class="exp" for="pr-${x.id}"><span>Price ${perText(x)}</span><span class="row" style="gap:4px"><span class="mono">$</span><input id="pr-${x.id}" class="mono" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${hasPrice(x)?Number(x.price).toFixed(2):''}" data-price="1" data-xid="${x.id}" style="width:96px"></span>${hasPrice(x)&&(x.qty||1)!==1?`<span class="mono muted">= ${money(x.price*(x.qty||1))}</span>`:''}</label>`:''}
+    ${x.status==='Ordered'?`<span class="small ${x.expected&&x.expected<today()?'':'muted'}" style="${x.expected&&x.expected<today()?'color:var(--danger);font-weight:600':''}">${x.expected?(x.expected<today()?'Late: expected ':'Expected ')+esc(fmtDate(x.expected)):'No expected date yet'}</span>`:''}${x.status==='In stock'&&x.receivedOn?`<span class="small muted">Received ${esc(fmtDate(x.receivedOn))}</span>`:''}${p.kind==='mine'&&x.status==='In stock'?invAddUI(view.pid,view.tid,x):''}</div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><button class="chip ${PART_CLASS[x.status]}" data-act="cyclepart" data-xid="${x.id}" aria-label="Status ${esc(x.status)}, tap to change">${esc(x.status)}</button><div class="row" style="gap:4px"><button class="btn ghost sm" data-act="editpart" data-xid="${x.id}" aria-label="Edit ${esc(x.name)}">Edit</button><button class="btn ghost sm" data-act="delpart" data-xid="${x.id}" aria-label="Remove ${esc(x.name)}">Remove</button></div></div></div>`).join('')}</div>`:''}
+  <datalist id="sup-list">${sups.map(s=>`<option value="${esc(s)}"></option>`).join('')}</datalist>
+  <datalist id="brand-list">${brands().map(s=>`<option value="${esc(s)}"></option>`).join('')}</datalist>
+  <form class="panel sub" data-form="addpart">
+    <label class="f">Part<input type="text" name="name" required maxlength="120" placeholder="e.g. Carburetor rebuild kit or 10W-30 oil"></label>
+    ${partFields({qty:1,unit:''},sups,true)}
+    <button class="btn" type="submit">+ Add part</button>
+  </form></section>
+  <section><h2>Videos &amp; links</h2>
+  ${(t.links||[]).map(l=>{const u=safeUrl(l.url);return `<div class="link"><span class="ico ${isVideo(u)?'vid':''}" aria-hidden="true">${isVideo(u)?'▶':'#'}</span>${u?`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer"><span style="font-weight:500;font-size:14px">${esc(l.title||hostOf(u))}</span><span class="small muted">${esc(hostOf(u))}</span></a>`:`<span style="flex:1">${esc(l.title)}</span>`}<button class="btn ghost sm" data-act="dellink" data-lid="${l.id}" aria-label="Remove link">Remove</button></div>`}).join('')}
+  <form class="panel sub" data-form="addlink"><label class="f">Link<input type="url" name="url" required placeholder="https://… (YouTube, forum, manual)"></label><label class="f">Title (optional)<input type="text" name="title" maxlength="140"></label><button class="btn" type="submit">+ Add link</button></form></section>
+  <p class="note">Photos come in the full version. For now, note where they are in your notes.</p>`;
+  return h;
+}
+
+function renderShop(){
+  const rows=[];Object.entries(projects).forEach(([pid,p])=>allParts(p).forEach(x=>rows.push({...x,pid,ptitle:(jobLabel(p)?jobLabel(p)+' · ':'')+(p.title||'Untitled'),kind:p.kind})));
+  const jobs=Object.entries(projects).filter(([pid,p])=>allParts(p).length).map(([pid,p])=>({pid,label:(jobLabel(p)?jobLabel(p)+' · ':'')+(p.title||'Untitled'),kind:p.kind}));
+  const sups=suppliers();const hasNoSup=rows.some(r=>!(r.supplier||'').trim());
+  if(view.shopJob!=='all'&&!projects[view.shopJob])view.shopJob='all';
+  const f=rows.filter(r=>(view.shopJob==='all'||r.pid===view.shopJob)&&(view.shopStatus==='all'||(view.shopStatus==='order'?r.status==='To order':r.status==='Ordered'))&&(view.shopSup==='all'||(view.shopSup==='none'?!(r.supplier||'').trim():(r.supplier||'').trim()===view.shopSup)));
+  const to=rows.filter(r=>r.status==='To order').length,od=rows.filter(r=>r.status==='Ordered').length;
+  const td=today();const late=rows.filter(r=>r.status==='Ordered'&&r.expected&&r.expected<td).length;
+  if(view.shopStatus==='ordered')f.sort((a,b)=>(a.expected||'9999')<(b.expected||'9999')?-1:(a.expected||'9999')>(b.expected||'9999')?1:0);
+  return `<div class="top"><button class="btn ghost" data-act="${projects[view.backPid]?'open':'home'}" data-pid="${view.backPid||''}">← ${projects[view.backPid]?esc(projects[view.backPid].title):'Projects'}</button><button class="btn sm" data-act="copy" ${f.length?'':'disabled'}>Copy list</button></div>
+  <div><span class="eyebrow">All projects, one list</span><h1>Shopping list</h1><span class="small muted">${to} to order · ${od} on the way${late?` · <span style="color:var(--danger);font-weight:600">${late} late</span>`:''} · ${jobs.length} job${jobs.length===1?'':'s'}</span></div>
+  <section><span class="eyebrow">Job</span><div class="pills" role="group" aria-label="Filter by job">
+    <button class="pill" aria-pressed="${view.shopJob==='all'}" data-act="sjob" data-v="all">All jobs</button>
+    ${jobs.map(j=>`<button class="pill" aria-pressed="${view.shopJob===j.pid}" data-act="sjob" data-v="${j.pid}">${esc(j.label)}</button>`).join('')}</div>
+  <span class="eyebrow" style="margin-top:4px">Status</span><div class="seg" role="group" aria-label="Filter by status">
+    ${[['order','To order'],['ordered','Ordered'],['all','All']].map(([k,l])=>`<button aria-pressed="${view.shopStatus===k}" data-act="sst" data-v="${k}">${l}</button>`).join('')}</div>
+  ${sups.length||hasNoSup?`<span class="eyebrow" style="margin-top:4px">Supplier</span><div class="pills" role="group" aria-label="Filter by supplier">
+    <button class="pill" aria-pressed="${view.shopSup==='all'}" data-act="ssup" data-v="all">All suppliers</button>
+    ${sups.map(s=>`<button class="pill" aria-pressed="${view.shopSup===s}" data-act="ssup" data-v="${esc(s)}">${esc(s)}</button>`).join('')}
+    ${hasNoSup?`<button class="pill" aria-pressed="${view.shopSup==='none'}" data-act="ssup" data-v="none">No supplier</button>`:''}</div>`:''}</section>
+  ${!rows.length?`<div class="empty">No parts yet. Add parts on a task and they show up here.</div>`:!f.length?`<div class="empty">Nothing here for these filters.</div>`:
+  `<div class="list">${f.map(r=>{
+    const isOrd=r.status==='Ordered',isStock=r.status==='In stock',isLate=isOrd&&r.expected&&r.expected<td;
+    const cap=r.status==='To order'?'Ordered':'Received';
+    const lab=r.status==='To order'?'Mark ordered':isOrd?'Mark received':'Mark not received';
+    const ids=`data-pid="${r.pid}" data-tid="${r.taskId}" data-xid="${r.id}"`;
+    return `<div class="item" style="align-items:flex-start"><button class="check cap" data-act="shoptick" ${ids} aria-label="${lab}: ${esc(r.name)}"><span class="box ${isStock?'on':isOrd&&view.shopStatus!=='ordered'?'ordered':''}">✓</span><small>${cap}</small></button>
+  <div class="main" style="cursor:default"><div class="between" style="align-items:baseline"><span class="t ${isStock?'done':''}">${esc(r.name)}</span><span class="mono small muted" style="flex:none">${esc(qtyShort(r))}</span></div>
+  ${r.kind==='customer'&&hasPrice(r)?`<span class="price small">${money(r.price)} ${perText(r)}${(r.qty||1)!==1?` · ${money(r.price*(r.qty||1))}`:''}</span>`:''}
+  <span class="mono small muted">${esc(r.brand?r.brand+' · '+(r.num||'no part #'):(r.num||'no part #'))}</span>${r.kind==='mine'?invChip(projects[r.pid],r):''}
+  <span class="row" style="flex-wrap:wrap;gap:6px"><span class="tag ${r.kind}">${esc(r.ptitle)}</span>${r.supplier?`<span class="tag sup">${esc(r.supplier)}</span>`:''}<button class="chip ${PART_CLASS[r.status]}" data-act="shopcycle" ${ids}>${esc(r.status)}</button>${isLate?`<span class="chip late">Late</span>`:''}</span>
+  ${isOrd?`<label class="exp" for="exp-${r.id}"><span>Expected</span><input id="exp-${r.id}" type="date" value="${esc(r.expected||'')}" data-exp="1" ${ids}>${r.orderedOn?`<span class="muted">ordered ${esc(fmtDate(r.orderedOn))}</span>`:''}</label>`:''}
+  ${isStock&&r.receivedOn?`<span class="small muted">Received ${esc(fmtDate(r.receivedOn))}</span>`:''}${r.kind==='mine'&&isStock?invAddUI(r.pid,r.taskId,findPart(r.pid,r.taskId,r.id).x):''}</div></div>`}).join('')}</div>`}
+  <p class="note">${view.shopStatus==='ordered'?'Set the date each part should arrive, and tick Received when it shows up. Soonest first; late parts are flagged.':'Tick a part when you order it, then tick Received on the Ordered tab when it arrives. Tags show which job each part is for.'}</p>`;
+}
+
+/* ---------- events ---------- */
+function findPart(pid,tid,xid){const p=projects[pid];const t=p&&p.tasks.find(x=>x.id===tid);const x=t&&(t.parts||[]).find(y=>y.id===xid);return{p,t,x}}
+app.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-act]');if(!b||b.disabled)return;const a=b.dataset.act;const p=projects[view.pid];
+  if(a==='home')go({name:'list'});
+  else if(a==='new')go({name:'new',kind:b.dataset.kind||'mine'});
+  else if(a==='newkind'){view.kind=b.dataset.kind;render()}
+  else if(a==='tab'){view.tab=b.dataset.tab;render()}
+  else if(a==='open')go({name:'project',pid:b.dataset.pid});
+  else if(a==='task')go({name:'task',tid:b.dataset.tid});
+  else if(a==='shop')go({name:'shop',shopJob:b.dataset.job||'all',backPid:b.dataset.job&&b.dataset.job!=='all'?b.dataset.job:(view.name==='project'?view.pid:null)});
+  else if(a==='editp'){view.editing=view.editing==='p'?null:'p';view.confirm=null;render()}
+  else if(a==='edittask'){view.editing=view.editing==='t'?null:'t';view.confirm=null;render()}
+  else if(a==='editc'){view.editing='c';render();const el=document.getElementById('c-name');if(el)el.focus()}
+  else if(a==='cancelc'){view.editing=null;render()}
+  else if(a==='invadd'){view.confirm=b.dataset.key;render()}
+  else if(a==='print'){printDoc(p,b.dataset.kind)}
+  else if(a==='signin'){signIn()}
+  else if(a==='signout'){if(FB)FB.signOut()}
+  else if(a==='clockin'){clockIn(b.dataset.pid)}
+  else if(a==='clockout'){clockOut(b.dataset.pid)}
+  else if(a==='addtime'){view.editing=view.editing==='addtime'?null:'addtime';view.editTime=null;render();const el=document.getElementById('at-date');if(el&&view.editing)el.scrollIntoView({block:'center'})}
+  else if(a==='edittime'){view.editTime=b.dataset.tid||null;view.confirm=null;if(view.editing==='addtime')view.editing=null;render()}
+  else if(a==='deltime'){view.confirm='deltime';render()}
+  else if(a==='deltime-yes'){p.time={log:timeLog(p).filter(e=>e.id!==b.dataset.tid)};view.editTime=null;view.confirm=null;save(view.pid);toast('Time entry deleted');render()}
+  else if(a==='usetime'){p.labor={...(p.labor||{}),hours:hrsQ(totalMs(p))};if(p.labor.rate===undefined&&shop.rate)p.labor.rate=+shop.rate;save(view.pid);toast('Labor hours updated');render()}
+  else if(a==='shopinfo'){go({name:'shopinfo'});const el=document.getElementById('s-name');if(el)el.focus()}
+  else if(a==='editshop'){view.editing=view.editing==='shop'?null:'shop';render();const el=document.getElementById('s-name');if(el&&view.editing==='shop')el.focus()}
+  else if(a==='pdf'){b.disabled=true;await savePdf(p,b.dataset.kind);b.disabled=false}
+  else if(a==='copyjob'){const j=jobLabel(p);try{await navigator.clipboard.writeText(j);toast(j+' copied')}catch(err){toast('Press and hold the number to copy it')}}
+  else if(a==='copyphone'){const ph=(p.customer&&p.customer.phone)||'';try{await navigator.clipboard.writeText(ph);toast('Number copied')}catch(err){toast('Press and hold the number to copy it')}}
+  else if(a==='delp'||a==='delt'){view.confirm=a;render()}
+  else if(a==='cancel'){view.confirm=null;render()}
+  else if(a==='delp-yes'){await removeProject(view.pid);toast('Project deleted');go({name:'list'})}
+  else if(a==='delt-yes'){p.tasks=p.tasks.filter(t=>t.id!==view.tid);save(view.pid);toast('Task deleted');go({name:'project'})}
+  else if(a==='toggle'){const t=p.tasks.find(x=>x.id===b.dataset.tid);t.done=!t.done;
+    const pr=progress(p);if(pr.n&&pr.d===pr.n&&p.status==='In progress')toast('All tasks done. Update the status?');else if(t.done&&p.status==='Not started')p.status='In progress';
+    save(view.pid);render()}
+  else if(a==='cyclepart'){const t=p.tasks.find(x=>x.id===view.tid);const x=t.parts.find(y=>y.id===b.dataset.xid);setPartStatus(x,PART_ST[(PART_ST.indexOf(x.status)+1)%3]);save(view.pid);render()}
+  else if(a==='editpart'){view.editPart=b.dataset.xid||null;render();const el=document.getElementById('ep-name');if(el&&view.editPart)el.focus()}
+  else if(a==='delpart'){const t=p.tasks.find(x=>x.id===view.tid);t.parts=t.parts.filter(y=>y.id!==b.dataset.xid);save(view.pid);render()}
+  else if(a==='dellink'){const t=p.tasks.find(x=>x.id===view.tid);t.links=t.links.filter(y=>y.id!==b.dataset.lid);save(view.pid);render()}
+  else if(a==='sjob'){view.shopJob=b.dataset.v;render()}
+  else if(a==='sst'){view.shopStatus=b.dataset.v;render()}
+  else if(a==='ssup'){view.shopSup=b.dataset.v;render()}
+  else if(a==='shoptick'){const {x}=findPart(b.dataset.pid,b.dataset.tid,b.dataset.xid);if(x){
+    if(x.status==='To order'){x.status='Ordered';x.orderedOn=today();toast('Moved to Ordered: set its expected date there')}
+    else if(x.status==='Ordered'){x.status='In stock';x.receivedOn=today();toast(projects[b.dataset.pid]&&projects[b.dataset.pid].kind==='mine'?'Received. Add it to your inventory under All, or on its task':'Received')}
+    else {x.status='Ordered';delete x.receivedOn}
+    save(b.dataset.pid);render()}}
+  else if(a==='shopcycle'){const {x}=findPart(b.dataset.pid,b.dataset.tid,b.dataset.xid);if(x){setPartStatus(x,PART_ST[(PART_ST.indexOf(x.status)+1)%3]);save(b.dataset.pid);render()}}
+  else if(a==='copy'){const txt=[...app.querySelectorAll('.list .item')].map(el=>{const m=el.querySelector('.main');const name=m.querySelector('.t').textContent;const qty=m.querySelector('.mono.small').textContent;const num=m.querySelectorAll('.mono')[1]?.textContent||'';const tags=[...m.querySelectorAll('.tag')].map(t=>t.textContent).join(' · ');return `${name} ${qty} — ${num}${tags?' ('+tags+')':''}`}).join('\n');
+    try{await navigator.clipboard.writeText(txt);toast('List copied')}catch(err){const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('aria-label','Shopping list');ta.style.minHeight='160px';b.closest('.top').after(ta);ta.select();toast('Select all and copy')}}
+});
+app.addEventListener('submit',e=>{
+  const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));const k=f.dataset.form;const p=projects[view.pid];
+  if(k==='new'){if(!d.title.trim())return;const id=uid();const np=blankProject(view.kind||'mine');np.title=d.title.trim();np.machine=(d.machine||'').trim();if(np.kind==='mine')applyLogbook(np,d.logbookSel||'');
+    if(np.kind==='customer'){np.customer={name:(d.cname||'').trim(),phone:(d.cphone||'').trim(),dropOff:d.drop||'',promised:d.promised||'',complaint:(d.complaint||'').trim()};np.jobNo=nextJobNo();toast('Job '+fmtJob(np.jobNo)+' created')}
+    projects[id]=np;save(id);go({name:'project',pid:id})}
+  else if(k==='editp'){const was=p.kind;p.title=d.title.trim()||p.title;p.machine=(d.machine||'').trim();p.customer=p.customer||{name:'',phone:'',dropOff:'',promised:'',complaint:''};
+    if(was==='mine')applyLogbook(p,d.logbookSel||'');else p.customer={...p.customer,dropOff:d.drop||'',promised:d.promised||'',complaint:(d.complaint||'').trim()};
+    if(d.kind==='mine'||d.kind==='customer')p.kind=d.kind;
+    if(p.kind==='customer'&&!p.jobNo)p.jobNo=nextJobNo();
+    save(view.pid);view.editing=null;toast(p.kind!==was?(p.kind==='customer'?'Now a customer job: add their info':'Now in My equipment'):'Saved');render()}
+  else if(k==='invadd'){addToInventory(f.dataset.pid,f.dataset.tid,f.dataset.xid,Math.max(1,Math.min(9999,parseInt(d.n,10)||1)));return}
+  else if(k==='addtime'){const mins=(Math.max(0,parseInt(d.h,10)||0))*60+Math.min(59,Math.max(0,parseInt(d.m,10)||0));if(!mins){toast('Enter hours or minutes');return}
+    p.time={log:[...timeLog(p),{id:uid(),manual:true,date:d.date||today(),minutes:mins,...(d.note&&d.note.trim()?{note:d.note.trim()}:{})}]};view.editing=null;save(view.pid);toast('Added '+fmtDur(mins*60000));render()}
+  else if(k==='edittime'){const e=timeLog(p).find(x=>x.id===f.dataset.tid);if(!e)return;
+    if(e.manual){const mins=(Math.max(0,parseInt(d.h,10)||0))*60+Math.min(59,Math.max(0,parseInt(d.m,10)||0));if(!mins){toast('Enter hours or minutes');return}e.minutes=mins;e.date=d.date||e.date}
+    else{const st=atLocal(d.date,d.start);if(!isFinite(st)){toast('Check the date and time');return}if(st>Date.now()){toast("Clock-in time can't be in the future");return}e.start=st;
+      if(e.end){let en=atLocal(d.date,d.end);if(en<=st)en+=86400000;e.end=en}}
+    if(d.note&&d.note.trim())e.note=d.note.trim();else delete e.note;
+    p.time={log:[...timeLog(p)]};view.editTime=null;save(view.pid);toast('Time saved');render()}
+  else if(k==='shop'){shop={name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),footer:(d.footer||'').trim(),rate:d.rate!==''&&isFinite(+d.rate)&&+d.rate>0?Math.round(+d.rate*100)/100:''};
+    if(db)db.doc('settings/shop').set({...shop}).catch(()=>toast('Could not save shop info'));view.editing=null;toast('Shop info saved');if(view.name==='shopinfo')go({name:'list'});else render()}
+  else if(k==='editc'){p.customer={...(p.customer||{}),name:(d.cname||'').trim(),phone:(d.cphone||'').trim()};save(view.pid);view.editing=null;toast('Customer info saved');render()}
+  else if(k==='addtask'){const t=(d.title||'').trim();if(!t)return;p.tasks.push({id:uid(),title:t,done:false,notes:'',parts:[],links:[]});save(view.pid);render();const el=document.getElementById('newtask');if(el)el.focus()}
+  else if(k==='edittask'){const t=p.tasks.find(x=>x.id===view.tid);t.title=d.title.trim()||t.title;save(view.pid);view.editing=null;render()}
+  else if(k==='editpart'){const t=p.tasks.find(x=>x.id===view.tid);const x=t&&(t.parts||[]).find(y=>y.id===f.dataset.xid);if(!x||!d.name.trim())return;
+    const unit=['qt','gal'].includes(d.unit)?d.unit:'';Object.assign(x,{name:d.name.trim(),brand:(d.brand||'').trim(),num:(d.num||'').trim(),unit,qty:parseQty(d.qty,unit),supplier:(d.supplier||'').trim()});
+    if(!x.unit)delete x.unit;if(!x.brand)delete x.brand;save(view.pid);view.editPart=null;toast('Part saved');render()}
+  else if(k==='addpart'){const t=p.tasks.find(x=>x.id===view.tid);if(!d.name.trim())return;const unit=['qt','gal'].includes(d.unit)?d.unit:'';(t.parts=t.parts||[]).push({id:uid(),name:d.name.trim(),...(d.brand&&d.brand.trim()?{brand:d.brand.trim()}:{}),...(unit?{unit}:{}),num:(d.num||'').trim(),qty:parseQty(d.qty,unit),supplier:(d.supplier||'').trim(),status:PART_ST.includes(d.status)?d.status:'To order',...(p.kind==='customer'&&d.price!==undefined&&d.price!==''&&isFinite(+d.price)&&+d.price>=0?{price:Math.round(+d.price*100)/100}:{})});
+    save(view.pid);toast('Part added');render()}
+  else if(k==='addlink'){const t=p.tasks.find(x=>x.id===view.tid);const u=safeUrl((d.url||'').trim());if(!u){toast('Enter a full link starting with https://');return}(t.links=t.links||[]).push({id:uid(),url:u,title:(d.title||'').trim()});save(view.pid);render()}
+});
+app.addEventListener('input',e=>{
+  const el=e.target;const k=el.dataset.input;if(!k)return;const p=projects[view.pid];
+  if(k==='q'){view.q=el.value;render()}
+  else if(k==='pnotes'){p.notes=el.value;save(view.pid)}
+  else if(k==='tnotes'){const t=p.tasks.find(x=>x.id===view.tid);t.notes=el.value;save(view.pid)}
+});
+app.addEventListener('change',e=>{const el=e.target;if(el.dataset.input==='status'){projects[view.pid].status=el.value;save(view.pid);render()}
+  else if(el.dataset.price){const t=projects[view.pid].tasks.find(x=>x.id===view.tid);const x=t&&t.parts.find(y=>y.id===el.dataset.xid);if(x){const v=el.value.trim();if(v===''||!isFinite(+v)||+v<0)delete x.price;else x.price=Math.round(+v*100)/100;save(view.pid);el.blur();render()}}
+  else if(el.dataset.exp){const {x}=findPart(el.dataset.pid,el.dataset.tid,el.dataset.xid);if(x){if(el.value)x.expected=el.value;else delete x.expected;save(el.dataset.pid);el.blur();render()}}});
+
+app.addEventListener('change',e=>{const fi=e.target.closest('[data-importfile]');if(fi){const file=fi.files&&fi.files[0];if(!file)return;if(file.size>20e6){toast('That file is too big to be a Project Tracker backup');return}file.text().then(importBackup).catch(()=>toast('Could not read that file'));fi.value='';return}
+  const lb=e.target.closest('[data-labor]');if(lb){const p=projects[view.pid];if(!p)return;const k=lb.dataset.labor;p.labor={...(p.labor||{})};
+    if(k==='desc')p.labor.desc=lb.value.trim();else{const v=parseFloat(lb.value);if(isFinite(v)&&v>0)p.labor[k]=Math.round(v*100)/100;else delete p.labor[k]}
+    if(k==='hours'&&p.labor.hours&&p.labor.rate===undefined&&shop.rate)p.labor.rate=+shop.rate;
+    save(view.pid);lb.blur();render();return}
+  const s=e.target.closest('[data-unitsel]');if(!s)return;const f=s.form;const fl=s.value==='qt'||s.value==='gal';
+  const q=f.querySelector('[data-qtyfor]');if(q){q.step=fl?'0.1':'1';q.min=fl?'0.1':'1';if(!fl&&q.value)q.value=String(Math.max(1,Math.round(+q.value||1)))}
+  const pl=f.querySelector('[data-pricelabel]');if(pl)pl.textContent=`Price ${fl?'per '+s.value:'each'} ($)`});
+
+/* ---------- start ---------- */
+render();
+function stopAll(){unsubs.forEach(u=>{try{u()}catch(e){}});unsubs=[]}
+function connect(u){
+  stopAll();user=u;signedOut=false;db=FB.forUser(u.uid);
+  projects={};ready=false;inv=null;machines=[];counterLast=0;counterLoaded=false;projectsLoaded=false;backfilled=false;render();
+  unsubs.push(db.doc('settings/shop').onSnapshot(s=>{if(s.exists){const v=s.data()||{};shop={name:v.name||'',phone:v.phone||'',email:v.email||'',address:v.address||'',footer:v.footer||'',rate:v.rate||''};if(view.editing!=='shop'&&view.name!=='shopinfo')render()}},()=>{}));
+  unsubs.push(db.doc('settings/counter').onSnapshot(s=>{const v=s.exists?Number((s.data()||{}).lastJobNo)||0:0;counterLast=Math.max(counterLast,v);counterLoaded=true;backfillJobNos()},()=>{counterLoaded=true;backfillJobNos()}));
+  /* The Logbook's records: parts for the inventory check, engines/vehicles for "Logbook entry" */
+  unsubs.push(db.records.onSnapshot(rs=>{
+    const live=rs.filter(r=>r&&!r.example);
+    inv={parts:live.filter(r=>r.kind==='part').map(r=>({id:r.id,name:String(r.name||''),brand:String(r.brand||''),number:String(r.number||''),qty:r.qty??'',location:String(r.location||'')}))};
+    machines=live.filter(r=>kindOf(r)!=='part').map(r=>({id:r.id,name:dname(r)})).sort((a,b)=>a.name.localeCompare(b.name));
+    const ae=document.activeElement;const editing=ae&&(ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||(ae.tagName==='INPUT'&&ae.type!=='search'));if(!editing&&ready)render()},()=>{}));
+  unsubs.push(db.collection('projects').onSnapshot(snap=>{
+    const editing=document.activeElement&&(document.activeElement.tagName==='TEXTAREA'||(document.activeElement.tagName==='INPUT'&&document.activeElement.type!=='search'));
+    const next={};snap.docs.forEach(d=>{if(d.exists){const local=projects[d.id];next[d.id]=(timers['s'+d.id]&&local)?local:JSON.parse(JSON.stringify(d.data()))}});
+    Object.keys(projects).forEach(id=>{if(!next[id]&&timers['s'+id]&&projects[id])next[id]=projects[id]});
+    projects=next;ready=true;projectsLoaded=true;offline=false;backfillJobNos();if(!editing)render();
+  },err=>{offline=true;ready=true;render()}));
+}
+(async()=>{
+  try{FB=await window.fbReady}catch(e){offline=true;ready=true;app.innerHTML='<p class="muted">Couldn\'t load the Project Tracker. Check your connection and reload.</p>';return}
+  FB.onAuth(u=>{
+    if(!u){stopAll();user=null;db=null;projects={};signedOut=true;ready=true;go({name:'list'});return}
+    if(user&&user.uid===u.uid)return;
+    connect(u);
+  });
+})();
+})();
+</script>
+<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/apps/sw.js",{scope:"/apps/"}).catch(()=>{}));</script>
+</body>
+</html>

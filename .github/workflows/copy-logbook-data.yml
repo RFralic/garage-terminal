@@ -1,0 +1,38 @@
+# Manually-run action: copies Logbook and Project Tracker records from the old
+# Logbook project (vehicle-logbook-c7e27) into this site. See
+# scripts/copy-logbook-data.mjs. Run it with "Dry run" ticked first to see the counts.
+name: Copy Logbook data
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (only count, copy nothing)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Copy records
+        env:
+          NEW_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          OLD_SA: ${{ secrets.LOGBOOK_SERVICE_ACCOUNT }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ -z "$OLD_SA" ]; then echo "Add the LOGBOOK_SERVICE_ACCOUNT secret first (see scripts/copy-logbook-data.mjs)."; exit 1; fi
+          echo "$NEW_SA" > "$RUNNER_TEMP/new.json"
+          echo "$OLD_SA" > "$RUNNER_TEMP/old.json"
+          export NEW_CREDENTIALS="$RUNNER_TEMP/new.json" OLD_CREDENTIALS="$RUNNER_TEMP/old.json"
+          if [ "$DRY_RUN" = "true" ]; then node scripts/copy-logbook-data.mjs --dry-run; else node scripts/copy-logbook-data.mjs; fi
+          rm -f "$RUNNER_TEMP/new.json" "$RUNNER_TEMP/old.json"

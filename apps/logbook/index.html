@@ -1,0 +1,867 @@
+<!doctype html><html lang="en">
+<!--
+  Engine & Vehicle Logbook, served at /apps/logbook. Built by scripts/import-logbook.mjs from the
+  Logbook repo (github.com/RFralic/vehicle_logbook, public/).
+  Don't edit by hand: re-run the script with the newer Logbook files instead.
+  Sign-in and storage: src/apps/logbook-backend.js.
+-->
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Engine &amp; Vehicle Logbook · Garage Terminal</title><meta name="description" content="Specs, part numbers and service history for your small engines and vehicles, synced across your devices."><meta name="theme-color" content="#2f4a43"><link rel="icon" href="/img/logbook-192.png" type="image/png"><link rel="apple-touch-icon" href="/img/logbook-192.png"><link rel="manifest" href="/logbook.webmanifest"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: shop-manual logbook — engine list, then a tabbed spec plate / service log / print sheet per engine */
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --surface-2:#f5f6f2; --ink:#1c211d; --muted:#5d665f; --line:#d3d8d1;
+  --accent:#c4561d; --plate-icon:#e2753c; --accent-ink:#ffffff; --steel:#2f4a43; --ok:#2f7a4a; --warn:#a86a00;
+  --f-display:"Archivo Narrow","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#151a17; --surface:#1e2420; --surface-2:#252c27; --ink:#e7ebe6; --muted:#9aa49c; --line:#343d37;
+  --accent:#e2753c; --plate-icon:#8f3a14; --accent-ink:#1a0f08; --steel:#8fb5aa; --ok:#6cc48c; --warn:#e0a640; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151a17; --surface:#1e2420; --surface-2:#252c27; --ink:#e7ebe6; --muted:#9aa49c; --line:#343d37;
+  --accent:#e2753c; --plate-icon:#8f3a14; --accent-ink:#1a0f08; --steel:#8fb5aa; --ok:#6cc48c; --warn:#e0a640; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:2rem;text-transform:uppercase}
+h2{font-size:1.5rem}
+h3{font-size:1.05rem;text-transform:uppercase;letter-spacing:.06em;color:var(--steel)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:14px;border-bottom:3px solid var(--ink);margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}.logo{flex:none;width:52px;height:52px;display:block;border-radius:12px}
+@media (max-width:520px){.logo{width:42px;height:42px}}
+.top .sub{font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--f-display);font-weight:600}
+button,.btn{font:600 .9rem var(--f-body);border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;cursor:pointer;min-height:40px}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.primary:hover{filter:brightness(1.05);border-color:var(--accent)}
+.ghost{background:transparent;border-color:transparent;color:var(--steel)}
+a.btn{display:inline-flex;align-items:center;text-decoration:none}
+.danger{color:var(--accent);border-color:var(--accent);background:transparent}
+.banner{border:1px solid var(--warn);border-left-width:4px;background:var(--surface-2);padding:10px 14px;border-radius:6px;font-size:.9rem;margin-bottom:16px}
+/* engine list */
+.kindtabs{margin-bottom:16px}.kindtabs button{font-size:1.1rem}
+.cnt{font:500 .75rem var(--f-mono);color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-left:4px;vertical-align:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
+.cardmain{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;flex:1;text-align:left;font:inherit;color:inherit}
+.cardmain:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.cardlinks{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-top:1px solid var(--line);background:var(--surface-2)}
+.cardlinks a.doc{background:var(--surface)}
+.card .plate{background:var(--steel);color:var(--bg);padding:10px 14px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.card .plate b{font-family:var(--f-display);font-size:1.25rem;letter-spacing:.02em;text-transform:uppercase;min-width:0;overflow-wrap:anywhere}
+.card .plate span{font-family:var(--f-display);font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;opacity:.85;white-space:nowrap}
+.card .plate .eqt{display:inline-flex;align-items:center;gap:6px;opacity:.92}
+.eqi{width:24px;height:24px;flex:none;color:var(--plate-icon)}
+.card dl{margin:0;padding:12px 14px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:.88rem}
+.card dt{color:var(--muted)}
+/* Grid / List switch and the compact list (engines & vehicles) */
+.viewbar{display:flex;justify-content:flex-end;margin:-6px 0 12px}
+.viewsw{display:inline-flex;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.viewsw button{border:0;min-height:40px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;font-family:var(--f-display);text-transform:uppercase;letter-spacing:.04em;background:transparent;color:var(--muted)}
+.viewsw button svg{width:14px;height:14px;fill:currentColor}
+.viewsw button[aria-pressed="true"]{background:var(--steel);color:var(--bg)}
+.grid.listview{grid-template-columns:1fr;gap:8px}
+.card .lvtitle{display:flex;flex-direction:column;min-width:0}
+.card .lvtitle small{font-family:var(--f-body,inherit);font-size:.85rem;opacity:.85;margin-top:2px;overflow-wrap:anywhere}
+.listview .card .plate{align-items:center}
+.listview .card .plate .eqt{flex-shrink:0}
+.card dd{margin:0;font-family:var(--f-mono);overflow-wrap:anywhere}
+.card .foot{margin-top:auto;border-top:1px solid var(--line);padding:9px 14px;font-size:.82rem;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.tag{display:inline-block;font:600 .7rem var(--f-display);text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:3px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.tag.ex{color:var(--warn);border-color:var(--warn)}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:28px;text-align:center}
+/* detail */
+.head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px}
+.head .t{min-width:0}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+.tabs button{border:none;border-bottom:3px solid transparent;border-radius:0;background:transparent;font-family:var(--f-display);font-size:1rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 12px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+section.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px;display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px 16px}
+label{display:grid;gap:4px;font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;min-width:0}
+input,select,textarea{font:400 .95rem var(--f-body);color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:9px 10px;width:100%;min-width:0;text-transform:none;letter-spacing:0}
+input.pn{font-family:var(--f-mono)}
+textarea{min-height:80px;resize:vertical}
+.span2{grid-column:1/-1}
+.parts{display:grid;gap:8px}
+.partrow{display:grid;grid-template-columns:1.2fr 1fr auto;gap:8px;align-items:center}
+.partrow3{display:grid;grid-template-columns:1.2fr .8fr 1fr auto;gap:8px;align-items:center}
+.partrow3 button{min-height:38px;padding:6px 10px}
+.pnpair{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1fr);gap:6px}
+.pbrand{font-family:var(--f-body);color:var(--muted)}
+@media (min-width:640px){.pnlabel{grid-column:span 2}}
+.partrow button{min-height:38px;padding:6px 10px}
+.specview{margin:8px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.specview>div{padding:9px 12px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);min-width:0;margin:-0px}
+.specview dt{font:600 .72rem var(--f-display);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.specview dd{margin:2px 0 0;font-size:.95rem;overflow-wrap:anywhere}
+.vsec{display:grid;gap:8px}.vnotes{margin:0;white-space:pre-wrap}
+.stk{display:inline-block;font:600 .72rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:3px;border:1px solid var(--line);white-space:nowrap}
+.stk.ok{color:var(--ok);border-color:var(--ok)}.stk.low{color:var(--warn);border-color:var(--warn)}.stk.out{color:var(--accent);border-color:var(--accent)}.stk.none{color:var(--muted)}
+.banner.ok{border-color:var(--ok);color:var(--ink)}
+.oilbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:6px;background:var(--surface-2);padding:12px 14px}
+.oilbar.soon{border-left-color:var(--warn)}.oilbar.over{border-left-color:var(--accent)}.oilbar.none{border-left-color:var(--line)}
+.oilbar>div{display:grid;gap:2px;min-width:0}
+.oilbar small{font:600 .72rem var(--f-display);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.oilbar b{font:500 1.05rem var(--f-mono)}.oilbar span{font-size:.8rem}
+.oilbar.soon>div:last-child b{color:var(--warn)}.oilbar.over>div:last-child b{color:var(--accent)}
+.nextoil.soon dd{color:var(--warn)}.nextoil.over dd{color:var(--accent)}
+.formnote{margin:0;padding:10px 12px;border:1px solid var(--warn);border-left-width:4px;border-radius:6px;font-size:.9rem}
+.addinv{min-height:32px;padding:3px 10px;font-size:.8rem;color:var(--steel);border-color:var(--steel);background:transparent}
+.stkcell{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sparesline{padding:0 14px 10px;font-size:.82rem;color:var(--muted);display:flex;gap:6px;align-items:center}
+.inv{display:grid;gap:14px}
+.invstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.istat{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 12px}
+.istat.warn{border-left:4px solid var(--warn)}
+.istat small{display:block;font:600 .72rem var(--f-display);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.istat b{font:500 1.3rem var(--f-mono)}
+.istat.warn b{color:var(--warn)}
+.invsearch input{height:44px;background:var(--surface)}
+.fchip{min-height:36px;padding:0 13px;border-radius:999px;font-weight:500;font-size:.88rem;background:var(--surface)}
+.fchip[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:var(--bg)}
+.ilist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.iitem{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:8px;align-content:start}
+.iitem.low{border-left:4px solid var(--warn)}
+.irow{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.iname{all:unset;cursor:pointer;display:grid;gap:2px;min-width:0;flex:1}
+.iname:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.iname b{font-weight:600;font-size:1rem;overflow-wrap:anywhere}.iname span{font-size:.85rem;color:var(--muted);overflow-wrap:anywhere}
+.iname:hover b{text-decoration:underline}
+.stepper{flex:none;display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);overflow:hidden}
+.stepper button{border:none;background:none;min-height:40px;width:40px;padding:0;font-size:1.15rem;color:var(--steel);border-radius:0}
+.stepper button:disabled{opacity:.35}
+.stepper span{min-width:30px;text-align:center;font-weight:500}
+.imeta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.82rem;color:var(--muted)}
+.tag.reorder{color:var(--warn);border-color:var(--warn)}
+.ifits{font-size:.85rem;border-top:1px solid var(--line);padding-top:6px}.ifits span{color:var(--steel);font-weight:500}
+.scanbox{display:grid;gap:10px;background:var(--surface-2);border:1px dashed var(--steel);border-radius:6px;padding:14px}
+.backup{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;display:grid;gap:10px}
+.bhead{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
+#backupText{min-height:120px;font-family:var(--f-mono);font-size:.78rem}
+.tqrow{display:grid;grid-template-columns:1.3fr .7fr .55fr .6fr 1.3fr auto;gap:8px;align-items:center}
+.tqrow button{min-height:38px;padding:6px 10px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.saved{font-size:.85rem;color:var(--ok)}
+/* log */
+.logform{display:grid;gap:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font:500 .85rem var(--f-body);text-transform:none;letter-spacing:0;color:var(--ink);background:var(--surface);cursor:pointer}
+.chip input{width:auto;margin:0;accent-color:var(--accent)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 .75rem var(--f-display);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);background:var(--surface-2);white-space:nowrap}
+td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+.status{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:4px;padding:8px 12px;background:var(--surface-2)}
+.stat.none{border-left-color:var(--line)}
+.stat.old{border-left-color:var(--warn)}
+.stat small{display:block;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.stat b{font-family:var(--f-mono);font-weight:500;font-size:.92rem}
+.doclinks{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+a.doc{display:inline-flex;align-items:center;gap:6px;font:600 .85rem var(--f-body);color:var(--steel);border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:7px 11px;text-decoration:none;min-height:36px}
+a.doc:hover{border-color:var(--steel)}a.doc:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+a.doc::after{content:"↗";font-weight:400}
+.picker{border:1px solid var(--line);border-radius:6px;background:var(--surface-2);padding:12px;display:grid;gap:10px}
+.picker .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.picker .crumbs{font-size:.85rem;color:var(--muted);display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.picker .crumbs button{min-height:30px;padding:3px 8px}
+.flist{display:grid;gap:4px;max-height:340px;overflow-y:auto}
+.fitem{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:6px 8px}
+.fitem .ty{font:600 .66rem var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:2px 5px;min-width:44px;text-align:center}
+.fitem.folder .ty{color:var(--steel);border-color:var(--steel)}
+.fitem .nm{min-width:0;overflow-wrap:anywhere;font-size:.9rem}
+.fitem .acts{display:flex;gap:4px}.fitem .acts button{min-height:32px;padding:4px 10px;font-size:.82rem}
+.fitem.sugg{border-color:var(--accent)}
+.sugg-tag{font:600 .66rem var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-left:6px}
+.who{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted);flex-wrap:wrap}
+.signin{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:32px 24px;display:grid;gap:14px;justify-items:start;max-width:560px}
+.signin p{margin:0;max-width:52ch}
+.gbtn{display:inline-flex;align-items:center;gap:10px}
+.gbtn svg{width:18px;height:18px}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
+/* print preview */
+.sheet{background:#fff;color:#111;border:1px solid var(--line);border-radius:4px;padding:28px;max-width:760px;margin:0 auto;font-size:13px}
+.sheet h1{font-size:22px;color:#111}
+.sheet table{font-size:12px}
+.sheet th{background:#eee;color:#333}
+.sheet th,.sheet td{border:1px solid #bbb}
+@media (prefers-reduced-motion:no-preference){.card{transition:transform .12s ease,box-shadow .12s ease}.card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.08)}}
+@media (max-width:900px){.tqrow{grid-template-columns:1fr 1fr;padding-bottom:10px;border-bottom:1px solid var(--line)}.tqrow>input:first-child,.tqrow>input:nth-child(5){grid-column:1/-1}.tqrow>input:nth-child(2){grid-column:1/-1}.tqrow button{grid-column:1/-1}}
+@media (max-width:640px){.partrow3{grid-template-columns:1fr 1fr;padding-bottom:10px;border-bottom:1px solid var(--line)}.partrow3>input:first-child,.partrow3 button{grid-column:1/-1}}
+@media (max-width:520px){h1{font-size:1.6rem}.partrow{grid-template-columns:1fr 1fr}.partrow button{grid-column:1/-1}section.panel{padding:14px}.sheet{padding:16px}}
+</style>
+<style>
+/* Garage Terminal additions: back link + who's signed in */
+.gt-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;font:600 .85rem var(--f-body);color:var(--muted)}
+.gt-bar.gt-solo{max-width:980px;margin:0 auto;padding:8px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+.gt-back{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-family:var(--f-mono);white-space:nowrap;flex:none}
+.gt-back:hover{color:var(--ink)}
+.gt-back:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.gt-sync{text-align:right;overflow-wrap:anywhere}
+.gt-sync[data-state="ok"]{color:var(--ok)}
+</style>
+</head><body>
+<div class="wrap">
+  <!-- Garage Terminal: back link + who's signed in (src/apps/logbook-backend.js) -->
+<div class="gt-bar"><a class="gt-back" href="/#apps">&lt; garage_terminal</a><span class="gt-sync" id="gtSync" aria-live="polite"></span></div>
+  <header class="top">
+    <div class="brand"><img class="logo" src="data:image/png;base64,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" alt="" width="52" height="52"><div><div class="sub">Maintenance records · synced to your account</div><h1>Engine &amp; Vehicle Logbook</h1></div></div>
+    <div class="actions"><a class="btn ghost" href="/apps/project-tracker" id="trackerLink">Project Tracker</a><div class="who" id="who"></div><div class="actions" id="topActions"></div></div>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+  <main id="app"><div class="empty muted">Loading your logbook…</div></main>
+  <noscript><p>This logbook needs JavaScript turned on.</p></noscript>
+</div>
+
+<script>window.fbReady=new Promise((res,rej)=>{window.fbResolve=res;window.fbReject=rej;setTimeout(()=>rej(new Error("timeout")),15000)});</script>
+<!-- Garage Terminal: sign-in and storage from this site (src/apps/logbook-backend.js), kept offline too -->
+<script>window.__gtOfflineCache=true</script>
+<script type="module" src="/src/apps/logbook-backend.js"></script>
+<script>
+const TASKS=["Oil change","Spark plug","Air filter","Fuel filter","Fuel stabilizer","Blade sharpened","Carb cleaned","Belt","Grease / lube","Winterized","Other"];
+const EQUIP=["Push mower","Riding mower","Zero-turn mower","Generator","Pressure washer","Snow blower","Tiller","Chainsaw","String trimmer","Leaf blower","Outboard","Go-kart / mini bike","Four-wheeler","Other"];
+const SPEC=[ // [key,label,mono?]
+ ["make","Equipment make"],["model","Equipment model"],["serial","Serial number",1],["year","Year",1],
+ ["engineMake","Engine make"],["engineModel","Engine model / spec",1],["engineType","Engine type"],["cycle","Cycle"],["fuelMix","Fuel / mix ratio"],
+ ["hours","Current hours",1],["plug","Spark plug",1,1],["plugGap","Plug gap",1],["oilType","Oil type"],
+ ["oilCapacity","Oil capacity"],["airFilter","Air filter part #",1,1],["fuelFilter","Fuel filter part #",1,1]
+];
+const VTASKS=["Oil & filter","Tire rotation","Tires replaced","Brakes","Air filter","Cabin filter","Spark plugs","Coolant","Transmission fluid","Brake fluid","Battery","Wipers","Alignment","Inspection","Other"];
+const VTYPES=["Car","Truck","SUV","Van","Tractor","Motorcycle","ATV / UTV","Trailer","Other"];
+const EQ_ICONS={
+ "Push mower":'<path d="M3 17h13v-2.5A2.5 2.5 0 0 0 13.5 12H6a3 3 0 0 0-3 3z"/><circle cx="6" cy="19" r="1.8"/><circle cx="14" cy="19" r="1.8"/><path d="M15 12l5-8.5M18.5 3.5h3.5"/>',
+ "Riding mower":'<circle cx="6.5" cy="16.5" r="4"/><circle cx="19" cy="18.5" r="2"/><path d="M10.5 16.5H17M4 12.5h9l3 4M6 12.5V8.5h3M13 12.5l2-6M13.5 6.5h3.5"/>',
+ "Zero-turn mower":'<circle cx="7" cy="16.5" r="3.5"/><circle cx="20" cy="19.2" r="1.6"/><path d="M4.5 12.5V3h3v9.5M3 12.5h12l3 4M8.5 12.5V9h3M12.5 9l2.5 2.5M10.5 20.5h8"/>',
+ "Generator":'<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M12.5 8.5l-2.5 4h4l-2.5 4M6 18v2M18 18v2"/>',
+ "Pressure washer":'<rect x="3" y="9" width="8" height="9" rx="1.5"/><circle cx="5.5" cy="19.5" r="1.5"/><path d="M11 13c3 0 3-6 6-6M17 7l4-3M7 9V6"/>',
+ "Snow blower":'<path d="M3 18V12a4 4 0 0 1 4-4h5v10z"/><path d="M12 12h4M9 8V4h3M16 14l5-10M19.5 4H22"/><circle cx="14.5" cy="19" r="1.8"/>',
+ "Tiller":'<path d="M4 15h9M6 15l-1.5 4M9 15v4M12 15l1.5 4M13 15l7-11M18.5 4h3"/><rect x="6" y="10" width="6" height="5" rx="1"/>',
+ "Chainsaw":'<rect x="3" y="9" width="8" height="7" rx="1.5"/><path d="M11 11h9.5a1.5 1.5 0 0 1 0 3H11M5 9V7h4"/>',
+ "String trimmer":'<path d="M5 20l14-16M3.5 21.5l3-1M15 8l3 1M10 14l2 2"/><circle cx="4.5" cy="20.5" r="1.5"/>',
+ "Leaf blower":'<rect x="3" y="8" width="8" height="8" rx="2"/><path d="M11 11h9l1 2-1 2h-9M6 8V5h3"/>',
+ "Outboard":'<path d="M6 3h8v6H6zM9 9v10h3v-3l4-1M7 21h5"/><path d="M14 5h3"/>',
+ "Go-kart / mini bike":'<circle cx="6" cy="17" r="2.5"/><circle cx="18" cy="17" r="2.5"/><path d="M3 14h18M8 14V9h4l2 5M16 14l-1-5h2"/>',
+ "Other":'<circle cx="12" cy="12" r="3.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+ "Car":'<path d="M3 16v-3l2-4h11l4 4h1v3z"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M8 9v4M3 13h18"/>',
+ "Truck":'<path d="M2 16v-3h9V8h5l3 5h3v3z"/><circle cx="6" cy="16.5" r="1.8"/><circle cx="17.5" cy="16.5" r="1.8"/><path d="M11 13h11"/>',
+ "SUV":'<path d="M3 16V9l2-3h10l4 4h2v6z"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16M10 6v5"/>',
+ "Van":'<path d="M2 16V7h13l5 4h1v5z"/><circle cx="6" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M15 7v4h6M9 7v4"/>',
+ "Motorcycle":'<circle cx="5" cy="16" r="3"/><circle cx="19" cy="16" r="3"/><path d="M5 16l4-5h5l5 5M14 11l-2-4h3M8 11h3"/>',
+ "ATV / UTV":'<circle cx="6" cy="16.5" r="3"/><circle cx="18" cy="16.5" r="3"/><path d="M3 12h18M9 12l1-4h4l1 4M14 8l2-3"/>',
+ "Tractor":'<circle cx="6.5" cy="16" r="4.5"/><circle cx="19" cy="18" r="2.5"/><path d="M10.5 11h7l3 3.5V16h-9.5z"/><path d="M3.5 11.5V4h6l1 7M15 11V7.5"/>',
+ "Four-wheeler":'<circle cx="6" cy="16.5" r="3"/><circle cx="18" cy="16.5" r="3"/><path d="M3 12h18M9 12l1-4h4l1 4M14 8l2-3"/>',
+ "Trailer":'<path d="M3 8h14v8H3zM17 14h5"/><circle cx="10" cy="17.5" r="1.8"/>'
+};
+const duoFill=p=>p.replace(/<(circle|rect)/g,'<$1 fill="currentColor" fill-opacity=".28"').replace(/<path d="([^"]*z[^"]*)"/g,'<path fill="currentColor" fill-opacity=".28" d="$1"');
+const eqIcon=t=>{const p=EQ_ICONS[t];return p?`<svg class="eqi" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${duoFill(p)}</svg>`:""};
+const VSPEC=[
+ ["year","Year",1],["make","Make"],["model","Model"],["trim","Trim"],["vin","VIN",1],["plate","License plate",1],
+ ["engine","Engine"],["hours","Current mileage",1],["oilType","Oil type"],["oilCapacity","Oil capacity"],["oilInterval","Oil change every (miles)",1],
+ ["oilFilter","Oil filter part #",1,1],["airFilter","Air filter part #",1,1],["cabinFilter","Cabin filter part #",1,1],
+ ["plug","Spark plug",1,1],["plugGap","Plug gap",1],["brakePads","Brake pads part #",1,1],["battery","Battery",1,1],
+ ["wipers","Wiper sizes",1,1],["tireSize","Tire size",1],["tirePressure","Tire pressure"],["coolant","Coolant type"],["transFluid","Transmission fluid"]
+];
+const VPH={year:"2018",make:"Ford",model:"F-150",trim:"XLT",vin:"1FTEW1EG…",plate:"ABC-1234",engine:"5.0L V8",hours:"84,250",oilType:"SAE 5W-20 synthetic blend",oilCapacity:"8.8 qt with filter",oilInterval:"5000",oilFilter:"FL-500S",airFilter:"FA-1883",cabinFilter:"FP-67",plug:"SP-542",plugGap:"0.049 in",brakePads:"Front / rear #",battery:"Group 65",wipers:"22 in / 22 in",tireSize:"275/65R18",tirePressure:"35 psi",coolant:"Orange (Motorcraft Yellow)",transFluid:"Mercon ULV"};
+const TQ_UNITS=["ft-lb","in-lb","N·m"];
+const tqSorted=e=>[...(e.torque||[])].sort((a,b)=>(a.item||"").localeCompare(b.item||""));
+const withBrand=(b,n)=>[b,n].map(x=>String(x||"").trim()).filter(Boolean).join(" ");
+const milesN=v=>{const n=parseFloat(String(v??"").replace(/[^0-9.]/g,""));return isNaN(n)?null:n};
+const fmtMi=n=>Math.round(n).toLocaleString("en-US")+" mi";
+function nextOil(e){if(!e||e.kind!=="vehicle")return null;
+  const oil=sortedLog(e).find(l=>(l.tasks||[]).includes("Oil & filter")&&milesN(l.hours)!=null);if(!oil)return null;
+  const every=milesN(e.oilInterval)||5000,at=milesN(oil.hours)+every,cur=milesN(e.hours);
+  const left=cur==null?null:at-cur;return {at,every,left,from:milesN(oil.hours),date:oil.date,state:left==null?"ok":left<0?"over":left<=500?"soon":"ok"}}
+const nextOilText=n=>!n?"":n.left==null?fmtMi(n.at):n.left<0?`${fmtMi(n.at)} · ${fmtMi(-n.left)} overdue`:`${fmtMi(n.at)} · ${fmtMi(n.left)} to go`;
+const KINDS={
+ engine:{one:"engine",One:"Engine",plural:"Small engines",types:EQUIP,typeLabel:"Equipment type",spec:SPEC,tasks:TASKS,
+   watch:["Oil change","Spark plug","Air filter","Fuel filter"],meterLabel:"Engine hours",meterCol:"Hours",unit:" h",
+   partPh:"Part (e.g. Blade, belt, pre-filter)",namePh:"Back yard mower",logPh:"Used NGK BPR5ES, gapped 0.030. Oil was dark.",
+   cardRows:e=>[["Engine",[e.engineMake,e.engineModel].filter(Boolean).join(" ")],["Spark plug",withBrand(e.plugBrand,e.plug)],["Oil",[e.oilType,e.oilCapacity].filter(Boolean).join(" · ")],["Air filter",withBrand(e.airFilterBrand,e.airFilter)]],
+   emptyMsg:"Add your first mower, generator, or saw. You'll record its spark plug, oil, filters and part numbers, then log each service."},
+ vehicle:{one:"vehicle",One:"Vehicle",plural:"Vehicles",types:VTYPES,typeLabel:"Vehicle type",spec:VSPEC,tasks:VTASKS,
+   watch:["Oil & filter","Tire rotation","Air filter","Brakes"],meterLabel:"Mileage",meterCol:"Miles",unit:" mi",
+   partPh:"Part (e.g. Serpentine belt, headlight bulb)",namePh:"Work truck",logPh:"Mobil 1 5W-20, FL-500S filter. Rotated tires.",
+   cardRows:e=>[["Vehicle",[e.year,e.make,e.model].filter(Boolean).join(" ")],["Mileage",milesN(e.hours)!=null?fmtMi(milesN(e.hours)):e.hours],["Next oil",nextOil(e)?nextOilText(nextOil(e)):""],["Oil",[e.oilType,e.oilCapacity].filter(Boolean).join(" · ")],["Oil filter",withBrand(e.oilFilterBrand,e.oilFilter)]],
+   emptyMsg:"Add your car or truck. You'll record its oil, filters, tires and part numbers, then log each service with the mileage."}
+};
+const kindOf=e=>e&&e.kind==="vehicle"?"vehicle":e&&e.kind==="part"?"part":"engine";
+const K=e=>KINDS[kindOf(e)];
+const dname=e=>{if(!e)return"";if((e.name||"").trim())return e.name.trim();
+  const mm=(kindOf(e)==="vehicle"?[e.year,e.make,e.model]:[e.make,e.model]).map(x=>(x||"").trim()).filter(Boolean).join(" ");
+  return mm||(e.equipment&&kindOf(e)!=="vehicle"?e.equipment:"")||"Unnamed "+(K(e)?K(e).one:"item")};
+const byName=(a,b)=>dname(a).localeCompare(dname(b));
+let listKind=(()=>{try{const v=localStorage.getItem("sel-kind");return v==="vehicle"||v==="part"?v:"engine"}catch(e){return"engine"}})();
+let listView=(()=>{try{return localStorage.getItem("sel-view")==="list"?"list":"grid"}catch(e){return"grid"}})(); /* engines & vehicles: "grid" cards or a compact "list" */
+let db=null, col=null, engines=[], view={id:null,tab:"specs"}, offline=false, draft=null, pendingDelete=false, editing=false;
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const fmtDate=s=>{if(!s)return"—";const [y,m,d]=s.split("-");return `${+m}/${+d}/${y}`};
+const safeUrl=u=>{u=String(u||"").trim();if(!u)return"";if(!/^https?:\/\//i.test(u))u="https://"+u;try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:""}catch(e){return""}};
+const docsOf=e=>(e.docs||[]).filter(d=>safeUrl(d.url));
+const sortedLog=e=>[...(e.log||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+const lastFor=(e,task)=>sortedLog(e).find(l=>(l.tasks||[]).includes(task));
+const monthsSince=s=>{if(!s)return null;const d=new Date(s+"T00:00");return (Date.now()-d)/(1000*60*60*24*30.4)};
+
+/* ---------- storage ---------- */
+function lsLoad(){try{return JSON.parse(localStorage.getItem("sel-engines-local")||"[]")}catch(e){return[]}}
+function lsSave(){try{localStorage.setItem("sel-engines-local",JSON.stringify(engines))}catch(e){}}
+async function saveEngine(e){
+  e.updatedAt=new Date().toISOString();
+  const {id,...data}=e;
+  const i=engines.findIndex(x=>x.id===id);if(i<0)engines.push(e);else engines[i]=e;
+  if(offline){lsSave();render();return}
+  await col.doc(id).set(JSON.parse(JSON.stringify(data)));
+}
+async function removeEngine(id){
+  if(offline){engines=engines.filter(e=>e.id!==id);lsSave();render();return}
+  await col.doc(id).delete();
+}
+function showBanner(t){const b=$("#banner");b.textContent=t;b.hidden=!t}
+
+let currentUser=null, signedOut=false, unsub=null, FB=null, authErr="";
+async function init(){
+  try{FB=await window.fbReady}catch(e){FB=null}
+  if(!FB){goOffline("Couldn't connect to sync. Changes are kept on this device only for now.");return}
+  FB.onAuth(user=>{
+    if(unsub){unsub();unsub=null}
+    currentUser=user;drawWho();
+    if(!user){if(!offline){signedOut=true;engines=[];view={id:null,tab:"specs"};draft=null;render()}return}
+    signedOut=false;offline=false;showBanner("");
+    col=FB.records(user.uid);
+    const local=lsLoad();if(local.length)offerImport(local);
+    const slow=setTimeout(()=>showBanner("Still connecting… your records will appear when the connection comes back."),10000);
+    unsub=col.onSnapshot(snap=>{
+      clearTimeout(slow);if(!snap.metadata.fromCache)showBanner("");
+      engines=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(view.id&&!engines.find(e=>e.id===view.id)&&!(draft&&draft._new&&draft.id===view.id)){view.id=null;draft=null}
+      render();
+    },err=>{clearTimeout(slow);showBanner("Your records couldn't load ("+(err&&err.code||"error")+"). Try signing out and back in.")});
+  });
+}
+async function signIn(){
+  authErr="";
+  try{await FB.signIn()}catch(e){
+    const c=e&&e.code||"";
+    if(c==="auth/popup-closed-by-user"||c==="auth/cancelled-popup-request")return;
+    if(c==="auth/popup-blocked"||c==="auth/operation-not-supported-in-this-environment"){try{await FB.signInRedirect();return}catch(x){}}
+    authErr=c==="auth/unauthorized-domain"?"This web address isn't allowed to sign in yet. Add it under Authentication → Settings → Authorized domains in Firebase.":"Couldn't sign in ("+c+"). Try again.";
+    render();
+  }
+}
+function useLocal(){signedOut=false;offline=false;goOffline("You're using the logbook without an account. Records stay on this device only. Sign in to sync them.");drawWho()}
+function offerImport(local){
+  const b=$("#banner");b.hidden=false;
+  b.innerHTML=`<span>This device has ${local.length} record${local.length===1?"":"s"} saved without an account.</span> <button class="primary" id="impYes">Add ${local.length===1?"it":"them"} to my account</button> <button class="ghost" id="impNo">Not now</button>`;
+  $("#impNo").onclick=()=>{b.hidden=true};
+  $("#impYes").onclick=async()=>{let ok=0;for(const r of local){try{await saveEngine({...r});ok++}catch(e){}}
+    if(ok===local.length){try{localStorage.removeItem("sel-engines-local")}catch(e){}}
+    b.textContent=`Added ${ok} record${ok===1?"":"s"} to your account.`;setTimeout(()=>{b.hidden=true},4000)};
+}
+function drawWho(){
+  const w=$("#who");if(!w)return;
+  if(currentUser)w.innerHTML=`<span>${esc(currentUser.email||currentUser.displayName||"Signed in")}</span><button class="ghost" id="outBtn">Sign out</button>`;
+  else if(offline&&FB)w.innerHTML=`<button class="ghost" id="inBtn">Sign in to sync</button>`;
+  else w.innerHTML="";
+  const o=$("#outBtn");if(o)o.onclick=()=>FB.signOut();
+  const n=$("#inBtn");if(n)n.onclick=signIn;
+}
+const GLOGO='<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.2l7.8 6C12.3 13.4 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.8c-.5-1.4-.8-3-.8-4.8s.3-3.3.8-4.8l-7.8-6C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.8l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.7-3.9-13.6-9.7l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg>';
+function renderSignIn(){
+  $("#topActions").innerHTML="";
+  $("#app").innerHTML=`<section class="signin"><h2>Sign in to your logbook</h2>
+    <p class="muted">Your engines, vehicles and service history are saved to your account, so they're on every phone and computer you sign in from. Nobody else can see them.</p>
+    <button class="primary gbtn" id="gBtn">${GLOGO}<span>Sign in with Google</span></button>
+    ${authErr?`<p style="color:var(--accent)">${esc(authErr)}</p>`:""}
+    <button class="ghost" id="localBtn">Use without an account (this device only)</button></section>`;
+  $("#gBtn").onclick=signIn;$("#localBtn").onclick=useLocal;
+}
+function goOffline(msg){if(!offline){offline=true;engines=lsLoad();showBanner(msg);render()}}
+
+/* ---------- render ---------- */
+function render(){
+  if(signedOut){renderSignIn();return}
+  const top=$("#topActions");
+  if(partEdit){const rt=partEdit.returnTo&&engines.find(x=>x.id===partEdit.returnTo);
+    top.innerHTML=`<button class="ghost" id="backBtn">← ${rt?esc(dname(rt)):"Inventory"}</button>`;$("#backBtn").onclick=()=>{closePart()};renderPartEdit();return}
+  if(!view.id&&listKind==="part"){top.innerHTML=`<button class="primary" id="addBtn">+ Add part</button>`;$("#addBtn").onclick=()=>openPart(null);renderList();drawBackup();return}
+  if(!view.id){top.innerHTML=`<button class="primary" id="addBtn">+ Add ${KINDS[listKind].one}</button>`;$("#addBtn").onclick=()=>addEngine(listKind);renderList();drawBackup();return}
+  top.innerHTML=`<button class="ghost" id="backBtn">← All ${K(current()).plural.toLowerCase()}</button>`;$("#backBtn").onclick=()=>{view={id:null,tab:"specs"};draft=null;pendingDelete=false;editing=false;render()};
+  renderDetail();
+}
+function renderList(){
+  const app=$("#app");
+  const count=kd=>engines.filter(e=>kindOf(e)===kd).length;
+  const kt=`<nav class="tabs kindtabs" role="tablist">${[...Object.entries(KINDS).map(([kd,c])=>[kd,c.plural]),["part","Inventory"]].map(([kd,lab])=>`<button role="tab" data-kind="${kd}" aria-selected="${kd===listKind}">${lab} <span class="cnt">${count(kd)}</span></button>`).join("")}</nav>`;
+  const wire=()=>app.querySelectorAll("[data-kind]").forEach(b=>b.onclick=()=>{listKind=b.dataset.kind;try{localStorage.setItem("sel-kind",listKind)}catch(e){}render()});
+  if(listKind==="part"){renderInventory(kt,wire);return}
+  const k=KINDS[listKind];
+  const items=engines.filter(e=>kindOf(e)===listKind);
+  if(!items.length){app.innerHTML=kt+`<div class="empty"><h2>No ${k.plural.toLowerCase()} yet</h2><p class="muted">${k.emptyMsg}</p><button class="primary" id="addEmpty">+ Add ${k.one}</button></div>`;$("#addEmpty").onclick=()=>addEngine(listKind);wire();return}
+  const list=[...items].sort(byName);
+  /* Grid / List switch. List shows each card's title bar plus make, model, type and engine. */
+  const vs=`<div class="viewbar"><div class="viewsw" role="group" aria-label="Show as">
+    <button type="button" data-view="grid" aria-pressed="${listView==="grid"}"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>Grid</button>
+    <button type="button" data-view="list" aria-pressed="${listView==="list"}"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="2" width="14" height="2.5" rx="1"/><rect x="1" y="6.75" width="14" height="2.5" rx="1"/><rect x="1" y="11.5" width="14" height="2.5" rx="1"/></svg>List</button></div></div>`;
+  /* List view: just the green bar. Left: nickname, or make & model if there's no nickname (dname).
+     Right: equipment / vehicle type. Small line under the name: the engine, if filled in
+     (small engines: engine make & model and engine type; vehicles: the Engine field). */
+  const t=v=>String(v||"").trim();
+  const listSub=e=>kindOf(e)==="vehicle"?t(e.engine):[[t(e.engineMake),t(e.engineModel)].filter(Boolean).join(" "),t(e.engineType)].filter(Boolean).join(" · ");
+  app.innerHTML=kt+vs+`<div class="grid${listView==="list"?" listview":""}">${list.map(e=>{
+    if(listView==="list"){const sub=listSub(e);
+      return `<div class="card"><button class="cardmain" data-id="${esc(e.id)}" aria-label="Open ${esc(dname(e))}">
+      <div class="plate"><div class="lvtitle"><b>${esc(dname(e))}</b>${sub?`<small>${esc(sub)}</small>`:""}</div><span class="eqt">${eqIcon(e.equipment)}${esc(e.equipment||"")}</span></div></button></div>`}
+    const last=sortedLog(e)[0];
+    return `<div class="card"><button class="cardmain" data-id="${esc(e.id)}" aria-label="Open ${esc(dname(e))}">
+      <div class="plate"><b>${esc(dname(e))}</b><span class="eqt">${eqIcon(e.equipment)}${esc(e.equipment||"")}</span></div>
+      <dl>${K(e).cardRows(e).map(([a,b])=>`<dt>${a}</dt><dd>${esc(b||"—")}</dd>`).join("")}</dl>
+      ${(()=>{if(isPart(e))return"";const x=xref(e);const n=x.rows.length;if(!n)return"";const have=x.rows.filter(r=>r.stock.some(p=>qtyN(p)>0)).length;
+        return `<div class="sparesline"><span class="stk ${have===n?"ok":have?"low":"none"}">${have} of ${n}</span> part numbers in your inventory</div>`})()}
+      <div class="foot"><span>Last service: <span class="mono">${last?fmtDate(last.date):"none"}</span></span>${e.example?'<span class="tag ex">Example</span>':`<span>${(e.log||[]).length} entries</span>`}</div>
+    </button>${docsOf(e).length?`<div class="cardlinks">${docsOf(e).map(x=>`<a class="doc" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">Open ${esc(x.label||"manual")}</a>`).join("")}</div>`:""}</div>`}).join("")}</div>`;
+  wire();
+  app.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{listView=b.dataset.view;try{localStorage.setItem("sel-view",listView)}catch(x){}render()});
+  app.querySelectorAll(".cardmain").forEach(c=>c.onclick=()=>{view={id:c.dataset.id,tab:"specs"};draft=null;pendingDelete=false;editing=false;render();window.scrollTo(0,0)});
+}
+function addEngine(kind){
+  const e=kind==="vehicle"?{id:uid(),kind:"vehicle",name:"",equipment:"Car",parts:[],docs:[{label:"Owner's manual",url:""}],log:[],createdAt:new Date().toISOString()}
+    :{id:uid(),kind:"engine",name:"",equipment:"Push mower",cycle:"4-stroke",parts:[],docs:[{label:"Service manual",url:""}],log:[],createdAt:new Date().toISOString()};
+  view={id:e.id,tab:"specs"};draft=JSON.parse(JSON.stringify(e));draft._new=true;editing=true;render();
+}
+function current(){return engines.find(e=>e.id===view.id)||(draft&&draft.id===view.id?draft:null)}
+
+function renderDetail(){
+  const e=current(); const app=$("#app");
+  if(!e){view.id=null;render();return}
+  if(!draft||draft.id!==e.id)draft=JSON.parse(JSON.stringify(e));
+  const tabs=[["specs","Specs & parts"],["log","Service log"],["print","Print record"]];
+  app.innerHTML=`
+   <div class="head"><div class="t"><h2>${esc(dname(e))}</h2><div class="muted">${esc((kindOf(e)==="vehicle"?[(e.name||"").trim()?[e.year,e.make,e.model].filter(Boolean).join(" "):"",e.trim,e.engine]:[e.equipment,(e.name||"").trim()?[e.make,e.model].filter(Boolean).join(" "):"",[e.engineMake,e.engineModel].filter(Boolean).join(" ")&&("Engine: "+[e.engineMake,e.engineModel].filter(Boolean).join(" ")),e.engineType]).filter(Boolean).join(" · "))} ${e.example?'<span class="tag ex">Example</span>':""}</div>
+     ${docsOf(e).length?`<div class="doclinks">${docsOf(e).map(d=>`<a class="doc" href="${esc(safeUrl(d.url))}" target="_blank" rel="noopener">${esc(d.label||"Link")}</a>`).join("")}</div>`:""}</div></div>
+   <nav class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${view.tab===k}">${l}</button>`).join("")}</nav>
+   <div id="panel"></div>`;
+  app.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{view.tab=b.dataset.tab;renderDetail()});
+  ({specs:renderSpecs,log:renderLog,print:renderPrint})[view.tab](e);
+}
+
+function renderSpecView(e){
+  const k=K(e);const isV=kindOf(e)==="vehicle";
+  const spec=k.spec.filter(([f])=>e[f]);
+  const parts=(e.parts||[]).filter(p=>p.name||p.number);
+  const tq=tqSorted(e);const docs=docsOf(e);
+  const sect=(t,body)=>`<div class="vsec"><h3>${t}</h3>${body}</div>`;
+  $("#panel").innerHTML=`<section class="panel">
+    <div class="actions" style="justify-content:space-between"><span class="muted" style="font-size:.85rem">${e.updatedAt?"Updated "+fmtDate(String(e.updatedAt).slice(0,10)):""}</span><button class="primary" id="editBtn">Edit ${k.one}</button></div>
+    ${sect("Specifications",spec.length||e.equipment?`<dl class="specview"><div><dt>${k.typeLabel}</dt><dd>${esc(e.equipment||"—")}</dd></div>${nextOil(e)?`<div class="nextoil ${nextOil(e).state}"><dt>Next oil change</dt><dd class="mono">${esc(nextOilText(nextOil(e)))}</dd></div>`:""}${spec.map(([f,l,m,pt])=>`<div><dt>${l}</dt><dd class="${m?"mono":""}">${esc(pt?withBrand(e[f+"Brand"],e[f]):e[f])}</dd></div>`).join("")}</dl>`:`<p class="muted">No specs yet. Tap Edit to add them.</p>`)}
+    ${parts.length?sect("Other part numbers",`<div class="tablewrap"><table><thead><tr><th>Part</th><th>Brand</th><th>Part #</th></tr></thead><tbody>${parts.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.brand||"")}</td><td class="n">${esc(p.number)}</td></tr>`).join("")}</tbody></table></div>`):""}
+    ${isV?sect("Torque specs &amp; bolt sizes",tq.length?`<div class="tablewrap"><table><thead><tr><th>Fastener</th><th>Socket / wrench</th><th>Torque</th><th>Notes</th></tr></thead><tbody>${tq.map(t=>`<tr><td>${esc(t.item)}</td><td class="n">${esc(t.size||"")}</td><td class="n">${t.value?esc(t.value)+" "+esc(t.unit||"ft-lb"):""}</td><td>${esc(t.notes||"")}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted">None yet. Tap Edit to add bolt sizes and torque specs.</p>`):""}
+    ${(()=>{const x=xref(e);
+      const addBtn=(lab,num,br)=>`<button class="addinv" data-addinv="1" data-label="${esc(lab)}" data-brand="${esc(br||"")}" data-number="${esc(num)}">+ Add to inventory</button>`;
+      const stockCell=(st,lab,num,br)=>{if(!st.length)return`<span class="stk none">Not in inventory</span>${addBtn(lab,num,br)}`;const q=st.reduce((n,p)=>n+qtyN(p),0);
+        return `<span class="stk ${q===0?"out":st.some(isLow)?"low":"ok"}">${q} on hand</span><span class="muted" style="font-size:.82rem">${esc([...new Set(st.map(p=>p.location).filter(Boolean))].join(", "))}</span>`};
+      const addMore=`<div class="actions"><button id="goInv">Go to inventory →</button></div>`;
+      if(!x.rows.length&&!x.tagged.length)return sect("Parts &amp; spares on the shelf",`<p class="muted" style="margin:0;font-size:.85rem">No part numbers yet. Add them with Edit.</p>${addMore}`);
+      return sect("Parts &amp; spares on the shelf",`<p class="muted" style="margin:0;font-size:.85rem">Matched by part number against your inventory.</p><div class="tablewrap"><table><thead><tr><th>Part</th><th>Part #</th><th>On the shelf</th></tr></thead><tbody>
+        ${x.rows.map(r=>`<tr><td>${esc(r.label)}</td><td class="n">${r.brand?`<span class="pbrand">${esc(r.brand)}</span> `:""}${esc(r.number)}</td><td><div class="stkcell">${stockCell(r.stock,r.label,r.number,r.brand)}</div></td></tr>`).join("")}
+        ${x.tagged.map(p=>`<tr><td>${esc(p.name||"Part")} <span class="tag">Tagged</span></td><td class="n">${p.brand?`<span class="pbrand">${esc(p.brand)}</span> `:""}${esc(p.number||"")}</td><td><div class="stkcell">${stockCell([p])}</div></td></tr>`).join("")}
+      </tbody></table></div>${addMore}`)})()}
+    ${sect("Manuals &amp; links",docs.length?`<div class="doclinks">${docs.map(x=>`<a class="doc" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">Open ${esc(x.label||"link")}</a>`).join("")}</div>`:`<p class="muted">No manuals linked. Tap Edit to add a link.</p>`)}
+    ${e.notes?sect("Notes",`<p class="vnotes">${esc(e.notes)}</p>`):""}
+  </section>`;
+  $("#panel").querySelectorAll("[data-addinv]").forEach(b=>b.onclick=()=>openPart(null,{returnTo:e.id,prefill:{name:b.dataset.label,brand:b.dataset.brand||"",number:b.dataset.number,category:guessCat(b.dataset.label),qty:"0",reorderAt:"0",fits:[e.id]},msg:"This part starts at 0 on hand and is marked Reorder. Update the count once you have it."}));
+  if($("#goInv"))$("#goInv").onclick=()=>{view={id:null,tab:"specs"};draft=null;editing=false;pendingDelete=false;listKind="part";try{localStorage.setItem("sel-kind","part")}catch(x){}render();window.scrollTo(0,0)};
+  $("#editBtn").onclick=()=>{editing=true;draft=JSON.parse(JSON.stringify(e));pendingDelete=false;renderSpecs(e)};
+}
+function renderSpecs(e){
+  if(!editing){renderSpecView(e);return}
+  const d=draft;const k=K(e);
+  const sel=(id,opts,val)=>`<select id="${id}">${opts.map(o=>`<option ${o===val?"selected":""}>${esc(o)}</option>`).join("")}${val&&!opts.includes(val)?`<option selected>${esc(val)}</option>`:""}</select>`;
+  $("#panel").innerHTML=`<section class="panel">
+    <div class="fields">
+      <label>Nickname (optional)<input id="f-name" value="${esc(d.name)}" placeholder="Leave blank to use make &amp; model"></label>
+      <label>${k.typeLabel}${sel("f-equipment",k.types,d.equipment)}</label>
+      ${k.spec.map(([k,l,m,pt])=>k==="cycle"?`<label>${l}${sel("f-cycle",["4-stroke","2-stroke"],d.cycle)}</label>`:
+        pt?`<label class="pnlabel">${l}<span class="pnpair"><input id="f-${k}Brand" aria-label="${esc(l.replace(/ part #$/,""))} brand" value="${esc(d[k+"Brand"])}" placeholder="Brand"><input id="f-${k}" class="pn" aria-label="${esc(l)}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"Part #")}"></span></label>`:
+        `<label>${l}<input id="f-${k}" class="${m?"pn":""}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"")}"></label>`).join("")}
+    </div>
+    <div class="parts"><h3>Other part numbers</h3>
+      <div id="partsList" class="parts">${(d.parts||[]).map((p,i)=>`<div class="partrow3">
+        <input id="pn-${i}" aria-label="Part name" value="${esc(p.name)}" placeholder="${esc(k.partPh)}">
+        <input id="pbr-${i}" aria-label="Brand" value="${esc(p.brand)}" placeholder="Brand">
+        <input id="pnum-${i}" class="pn" aria-label="Part number" value="${esc(p.number)}" placeholder="Part #">
+        <button class="ghost" data-rm="${i}">Remove</button></div>`).join("")}</div>
+      <div><button id="addPart">+ Add part</button></div>
+    </div>
+    ${kindOf(e)==="vehicle"?`<div class="parts"><h3>Torque specs &amp; bolt sizes</h3>
+      <div id="tqList" class="parts">${(d.torque||[]).map((t,i)=>`<div class="tqrow">
+        <input id="tqi-${i}" aria-label="Fastener" value="${esc(t.item)}" placeholder="What (e.g. Lug nuts, oil drain plug)">
+        <input id="tqs-${i}" class="pn" aria-label="Socket or wrench size" value="${esc(t.size)}" placeholder="Socket (22 mm)">
+        <input id="tqv-${i}" class="pn" aria-label="Torque value" inputmode="decimal" value="${esc(t.value)}" placeholder="100">
+        <select id="tqu-${i}" aria-label="Unit">${TQ_UNITS.map(u=>`<option ${u===(t.unit||"ft-lb")?"selected":""}>${u}</option>`).join("")}</select>
+        <input id="tqn-${i}" aria-label="Notes" value="${esc(t.notes)}" placeholder="Notes (star pattern, thread locker, extension)">
+        <button class="ghost" data-rmt="${i}">Remove</button></div>`).join("")}</div>
+      <div><button id="addTq">+ Add bolt / torque spec</button></div>
+    </div>`:""}
+    <div class="parts"><h3>Manuals &amp; links</h3>
+      <p class="muted" style="margin:0;font-size:.85rem">Paste a link to the manual: a Google Drive file, a PDF on the maker's site, a YouTube how-to.</p>
+      <div id="docsList" class="parts">${(d.docs||[]).map((x,i)=>`<div class="partrow">
+        <input id="dl-${i}" aria-label="Link name" value="${esc(x.label)}" placeholder="Service manual">
+        <input id="du-${i}" class="pn" aria-label="Link address" inputmode="url" value="${esc(x.url)}" placeholder="https://drive.google.com/…">
+        <span class="acts" style="display:flex;gap:4px">${safeUrl(x.url)?`<a class="doc" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">Open</a>`:""}<button class="ghost" data-rmd="${i}">Remove</button></span></div>`).join("")}</div>
+      <div class="actions"><button id="addDoc">+ Add a link</button></div>
+    </div>
+    <label class="span2">Notes<textarea id="f-notes" placeholder="Torque specs, where you buy parts, quirks…">${esc(d.notes)}</textarea></label>
+    <div class="actions"><button class="primary" id="saveSpecs">Save ${k.one}</button><button id="cancelEdit">Cancel</button><span id="savedMsg" class="saved"></span>
+      <span style="flex:1"></span>
+      ${pendingDelete?`<span class="confirm">Delete this ${k.one} and its whole service log? <button class="danger" id="delYes">Delete</button><button id="delNo">Keep</button></span>`:`<button class="danger" id="delBtn">Delete ${k.one}</button>`}
+    </div></section>`;
+  const pull=()=>{d.name=$("#f-name").value;d.equipment=$("#f-equipment").value;d.notes=$("#f-notes").value;
+    k.spec.forEach(([f,,,pt])=>{const el=$("#f-"+f);if(el)d[f]=el.value;if(pt){const b=$("#f-"+f+"Brand");if(b)d[f+"Brand"]=b.value}});
+    d.parts=(d.parts||[]).map((p,i)=>({name:$("#pn-"+i).value,brand:$("#pbr-"+i).value,number:$("#pnum-"+i).value}));
+    d.docs=(d.docs||[]).map((x,i)=>({label:$("#dl-"+i).value,url:$("#du-"+i).value.trim()}));
+    if($("#tqList"))d.torque=(d.torque||[]).map((t,i)=>({item:$("#tqi-"+i).value,size:$("#tqs-"+i).value.trim(),value:$("#tqv-"+i).value.trim(),unit:$("#tqu-"+i).value,notes:$("#tqn-"+i).value}));};
+  if($("#addTq")){$("#addTq").onclick=()=>{pull();d.torque=d.torque||[];d.torque.push({item:"",size:"",value:"",unit:"ft-lb",notes:""});renderSpecs(e);$("#tqi-"+(d.torque.length-1)).focus()};
+    $("#tqList").querySelectorAll("[data-rmt]").forEach(b=>b.onclick=()=>{pull();d.torque.splice(+b.dataset.rmt,1);renderSpecs(e)})}
+  $("#addPart").onclick=()=>{pull();d.parts.push({name:"",brand:"",number:""});renderSpecs(e);$("#pn-"+(d.parts.length-1)).focus()};
+  $("#addDoc").onclick=()=>{pull();d.docs=d.docs||[];d.docs.push({label:d.docs.length?"":(kindOf(e)==="vehicle"?"Owner's manual":"Service manual"),url:""});renderSpecs(e);$("#du-"+(d.docs.length-1)).focus()};
+  $("#docsList").querySelectorAll("[data-rmd]").forEach(b=>b.onclick=()=>{pull();d.docs.splice(+b.dataset.rmd,1);renderSpecs(e)});
+  $("#partsList").querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{pull();d.parts.splice(+b.dataset.rm,1);renderSpecs(e)});
+  $("#saveSpecs").onclick=async()=>{pull();d.parts=d.parts.filter(p=>p.name||p.number||p.brand);if(d.torque)d.torque=d.torque.filter(t=>t.item||t.value||t.size);
+    const bad=(d.docs||[]).find(x=>x.url&&!safeUrl(x.url));if(bad){$("#savedMsg").style.color="var(--accent)";$("#savedMsg").textContent="One link isn't a web address. Paste the full link from Drive.";return}
+    d.docs=(d.docs||[]).filter(x=>x.url).map(x=>({label:x.label.trim()||"Service manual",url:safeUrl(x.url)}));
+    const out={...e,...d};delete out._new;delete out._pickerShown;
+    const btn=$("#saveSpecs");btn.disabled=true;
+    try{await saveEngine(out);draft=null;editing=false;render();const m=$("#savedMsg");if(m)m.textContent="Saved"}catch(err){$("#savedMsg").textContent="Couldn't save: "+(err.message||err.code);btn.disabled=false}};
+  $("#cancelEdit").onclick=()=>{pendingDelete=false;editing=false;draft=null;
+    if(!engines.find(x=>x.id===e.id)){view={id:null,tab:"specs"}}render()};
+  if(pendingDelete){$("#delYes").onclick=async()=>{const id=e.id;pendingDelete=false;editing=false;view={id:null,tab:"specs"};draft=null;
+      engines=engines.filter(x=>x.id!==id);render();try{await removeEngine(id)}catch(err){showBanner("Couldn't delete: "+(err.message||err.code))}};
+    $("#delNo").onclick=()=>{pendingDelete=false;renderSpecs(e)}}
+  else $("#delBtn").onclick=()=>{pull();pendingDelete=true;renderSpecs(e)};
+}
+const PH={engineType:"Single-cylinder OHV",make:"Honda",model:"HRN216",serial:"MAGA-1234567",year:"2021",engineMake:"Honda",engineModel:"GCV170",fuelMix:"Unleaded 87, ethanol-free",hours:"112",plug:"NGK BPR5ES",plugGap:"0.028–0.031 in",oilType:"SAE 10W-30",oilCapacity:"0.58 qt (0.55 L)",airFilter:"17211-ZL8-023",fuelFilter:"—"};
+
+function renderLog(e){
+  const log=sortedLog(e);const k=K(e);
+  const watch=k.watch;
+  const no=nextOil(e),isV=kindOf(e)==="vehicle";
+  $("#panel").innerHTML=`<section class="panel">
+    ${isV?`<div class="oilbar ${no?no.state:"none"}"><div><small>Current mileage</small><b>${milesN(e.hours)!=null?fmtMi(milesN(e.hours)):"Not set"}</b></div>
+      <div><small>Next oil change</small><b>${no?nextOilText(no):"Log an oil change with mileage"}</b>${no?`<span class="muted">${fmtMi(no.every)} after the ${fmtDate(no.date)} oil change at ${fmtMi(no.from)}</span>`:""}</div></div>`:""}
+    <div><h3>Last done</h3><div class="status" style="margin-top:8px">${watch.map(t=>{const l=lastFor(e,t);const m=l?monthsSince(l.date):null;
+      return `<div class="stat ${!l?"none":m>12?"old":""}"><small>${t}</small><b>${l?fmtDate(l.date):"Not logged"}</b>${l&&l.hours?`<span class="muted mono"> · ${esc(l.hours)}${k.unit}</span>`:""}</div>`}).join("")}</div></div>
+    <form class="logform" id="logForm">
+      <h3>Log a service</h3>
+      <div class="fields">
+        <label>Date<input type="date" id="l-date" value="${today()}" required></label>
+        <label>${k.meterLabel}<input id="l-hours" class="pn" inputmode="decimal" value="${esc(e.hours||"")}" placeholder="Optional"></label>
+        <label>Cost<input id="l-cost" class="pn" inputmode="decimal" placeholder="$ optional"></label>
+      </div>
+      <div><label>Work done</label><div class="chips" style="margin-top:6px">${k.tasks.map((t,i)=>`<label class="chip"><input type="checkbox" id="t-${i}" value="${esc(t)}">${esc(t)}</label>`).join("")}</div></div>
+      <label>Notes / parts used<textarea id="l-notes" placeholder="${esc(k.logPh)}"></textarea></label>
+      <div class="actions"><button class="primary" type="submit">Add to log</button><span id="logMsg" class="saved"></span></div>
+    </form>
+    <div><h3>History</h3>${log.length?`<div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>Date</th><th>${k.meterCol}</th><th>Work done</th><th>Notes</th><th>Cost</th><th></th></tr></thead><tbody>
+      ${log.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td class="n">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td>${esc(l.notes||"")}</td><td class="n">${l.cost?"$"+esc(l.cost):""}</td>
+        <td>${pendingLog===l.id?`<span class="confirm"><button class="danger" data-yes="${esc(l.id)}">Delete</button><button data-no>Keep</button></span>`:`<button class="ghost" data-del="${esc(l.id)}">Delete</button>`}</td></tr>`).join("")}
+    </tbody></table></div>`:`<p class="muted">No services logged yet. Use the form above to record the first one.</p>`}</div>
+  </section>`;
+  $("#logForm").onsubmit=async ev=>{ev.preventDefault();
+    const tasks=k.tasks.filter((t,i)=>$("#t-"+i).checked);
+    const notes=$("#l-notes").value.trim();
+    if(!tasks.length&&!notes){$("#logMsg").textContent="Tick at least one job or add a note.";$("#logMsg").style.color="var(--accent)";return}
+    const entry={id:uid(),date:$("#l-date").value||today(),hours:$("#l-hours").value.trim(),cost:$("#l-cost").value.replace(/^\$/,"").trim(),tasks,notes};
+    const out={...e,log:[...(e.log||[]),entry]};
+    const num=v=>parseFloat(String(v||"").replace(/,/g,""));
+    if(entry.hours&&(!e.hours||num(entry.hours)>=num(e.hours)))out.hours=entry.hours;
+    try{await saveEngine(out);draft=null;const m=$("#logMsg");if(m){const bits=["Added."];
+      if(out.hours!==e.hours&&milesN(out.hours)!=null)bits.push(`Mileage updated to ${fmtMi(milesN(out.hours))}.`);
+      const n2=nextOil(out);if(tasks.includes("Oil & filter")&&n2)bits.push(`Next oil change at ${fmtMi(n2.at)}.`);
+      m.style.color="";m.textContent=bits.join(" ")}}catch(err){$("#logMsg").textContent="Couldn't save: "+(err.message||err.code)}};
+  $("#panel").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{pendingLog=b.dataset.del;renderLog(e)});
+  $("#panel").querySelectorAll("[data-no]").forEach(b=>b.onclick=()=>{pendingLog=null;renderLog(e)});
+  $("#panel").querySelectorAll("[data-yes]").forEach(b=>b.onclick=async()=>{const id=b.dataset.yes;pendingLog=null;
+    try{await saveEngine({...e,log:(e.log||[]).filter(l=>l.id!==id)})}catch(err){showBanner("Couldn't delete entry: "+(err.message||err.code))}});
+}
+let pendingLog=null;
+
+/* ---------- file saving ---------- */
+const DL={save:async({filename,data})=>{
+  const type=/\.json$/.test(filename)?"application/json":"text/html";
+  const url=URL.createObjectURL(new Blob([data],{type}));
+  const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+}};
+
+/* ---------- garage inventory ---------- */
+const PCATS=["Filters","Spark plugs","Belts","Fluids","Hardware","Electrical","Brakes","Tires","Other"];
+let invFilter="All", invQuery="", partEdit=null, scanBusy=false;
+const isPart=e=>kindOf(e)==="part";
+const partsOf=()=>engines.filter(isPart);
+const machines=()=>engines.filter(e=>!isPart(e)).sort(byName);
+const nameOf=id=>{const m=engines.find(e=>e.id===id&&!isPart(e));return m?dname(m):null};
+/* cross reference: machine part numbers <-> inventory */
+const normPN=v=>String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+function pnMatch(a,b){const x=normPN(a),y=normPN(b);if(!x||!y)return false;if(x===y)return true;
+  const [sh,lo]=x.length<=y.length?[x,y]:[y,x];return sh.length>=5&&/\d/.test(sh)&&lo.includes(sh)}
+const partHits=(p,num)=>pnMatch(p.number,num)||(p.brand&&pnMatch((p.brand||"")+(p.number||""),num));
+function machineParts(e){const k=K(e);if(!k)return[];
+  return [...k.spec.filter(s=>s[3]&&(e[s[0]]||"").trim()).map(([f,l])=>({label:l.replace(/ part #$/,""),brand:String(e[f+"Brand"]||"").trim(),number:e[f].trim()})),
+    ...(e.parts||[]).filter(p=>(p.number||"").trim()).map(p=>({label:p.name||"Part",brand:String(p.brand||"").trim(),number:p.number.trim()}))]}
+function xref(e){const inv=partsOf();
+  const rows=machineParts(e).map(mp=>({...mp,stock:inv.filter(p=>partHits(p,mp.number))}));
+  const used=new Set(rows.flatMap(r=>r.stock.map(p=>p.id)));
+  const tagged=inv.filter(p=>(p.fits||[]).includes(e.id)&&!used.has(p.id));
+  return {rows,tagged}}
+const autoFits=p=>machines().filter(m=>machineParts(m).some(mp=>partHits(p,mp.number))).map(m=>m.id);
+const allFits=p=>[...new Set([...(p.fits||[]),...autoFits(p)])];
+const qtyN=p=>{const n=parseInt(p.qty,10);return isNaN(n)?0:n};
+const isLow=p=>p.reorderAt!==""&&p.reorderAt!=null&&!isNaN(parseInt(p.reorderAt,10))&&qtyN(p)<=parseInt(p.reorderAt,10);
+const money=n=>"$"+(Math.round(n*100)/100).toLocaleString(undefined,{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2});
+const costN=p=>{const n=parseFloat(String(p.cost||"").replace(/[^0-9.]/g,""));return isNaN(n)?0:n};
+
+function renderInventory(kt,wire){
+  const app=$("#app");const all=partsOf();
+  if(!all.length){app.innerHTML=kt+`<div class="empty"><h2>No spare parts yet</h2><p class="muted">Keep a list of the filters, plugs, belts and fluids on your shelf.</p><button class="primary" id="addEmpty">+ Add part</button></div>`;$("#addEmpty").onclick=()=>openPart(null);wire();return}
+  const low=all.filter(isLow).length, value=all.reduce((s,p)=>s+costN(p)*qtyN(p),0);
+  const q=invQuery.trim().toLowerCase();
+  const shown=all.filter(p=>(invFilter==="All"||(invFilter==="Low stock"?isLow(p):p.category===invFilter))&&
+    (!q||[p.name,p.number,p.brand,p.location,allFits(p).map(nameOf).join(" ")].join(" ").toLowerCase().includes(q)))
+    .sort((a,b)=>(a.location||"~").localeCompare(b.location||"~")||(a.name||"").localeCompare(b.name||""));
+  const cats=["All","Low stock",...PCATS.filter(c=>all.some(p=>p.category===c))];
+  app.innerHTML=kt+`<div class="inv">
+    <div class="invstats"><div class="istat"><small>Parts</small><b>${all.length}</b></div>
+      <div class="istat ${low?"warn":""}"><small>Low stock</small><b>${low}</b></div>
+      <div class="istat"><small>Value</small><b>${value?money(value):"—"}</b></div></div>
+    <label class="invsearch">Search parts<input type="search" id="invQ" value="${esc(invQuery)}" placeholder="Name, part #, or what it fits"></label>
+    <div class="chips">${cats.map(c=>`<button class="fchip" data-cat="${esc(c)}" aria-pressed="${c===invFilter}">${esc(c)}</button>`).join("")}</div>
+    <div class="ilist">${shown.length?shown.map(p=>{const fits=allFits(p).map(nameOf).filter(Boolean);
+      return `<article class="iitem ${isLow(p)?"low":""}">
+        <div class="irow"><button class="iname" data-edit="${esc(p.id)}"><b>${esc(p.name||"Unnamed part")}</b><span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))||"No part #"}</span></button>
+          <div class="stepper"><button aria-label="Use one" data-dq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>−</button><span class="mono">${qtyN(p)}</span><button aria-label="Add one" data-dq="1" data-id="${esc(p.id)}">+</button></div></div>
+        <div class="imeta">${p.category?`<span class="tag">${esc(p.category)}</span>`:""}${p.location?`<span>${esc(p.location)}</span>`:""}${isLow(p)?`<span class="tag reorder">Reorder</span>`:""}</div>
+        ${fits.length?`<div class="ifits">Fits: <span>${esc(fits.join(", "))}</span></div>`:""}
+      </article>`}).join(""):`<p class="muted">No parts match. Try another search or filter.</p>`}</div></div>`;
+  const qi=$("#invQ");qi.addEventListener("input",()=>{invQuery=qi.value;clearTimeout(qi._t);qi._t=setTimeout(()=>{render();const n=$("#invQ");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}},250)});
+  app.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{invFilter=b.dataset.cat;render()});
+  app.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openPart(engines.find(e=>e.id===b.dataset.edit)));
+  app.querySelectorAll("[data-dq]").forEach(b=>b.onclick=async()=>{const p=engines.find(e=>e.id===b.dataset.id);if(!p)return;
+    b.disabled=true;const n=Math.max(0,qtyN(p)+parseInt(b.dataset.dq,10));
+    try{await saveEngine({...p,qty:String(n)})}catch(err){showBanner("Couldn't update the count: "+(err.message||err.code))}});
+  wire();
+}
+function guessCat(l){l=String(l||"").toLowerCase();return /filter/.test(l)?"Filters":/plug/.test(l)?"Spark plugs":/belt/.test(l)?"Belts":/brake/.test(l)?"Brakes":/battery|bulb|fuse/.test(l)?"Electrical":/tire/.test(l)?"Tires":/oil|fluid|coolant/.test(l)?"Fluids":/blade|bolt|pin|nut/.test(l)?"Hardware":""}
+function openPart(p,opts){opts=opts||{};
+  partEdit={returnTo:opts.returnTo||null,isNew:!p,d:p?JSON.parse(JSON.stringify(p)):{id:uid(),kind:"part",name:"",brand:"",number:"",category:"",qty:"1",reorderAt:"",location:"",cost:"",source:"",fits:[],notes:"",createdAt:new Date().toISOString(),...(opts.prefill||{})},confirmDel:false,msg:"",note:opts.msg||""};
+  render();window.scrollTo(0,0);
+}
+function closePart(note){const rt=partEdit&&partEdit.returnTo;partEdit=null;
+  if(rt&&engines.find(x=>x.id===rt)){view={id:rt,tab:"specs"};editing=false;draft=null;render();if(note)showToast(note)}
+  else{if(rt)view={id:null,tab:"specs"};render()}window.scrollTo(0,0)}
+function showToast(t){const b=$("#banner");b.textContent=t;b.hidden=false;b.classList.add("ok");clearTimeout(showToast._t);showToast._t=setTimeout(()=>{b.hidden=true;b.classList.remove("ok")},4000)}
+function renderPartEdit(){
+  const pe=partEdit,d=pe.d,app=$("#app");
+  const sel=`<select id="p-category"><option value="">Choose…</option>${PCATS.map(c=>`<option ${c===d.category?"selected":""}>${c}</option>`).join("")}${d.category&&!PCATS.includes(d.category)?`<option selected>${esc(d.category)}</option>`:""}</select>`;
+  const ms=machines();
+  app.innerHTML=`<div class="head"><div class="t"><h2>${esc(d.name||(pe.isNew?"New part":"Unnamed part"))}</h2><div class="muted">${esc([d.category,d.location].filter(Boolean).join(" · "))||"Garage inventory"}</div></div></div>
+  <section class="panel">
+    ${pe.note?`<p class="formnote">${esc(pe.note)}</p>`:""}
+    <div class="scanbox" id="scanBox" hidden><div><h3>Read the label</h3><p class="muted" style="margin:2px 0 0;font-size:.85rem">Take a photo of the part or its box. Claude reads the name and part number and fills them in.</p></div>
+      <div class="actions"><button class="primary" id="scanBtn">Take photo of label</button><button class="ghost" id="pickBtn">Choose a photo</button></div>
+      <input type="file" id="camIn" accept="image/*" capture="environment" hidden><input type="file" id="picIn" accept="image/*" hidden>
+      <p id="scanMsg" class="muted" style="margin:0;font-size:.88rem">${esc(pe.msg||"")}</p></div>
+    <div class="fields">
+      <label class="span2">Part name<input id="p-name" value="${esc(d.name)}" placeholder="Oil filter"></label>
+      <label>Brand<input id="p-brand" value="${esc(d.brand)}" placeholder="Motorcraft"></label>
+      <label>Part #<input id="p-number" class="pn" value="${esc(d.number)}" placeholder="FL-500S"></label>
+      <label>Category${sel}</label>
+      <label>On hand<input id="p-qty" class="pn" inputmode="numeric" value="${esc(d.qty)}"></label>
+      <label>Reorder at<input id="p-reorderAt" class="pn" inputmode="numeric" value="${esc(d.reorderAt)}" placeholder="Optional"></label>
+      <label>Location<input id="p-location" value="${esc(d.location)}" placeholder="Shelf A · Bin 2"></label>
+      <label>Cost each<input id="p-cost" class="pn" inputmode="decimal" value="${esc(d.cost)}" placeholder="$ optional"></label>
+      <label>Where to buy<input id="p-source" value="${esc(d.source)}" placeholder="Store or website"></label>
+    </div>
+    <div class="parts"><h3>Fits</h3>${ms.length?`<div class="chips">${ms.map(m=>`<button class="fchip" data-fit="${esc(m.id)}" aria-pressed="${(d.fits||[]).includes(m.id)}">${esc(dname(m))}</button>`).join("")}</div>
+      ${(()=>{const am=autoFits(d).map(nameOf).filter(Boolean);return am.length?`<p style="margin:0;font-size:.85rem">Matches by part # on: <b style="color:var(--steel)">${esc(am.join(", "))}</b></p>`:""})()}
+      <p class="muted" style="margin:0;font-size:.82rem">Tap the engines and vehicles this part goes on. It also shows on their Specs tab.</p>`:`<p class="muted" style="margin:0">Add an engine or vehicle first to tag what this part fits.</p>`}</div>
+    <label class="span2">Notes<textarea id="p-notes" placeholder="Sizes, specs, when you bought it">${esc(d.notes)}</textarea></label>
+    <div class="actions"><button class="primary" id="pSave">Save part</button><button id="pCancel">Cancel</button><span id="pMsg" class="saved"></span><span style="flex:1"></span>
+      ${pe.isNew?"":pe.confirmDel?`<span class="confirm">Delete this part? <button class="danger" id="pDelYes">Delete</button><button id="pDelNo">Keep</button></span>`:`<button class="danger" id="pDel">Delete part</button>`}</div>
+  </section>`;
+  const pull=()=>{["name","brand","number","category","qty","reorderAt","location","cost","source","notes"].forEach(f=>{const el=$("#p-"+f);if(el)d[f]=el.value})};
+  app.querySelectorAll("[data-fit]").forEach(b=>b.onclick=()=>{pull();const id=b.dataset.fit;d.fits=d.fits||[];
+    d.fits=d.fits.includes(id)?d.fits.filter(x=>x!==id):[...d.fits,id];renderPartEdit()});
+  $("#pCancel").onclick=()=>closePart();
+  $("#pSave").onclick=async()=>{pull();if(!d.name.trim()&&!d.number.trim()){const m=$("#pMsg");m.style.color="var(--accent)";m.textContent="Add a part name or part number.";return}
+    d.qty=String(Math.max(0,parseInt(d.qty,10)||0));d.reorderAt=d.reorderAt===""?"":String(Math.max(0,parseInt(d.reorderAt,10)||0));
+    d.fits=(d.fits||[]).filter(nameOf);const b=$("#pSave");b.disabled=true;
+    try{await saveEngine({...d});const back=pe.returnTo;if(!back)listKind="part";closePart(back?`Added ${d.name||d.number} to your inventory.`:"")}catch(err){b.disabled=false;$("#pMsg").textContent="Couldn't save: "+(err.message||err.code)}};
+  if($("#pDel"))$("#pDel").onclick=()=>{pull();pe.confirmDel=true;renderPartEdit()};
+  if($("#pDelNo"))$("#pDelNo").onclick=()=>{pe.confirmDel=false;renderPartEdit()};
+  if($("#pDelYes"))$("#pDelYes").onclick=async()=>{const id=d.id;engines=engines.filter(x=>x.id!==id);closePart();
+    try{await removeEngine(id)}catch(err){showBanner("Couldn't delete: "+(err.message||err.code))}};
+  // camera / photo
+  $("#scanBtn").onclick=()=>{pull();$("#camIn").click()};
+  $("#pickBtn").onclick=()=>{pull();$("#picIn").click()};
+  const onFile=ev=>{const f=ev.target.files&&ev.target.files[0];ev.target.value="";if(f)readLabel(f)};
+  $("#camIn").onchange=onFile;$("#picIn").onchange=onFile;
+  if(scanBusy){$("#scanBtn").disabled=true;$("#pickBtn").disabled=true}
+  sampleReady().then(ok=>{if(!ok&&$("#scanBox")){$("#scanBtn").hidden=true;$("#pickBtn").hidden=true;$("#scanMsg").textContent="Reading photos isn't available in this view. Sign in to claude.ai to use it, or type the part number in."}});
+}
+let samplerP=null;
+const getSampler=()=>samplerP||(samplerP=(async()=>{try{return window.claude?await window.claude.use("sample"):null}catch(e){return null}})());
+async function sampleReady(){const s=await getSampler();if(!s)return false;try{const l=await s.limits();return !!(l&&l.images)}catch(e){return false}}
+async function shrinkPhoto(file){
+  try{const bmp=await createImageBitmap(file);const sc=Math.min(1,1600/Math.max(bmp.width,bmp.height));
+    const c=document.createElement("canvas");c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);
+    c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+    return await new Promise(r=>c.toBlob(b=>r(b||file),"image/jpeg",0.85))}catch(e){return file}
+}
+async function readLabel(file){
+  const pe=partEdit;if(!pe)return;const setMsg=t=>{pe.msg=t;const m=$("#scanMsg");if(m)m.textContent=t};
+  const s=await getSampler();if(!s){setMsg("Reading photos isn't available in this view.");return}
+  scanBusy=true;renderPartEdit();setMsg("Reading the label…");
+  try{
+    const img=await shrinkPhoto(file);
+    const r=await s.json(`The image is a photo of a replacement part for a car, truck or small engine (mower, snow blower, generator), or of its box or label. Read the printed text and reply with ONLY a JSON object:
+{"name": short generic part name such as "Oil filter" or "Spark plug" ("" if unclear),
+ "brand": brand name printed on it ("" if none),
+ "partNumber": the manufacturer's part or model number exactly as printed, NOT the UPC barcode digits, price or SKU ("" if none visible),
+ "category": one of ${JSON.stringify(PCATS)},
+ "quantity": number of pieces in the package if printed, else null,
+ "details": other useful printed specs such as thread size, belt length or viscosity, under 100 characters ("" if none),
+ "readable": true if you could read the label, false if the photo is too blurry or shows no part}`,{images:[img],modelTier:"default"});
+    if(!r||r.readable===false){setMsg("Couldn't read that photo. Try again closer, with the label flat and in good light.");return}
+    const d=pe.d;const str=v=>typeof v==="string"?v.trim().slice(0,200):"";
+    const filled=[];
+    if(str(r.partNumber)){d.number=str(r.partNumber);filled.push("part #")}
+    if(str(r.brand)){d.brand=str(r.brand);filled.push("brand")}
+    if(str(r.name)&&!d.name.trim()){d.name=str(r.name);filled.push("name")}
+    if(PCATS.includes(r.category)&&!d.category){d.category=r.category;filled.push("category")}
+    if(str(r.details)&&!(d.notes||"").includes(str(r.details))){d.notes=(d.notes?d.notes+"\n":"")+str(r.details);filled.push("notes")}
+    setMsg(filled.length?`Filled in ${filled.join(", ")} from the photo. Check the part number before saving.`:"No part number found on that label. You can type it in.");
+  }catch(err){const c=err&&err.code;
+    setMsg(c==="not_granted"||c==="consent_required"?"Allow this page to use Claude to read photos, then try again.":c==="rate_limited"?"Too many photos at once. Wait a minute and try again.":c==="cancelled"?"Cancelled.":"Couldn't read the photo"+(err&&err.message?": "+err.message:"")+".")}
+  finally{scanBusy=false;if(partEdit===pe)renderPartEdit()}
+}
+
+/* ---------- backup & restore ---------- */
+let restoreState=null; // {records:[...], name}
+function drawBackup(){
+  const app=$("#app");const box=document.createElement("section");box.className="backup";
+  const nE=engines.filter(e=>kindOf(e)==="engine").length,nV=engines.filter(e=>kindOf(e)==="vehicle").length,nP=partsOf().length;
+  let restoreHtml="";
+  if(restoreState){const r=restoreState.records;const re=r.filter(x=>x.kind==="engine").length,rv=r.filter(x=>x.kind==="vehicle").length,rp=r.filter(x=>x.kind==="part").length;
+    const upd=r.filter(x=>engines.some(e=>e.id===x.id)).length;
+    restoreHtml=`<div class="confirm" style="margin-top:4px"><span><b>${esc(restoreState.name)}</b> has ${re} engine${re===1?"":"s"}, ${rv} vehicle${rv===1?"":"s"} and ${rp} part${rp===1?"":"s"}. ${upd?upd+" will replace the matching record"+(upd===1?"":"s")+" in your logbook; the":"They'll be added to your logbook. The"} rest of your records stay as they are.</span>
+      <button class="primary" id="restoreYes">Restore ${r.length} record${r.length===1?"":"s"}</button><button id="restoreNo">Cancel</button></div>`}
+  box.innerHTML=`<div class="bhead"><div><h3>Backup</h3><p class="muted" style="margin:2px 0 0;font-size:.85rem">Save your whole logbook (${nE} engine${nE===1?"":"s"}, ${nV} vehicle${nV===1?"":"s"}, ${nP} part${nP===1?"":"s"}) to a file, or load one back in.</p></div>
+    <div class="actions"><button id="backupBtn" ${engines.length?"":"disabled"}>Back up logbook</button><button id="restoreBtn">Restore from backup</button>
+    <input type="file" id="restoreFile" accept=".json,application/json" hidden></div></div>
+    ${restoreHtml}<p id="backupMsg" class="muted" style="margin:0;font-size:.85rem"></p>
+    <textarea id="backupText" hidden readonly aria-label="Backup text"></textarea>`;
+  app.appendChild(box);
+  const msg=$("#backupMsg");
+  $("#backupBtn").onclick=async()=>{
+    const data=JSON.stringify({app:"engine-vehicle-logbook",version:1,exported:new Date().toISOString(),records:engines.map(e=>{const c={...e};delete c.example;return e.example?{...c,example:true}:c})},null,1);
+    let dl=null;try{dl=await DL}catch(x){}
+    if(dl){try{await dl.save({filename:"logbook-backup-"+today()+".json",data});msg.textContent="Backup saved. Keep the file somewhere safe, like your Google Drive.";return}
+      catch(err){if(err.code==="declined"){msg.textContent="Backup cancelled.";return}}}
+    const ta=$("#backupText");ta.hidden=false;ta.value=data;ta.select();
+    try{await navigator.clipboard.writeText(data);msg.textContent="Saving files isn't available here, so the backup was copied. Paste it into a note or a text file named logbook-backup.json."}
+    catch(e){msg.textContent="Saving files isn't available here. Copy the text below into a note or a text file named logbook-backup.json."}
+  };
+  $("#restoreBtn").onclick=()=>$("#restoreFile").click();
+  $("#restoreFile").onchange=ev=>{const f=ev.target.files&&ev.target.files[0];if(!f)return;
+    const rd=new FileReader();rd.onload=()=>{try{const recs=parseBackup(String(rd.result));restoreState={records:recs,name:f.name};render()}
+      catch(err){msg.style.color="var(--accent)";msg.textContent=err.message}};rd.onerror=()=>{msg.textContent="Couldn't read that file."};rd.readAsText(f)};
+  if(restoreState){$("#restoreNo").onclick=()=>{restoreState=null;render()};
+    $("#restoreYes").onclick=async()=>{const recs=restoreState.records;restoreState=null;
+      const b=$("#restoreYes");b.disabled=true;let ok=0,fail=0;
+      for(const r of recs){try{await saveEngine(r);ok++}catch(e){fail++}}
+      render();const m=$("#backupMsg");if(m){m.style.color="";m.textContent=`Restored ${ok} record${ok===1?"":"s"}.`+(fail?` ${fail} couldn't be saved; try again.`:"")}}}
+}
+function parseBackup(text){
+  let j;try{j=JSON.parse(text)}catch(e){throw new Error("That file isn't a logbook backup. Choose the .json file you saved with Back up logbook.")}
+  const list=Array.isArray(j)?j:j&&Array.isArray(j.records)?j.records:null;
+  if(!list)throw new Error("That file isn't a logbook backup. Choose the .json file you saved with Back up logbook.");
+  const str=v=>v==null?"":String(v).slice(0,2000);
+  const recs=list.filter(r=>r&&typeof r==="object"&&(r.name||r.make||r.model||r.number)).slice(0,500).map(r=>{
+    const out={};for(const [k,v] of Object.entries(r)){if(["parts","docs","log","torque"].includes(k))continue;if(typeof v==="string"||typeof v==="number")out[k]=str(v);if(typeof v==="boolean")out[k]=v}
+    out.id=/^[A-Za-z0-9_-]{1,60}$/.test(String(r.id||""))?String(r.id):uid();
+    out.kind=r.kind==="vehicle"?"vehicle":r.kind==="part"?"part":"engine";
+    if(out.kind==="part")out.fits=(Array.isArray(r.fits)?r.fits:[]).map(String).filter(x=>/^[A-Za-z0-9_-]{1,60}$/.test(x)).slice(0,50);
+    out.parts=(Array.isArray(r.parts)?r.parts:[]).map(p=>({name:str(p&&p.name),brand:str(p&&p.brand),number:str(p&&p.number)}));
+    out.docs=(Array.isArray(r.docs)?r.docs:[]).map(d=>({label:str(d&&d.label),url:safeUrl(d&&d.url)})).filter(d=>d.url);
+    out.torque=(Array.isArray(r.torque)?r.torque:[]).map(t=>({item:str(t&&t.item),size:str(t&&t.size),value:str(t&&t.value),unit:TQ_UNITS.includes(t&&t.unit)?t.unit:"ft-lb",notes:str(t&&t.notes)}));
+    out.log=(Array.isArray(r.log)?r.log:[]).map(l=>({id:/^[A-Za-z0-9_-]{1,60}$/.test(String(l&&l.id||""))?String(l.id):uid(),date:/^\d{4}-\d{2}-\d{2}$/.test(String(l&&l.date))?l.date:"",hours:str(l&&l.hours),cost:str(l&&l.cost),tasks:(Array.isArray(l&&l.tasks)?l.tasks:[]).map(str).slice(0,30),notes:str(l&&l.notes)}));
+    return out});
+  if(!recs.length)throw new Error("That backup doesn't have any engines, vehicles or parts in it.");
+  return recs;
+}
+
+/* ---------- printable record ---------- */
+function sheetBody(e){
+  const log=sortedLog(e);
+  const k=K(e);
+  const rows=k.spec.filter(([f,,,pt])=>e[f]&&!pt).map(([f,l])=>`<tr><th>${l}</th><td class="m">${esc(e[f])}</td></tr>`).join("")+(nextOil(e)?`<tr><th>Next oil change</th><td class="m">${esc(fmtMi(nextOil(e).at))}</td></tr>`:"");
+  const parts=[...k.spec.filter(s=>s[3]&&e[s[0]]).map(([f,l])=>[l.replace(/ part #$/,""),e[f],e[f+"Brand"]||""]),...(e.parts||[]).map(p=>[p.name,p.number,p.brand||""])].filter(p=>p[1]||p[0]);
+  const blanks=Array.from({length:Math.max(4,10-log.length)},()=>`<tr class="blank"><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join("");
+  return `<div class="hd"><div><div class="eyebrow">Service record</div><h1>${esc(dname(e))}</h1>
+    <div class="subt">${esc((kindOf(e)==="vehicle"?[e.year,e.make,e.model,e.trim,e.vin&&("VIN "+e.vin)]:[e.equipment,e.make,e.model,e.year,[e.engineMake,e.engineModel].filter(Boolean).join(" ")&&("Engine: "+[e.engineMake,e.engineModel].filter(Boolean).join(" ")),e.engineType]).filter(Boolean).join(" · "))}</div></div>
+    <div class="printed">Printed ${fmtDate(today())}</div></div>
+  <div class="two"><div><h2>Specifications</h2><table class="kv">${rows||"<tr><td>No specs recorded</td></tr>"}</table></div>
+  <div><h2>Part numbers</h2><table><thead><tr><th>Part</th><th>Brand</th><th>Part #</th></tr></thead><tbody>${parts.map(p=>`<tr><td>${esc(p[0])}</td><td>${esc(p[2])}</td><td class="m">${esc(p[1]||"")}</td></tr>`).join("")||"<tr><td colspan=3>None recorded</td></tr>"}</tbody></table></div></div>
+  <h2>Service log</h2><table class="log"><thead><tr><th style="width:13%">Date</th><th style="width:10%">${k.meterCol}</th><th style="width:27%">Work done</th><th>Notes / parts used</th><th style="width:10%">Cost</th></tr></thead><tbody>
+  ${log.map(l=>`<tr><td class="m">${fmtDate(l.date)}</td><td class="m">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td>${esc(l.notes||"")}</td><td class="m">${l.cost?"$"+esc(l.cost):""}</td></tr>`).join("")}${blanks}</tbody></table>
+  ${(e.torque||[]).length?`<h2>Torque specs &amp; bolt sizes</h2><table><thead><tr><th style="width:30%">Fastener</th><th style="width:16%">Socket / wrench</th><th style="width:15%">Torque</th><th>Notes</th></tr></thead><tbody>${tqSorted(e).map(t=>`<tr><td>${esc(t.item)}</td><td class="m">${esc(t.size||"")}</td><td class="m">${esc(t.value)} ${esc(t.value?t.unit||"ft-lb":"")}</td><td>${esc(t.notes||"")}</td></tr>`).join("")}</tbody></table>`:""}
+  ${docsOf(e).length?`<h2>Manuals &amp; links</h2><table><tbody>${docsOf(e).map(d=>`<tr><th style="width:28%">${esc(d.label)}</th><td class="m url">${esc(safeUrl(d.url))}</td></tr>`).join("")}</tbody></table>`:""}
+  ${e.notes?`<h2>Notes</h2><p class="notes">${esc(e.notes)}</p>`:""}`;
+}
+const SHEET_CSS=`body{font-family:"Helvetica Neue",Arial,sans-serif;color:#111;margin:0;padding:28px;font-size:12px;line-height:1.4}
+.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:8px;margin-bottom:14px;gap:12px}
+.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#555;font-weight:700}
+h1{font-size:24px;margin:2px 0;text-transform:uppercase;letter-spacing:.02em}.subt{color:#444}.printed{font-size:10px;color:#555;white-space:nowrap}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px;color:#333}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:5px 7px;text-align:left;vertical-align:top}
+th{background:#eee;font-size:10px;text-transform:uppercase;letter-spacing:.05em}.kv th{width:42%;text-transform:none;letter-spacing:0;font-size:11px;background:#f4f4f4}
+.m{font-family:"Courier New",monospace}.blank td{height:22px}.url{word-break:break-all;font-size:10px}.notes{white-space:pre-wrap;border:1px solid #999;padding:8px}
+@media print{body{padding:0}@page{margin:0.5in}tr{break-inside:avoid}}`;
+function sheetHTML(e){return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(dname(e))} service record</title><style>${SHEET_CSS}</style></head><body>${sheetBody(e)}</body></html>`}
+
+async function renderPrint(e){
+  $("#panel").innerHTML=`<section class="panel">
+    <div class="actions"><button class="primary" id="prOne">Print</button><button id="dlOne">Save printable record</button><button id="dlAll">Save all ${K(e).plural.toLowerCase()}</button><span id="dlMsg" class="muted" style="font-size:.88rem"></span></div>
+    <p class="muted" style="margin:0;font-size:.88rem">Print it now, or save a print-ready page to print later (or "Save as PDF"). Blank rows at the bottom let you hand-write services in the shop.</p>
+    <div class="tablewrap" style="border:none"><div class="sheet" id="sheetPrev"></div></div></section>`;
+  const prev=$("#sheetPrev");const sh=prev.attachShadow?prev.attachShadow({mode:"open"}):prev;
+  sh.innerHTML=`<style>${SHEET_CSS.replace("body{","div.root{")}</style><div class="root" style="padding:0">${sheetBody(e)}</div>`;
+  let dl=null;try{dl=await DL}catch(x){}
+  const msg=$("#dlMsg");
+  if(!dl){$("#dlOne").disabled=true;$("#dlAll").disabled=true;msg.textContent="Saving files isn't available in this view.";return}
+  const save=async(name,html)=>{try{await dl.save({filename:name,data:html});msg.textContent="Saved "+name}catch(err){msg.textContent=err.code==="declined"?"Save cancelled.":"Couldn't save: "+(err.message||err.code)}};
+  $("#prOne").onclick=()=>{const w=window.open("","_blank");if(!w){msg.textContent="Your browser blocked the print window. Use Save printable record instead.";return}w.document.write(sheetHTML(e));w.document.close();w.focus();setTimeout(()=>w.print(),300)};
+  const slug=s=>(s||"engine").replace(/[^\w\- ]+/g,"").trim().replace(/\s+/g,"-")||"engine";
+  $("#dlOne").onclick=()=>save(slug(dname(e))+"-service-record.html",sheetHTML(e));
+  $("#dlAll").onclick=()=>{const kd=kindOf(e);const all=engines.filter(x=>kindOf(x)===kd).sort(byName);
+    save((kd==="vehicle"?"vehicle":"small-engine")+"-records.html",`<!doctype html><html><head><meta charset="utf-8"><title>${K(e).plural} service records</title><style>${SHEET_CSS}.pg{break-after:page;page-break-after:always;margin-bottom:40px}.pg:last-child{break-after:auto}</style></head><body>${all.map(x=>`<div class="pg">${sheetBody(x)}</div>`).join("")}</body></html>`)};
+}
+
+init();
+</script>
+<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/apps/sw.js",{scope:"/apps/"}).catch(()=>{}));</script>
+
+</body></html>
