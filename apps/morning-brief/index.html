@@ -66,12 +66,24 @@
         </div>
 
         <form id="mb-form" class="mb" hidden novalidate>
-          <label class="check big"><input type="checkbox" id="mb-enabled"> Email me a Morning Brief every day</label>
+          <label class="check big"><input type="checkbox" id="mb-enabled"> Email me a Morning Brief</label>
 
           <div>
             <span class="field-label">Sent to</span>
             <p class="readonly" id="mb-email"></p>
             <p class="mutedt small">Always your own Google address.</p>
+          </div>
+
+          <div class="row2">
+            <label class="field-label">How often
+              <select class="field" id="mb-frequency">
+                <option value="daily">Every day</option>
+                <option value="weekly">Once a week</option>
+              </select>
+            </label>
+            <label class="field-label" id="mb-weekday-wrap">Day
+              <select class="field" id="mb-weekday"></select>
+            </label>
           </div>
 
           <div class="row2">

@@ -17,13 +17,27 @@
 import { dateKey, daysBetween, fmtLongDate, fmtShortDate, fmtTime } from './time.js';
 
 export const SECTIONS = {
-  today: "Today's schedule",
-  upcoming: 'Coming up (next 14 days)',
+  today: 'Calendar: today (weekly: this week)',
+  upcoming: 'Calendar: coming up',
   lowStock: 'Garage: running low',
   maintenance: 'Maintenance',
   projects: 'Open projects and jobs',
 };
 export const DEFAULT_SECTIONS = Object.fromEntries(Object.keys(SECTIONS).map((k) => [k, true]));
+export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** Section headings in the email, which depend on daily or weekly. */
+function heading(brief, key) {
+  if (key === 'today') return brief.weekly ? 'This week' : "Today's schedule";
+  if (key === 'upcoming') return brief.weekly ? 'Coming up (the week after)' : 'Coming up (next 14 days)';
+  return SECTIONS[key];
+}
+
+/** "YYYY-MM-DD" plus n days. */
+function addDaysKey(key, n) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d) + n * 86400000).toISOString().slice(0, 10);
+}
 
 // ---------- the Logbook's own rules ---------------------------------------------------
 
@@ -64,26 +78,39 @@ function nextOil(e) {
  * projects: Project Tracker projects, each {id, ...data}
  * events: calendar events from eventsInWindow (or null when no calendar)
  * calendar: 'none' | 'ok' | 'error'
+ * frequency: 'daily' (today, then the next 14 days) or 'weekly' (the 7 days
+ *   from today, then the week after)
  */
-export function buildBrief({ records = [], projects = [], events = null, nowMs = Date.now(), tz = 'UTC', sections = DEFAULT_SECTIONS, calendar = 'none' }) {
+export function buildBrief({ records = [], projects = [], events = null, nowMs = Date.now(), tz = 'UTC', sections = DEFAULT_SECTIONS, calendar = 'none', frequency = 'daily' }) {
   const on = { ...DEFAULT_SECTIONS, ...(sections || {}) };
   const today = dateKey(nowMs, tz);
-  const brief = { today, dateLabel: fmtLongDate(today), tz, on, calendar, sections: {} };
+  const weekly = frequency === 'weekly';
+  const lastDay = addDaysKey(today, weekly ? 6 : 0); // end of "today" / "this week"
+  const upTo = addDaysKey(today, weekly ? 13 : 14); // end of "coming up"
+  const brief = { today, dateLabel: weekly ? `Week of ${fmtLongDate(today)}` : fmtLongDate(today), tz, on, calendar, weekly, title: weekly ? 'Weekly Brief' : 'Morning Brief', sections: {} };
+  const endKey = (e) => (e.allDay ? dateKey(e.endMs - 1, tz) : dateKey(Math.max(e.endMs - 1, e.startMs), tz));
 
   if (on.today || on.upcoming) {
     const evs = events || [];
     if (on.today) {
       brief.sections.today = evs
-        .filter((e) => dateKey(e.startMs, tz) <= today && (e.allDay ? dateKey(e.endMs - 1, tz) : dateKey(Math.max(e.endMs - 1, e.startMs), tz)) >= today)
-        .map((e) => ({
-          when: e.allDay ? 'All day' : dateKey(e.startMs, tz) < today ? 'Continues' : fmtTime(e.startMs, tz),
-          title: e.title,
-          detail: e.location,
-        }));
+        .filter((e) => dateKey(e.startMs, tz) <= lastDay && endKey(e) >= today)
+        .map((e) => {
+          const started = dateKey(e.startMs, tz) < today;
+          if (!weekly) {
+            return { when: e.allDay ? 'All day' : started ? 'Continues' : fmtTime(e.startMs, tz), title: e.title, detail: e.location };
+          }
+          const day = fmtShortDate(started ? today : dateKey(e.startMs, tz)).split(',')[0];
+          return {
+            when: started ? 'Ongoing' : e.allDay ? day : `${day} ${fmtTime(e.startMs, tz)}`,
+            title: e.title,
+            detail: [weekly && !started ? fmtShortDate(dateKey(e.startMs, tz)).split(', ')[1] : '', e.location].filter(Boolean).join(' · '),
+          };
+        });
     }
     if (on.upcoming) {
       brief.sections.upcoming = evs
-        .filter((e) => dateKey(e.startMs, tz) > today)
+        .filter((e) => dateKey(e.startMs, tz) > lastDay && dateKey(e.startMs, tz) <= upTo)
         .slice(0, 10)
         .map((e) => {
           const key = dateKey(e.startMs, tz);
@@ -164,7 +191,7 @@ export function buildBrief({ records = [], projects = [], events = null, nowMs =
 
   const s = brief.sections;
   const bits = [];
-  if (s.today) bits.push(`${s.today.length} event${s.today.length === 1 ? '' : 's'} today`);
+  if (s.today) bits.push(`${s.today.length} event${s.today.length === 1 ? '' : 's'} ${weekly ? 'this week' : 'today'}`);
   if (s.lowStock && s.lowStock.length) bits.push(`${s.lowStock.length} running low`);
   if (s.maintenance && s.maintenance.length) bits.push(`${s.maintenance.length} service${s.maintenance.length === 1 ? '' : 's'} due`);
   if (s.projects && s.projects.length) bits.push(`${s.projects.length} open project${s.projects.length === 1 ? '' : 's'}`);
@@ -210,10 +237,10 @@ export function renderBrief(brief, { siteUrl = 'https://garageterminal.com' } = 
     : brief.calendar === 'error' ? "Your calendar couldn't be read this morning." : null;
 
   if (s.today) {
-    parts.push(section(SECTIONS.today, s.today.length ? rows(s.today, (e) => row(e.when, e.title, e.detail)) : '', calNote || 'Nothing on the calendar today.'));
+    parts.push(section(heading(brief, 'today'), s.today.length ? rows(s.today, (e) => row(e.when, e.title, e.detail)) : '', calNote || (brief.weekly ? 'Nothing on the calendar this week.' : 'Nothing on the calendar today.')));
   }
   if (s.upcoming) {
-    parts.push(section(SECTIONS.upcoming, s.upcoming.length ? rows(s.upcoming, (e) => row('', e.title, `${e.when} · ${e.detail}`)) : '', calNote || 'Nothing in the next two weeks.'));
+    parts.push(section(heading(brief, 'upcoming'), s.upcoming.length ? rows(s.upcoming, (e) => row('', e.title, `${e.when} · ${e.detail}`)) : '', calNote || (brief.weekly ? 'Nothing the week after.' : 'Nothing in the next two weeks.')));
   }
   if (s.lowStock) {
     parts.push(section(SECTIONS.lowStock, s.lowStock.length ? rows(s.lowStock, (p) => row('', p.name,
@@ -228,14 +255,14 @@ export function renderBrief(brief, { siteUrl = 'https://garageterminal.com' } = 
     parts.push(section(SECTIONS.projects, s.projects.length ? rows(s.projects, (p) => row('', p.title, p.detail, p.urgent ? pill('Due', 'over') : '')) : '', 'No open projects.'));
   }
 
-  const subject = `Morning Brief · ${fmtShortDate(brief.today)}${brief.summary ? ` · ${brief.summary}` : ''}`;
+  const subject = `${brief.title || 'Morning Brief'} · ${brief.weekly ? 'week of ' : ''}${fmtShortDate(brief.today)}${brief.summary ? ` · ${brief.summary}` : ''}`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:${C.bg}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.bg}"><tr><td align="center" style="padding:20px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:${C.card};border-radius:12px;overflow:hidden">
 <tr><td style="background:${C.head};padding:28px 28px 24px;${FONT}">
 <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#b9c3d1">${esc(brief.dateLabel)}</div>
-<div style="margin-top:6px;font-size:30px;font-weight:700;color:#ffffff">Morning Brief</div>
+<div style="margin-top:6px;font-size:30px;font-weight:700;color:#ffffff">${esc(brief.title || 'Morning Brief')}</div>
 ${brief.summary ? `<div style="margin-top:8px;font-size:15px;color:#d6dce5">${esc(brief.summary)}</div>` : ''}
 </td></tr>
 ${parts.join('\n')}
@@ -245,14 +272,14 @@ From your Garage Terminal Logbook, Project Tracker and calendar.<br>
 </td></tr>
 </table></td></tr></table></body></html>`;
 
-  const lines = [`MORNING BRIEF · ${brief.dateLabel}`, brief.summary, ''];
+  const lines = [`${(brief.title || 'Morning Brief').toUpperCase()} · ${brief.dateLabel}`, brief.summary, ''];
   const add = (title, items, fmt, empty) => {
     lines.push(title.toUpperCase());
     if (items.length) items.forEach((x) => lines.push(`- ${fmt(x)}`)); else lines.push(empty);
     lines.push('');
   };
-  if (s.today) add(SECTIONS.today, s.today, (e) => `${e.when}  ${e.title}${e.detail ? ` (${e.detail})` : ''}`, calNote || 'Nothing on the calendar today.');
-  if (s.upcoming) add(SECTIONS.upcoming, s.upcoming, (e) => `${e.title}: ${e.when}, ${e.detail}`, calNote || 'Nothing in the next two weeks.');
+  if (s.today) add(heading(brief, 'today'), s.today, (e) => `${e.when}  ${e.title}${e.detail ? ` (${e.detail})` : ''}`, calNote || (brief.weekly ? 'Nothing on the calendar this week.' : 'Nothing on the calendar today.'));
+  if (s.upcoming) add(heading(brief, 'upcoming'), s.upcoming, (e) => `${e.title}: ${e.when}, ${e.detail}`, calNote || (brief.weekly ? 'Nothing the week after.' : 'Nothing in the next two weeks.'));
   if (s.lowStock) add(SECTIONS.lowStock, s.lowStock, (p) => `${p.name}${p.number ? ` #${p.number}` : ''}: ${p.qty} on hand (reorder at ${p.reorderAt})`, 'Nothing below its reorder level.');
   if (s.maintenance) add(SECTIONS.maintenance, s.maintenance, (m) => `${m.machine}: ${m.item}, ${m.detail}`, 'Everything is on schedule.');
   if (s.projects) add(SECTIONS.projects, s.projects, (p) => `${p.title}: ${p.detail}`, 'No open projects.');

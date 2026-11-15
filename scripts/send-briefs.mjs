@@ -2,6 +2,7 @@
 //
 // Run every 30 minutes by .github/workflows/morning-brief.yml. For each member
 // who turned the brief on (briefs/{uid}, set on /apps/morning-brief):
+//   - daily, or weekly on their chosen day (frequency, weekday)
 //   - due when it's past their chosen hour in their time zone, it hasn't gone
 //     out today, and it's no more than 4 hours late (so turning it on in the
 //     evening doesn't send one right away); "Send a test now" sends at once
@@ -67,7 +68,9 @@ for (const [uid, snap] of docs) {
   const hour = Number.isInteger(b.hour) ? b.hour : 6;
   const local = zonedParts(nowMs, tz);
   const dueAt = zonedToMs(local.y, local.m, local.d, hour, 0, 0, tz);
-  const due = b.enabled === true && status.lastSentDate !== today && nowMs >= dueAt && nowMs < dueAt + LATE_HOURS * 3600000;
+  const weekly = b.frequency === 'weekly';
+  const rightDay = !weekly || local.dow === (Number.isInteger(b.weekday) ? b.weekday : 0);
+  const due = b.enabled === true && rightDay && status.lastSentDate !== today && nowMs >= dueAt && nowMs < dueAt + LATE_HOURS * 3600000;
   const test = b.sendNow === true;
   if (!due && !test) { tally.notDue++; continue; }
 
@@ -95,7 +98,7 @@ for (const [uid, snap] of docs) {
       }
     }
 
-    const brief = buildBrief({ records, projects, events, nowMs, tz, sections: b.sections, calendar });
+    const brief = buildBrief({ records, projects, events, nowMs, tz, sections: b.sections, calendar, frequency: weekly ? 'weekly' : 'daily' });
     const mail = renderBrief(brief, { siteUrl: SITE });
     await sendMail({
       apiKey, from: FROM, to: account.email, replyTo: REPLY_TO,

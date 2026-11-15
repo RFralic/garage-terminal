@@ -68,6 +68,15 @@ describe('Morning Brief settings', () => {
     await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { updatedAt: new Date(0) })));
   });
 
+  test('daily or weekly, on a real weekday', async () => {
+    const db = as('bob');
+    await assertSucceeds(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { frequency: 'weekly', weekday: 0 })));
+    await assertSucceeds(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { frequency: 'daily', weekday: 6 })));
+    await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { frequency: 'monthly', weekday: 1 })));
+    await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { frequency: 'weekly', weekday: 7 })));
+    await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { frequency: 'weekly', weekday: '1' })));
+  });
+
   test('members cannot write the send status', async () => {
     await assertFails(setDoc(doc(as('bob'), 'briefStatus', 'bob'), { lastResult: 'sent' }));
   });
