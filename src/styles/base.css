@@ -63,7 +63,11 @@ section.block{padding-bottom:72px}
 .mutedt{color:var(--muted)}
 
 footer{border-top:1px solid var(--line)}
-footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding-block:24px;font-family:var(--mono);font-size:13px;color:var(--muted)}
+footer .wrap{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding-block:24px;font-family:var(--mono);font-size:13px;color:var(--muted)}
+/* Support address in every footer: a full-size tap target, green like other links */
+footer .footer-mail{color:var(--green);text-decoration:none;display:inline-flex;align-items:center;min-height:44px;margin-block:-12px}
+footer .footer-mail:hover{text-decoration:underline}
+footer .footer-mail:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:4px}
 
 /* Current page in the top menu */
 .links a[aria-current="page"]{color:var(--green)}
