@@ -415,6 +415,14 @@ service cloud.firestore {
     // Private to the member: nobody else can read or write them, not even the
     // sysop. One doc per project, in the app's own format
     // (src/apps/homeprojects-backend.js).
+    //
+    // Doc kinds (field `kind`): "room" and "project" (with tasks), and
+    // "upkeep" for recurring maintenance reminders:
+    //   { kind: "upkeep", name, every: 1-999, unit: "days"|"weeks"|"months"|"years",
+    //     last: "YYYY-MM-DD" | "" (latest history date), location, part, store, url,
+    //     notes, history: [{ id, date: "YYYY-MM-DD", note }] }
+    // Next due = last + every × unit; "" last means never logged. The app flags
+    // a reminder as due soon within 20% of its interval (3–14 days).
     match /homeprojects/{uid}/projects/{projectId} {
       allow read, delete: if isSelf(uid);
       allow create, update: if isSelf(uid) && projectId.matches('^[A-Za-z0-9_-]{1,64}$');

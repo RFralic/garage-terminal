@@ -60,7 +60,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .ghost{background:transparent;border-color:transparent;color:var(--steel)}
 .danger{color:var(--accent);border-color:var(--accent);background:transparent}
 .banner{border:1px solid var(--warn);border-left-width:4px;background:var(--surface-2);padding:10px 14px;border-radius:6px;font-size:.9rem;margin-bottom:16px}
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+.tabs{display:flex;flex-wrap:wrap;gap:0 4px;border-bottom:1px solid var(--line);margin-bottom:18px}
 .tabs button{border:none;border-bottom:3px solid transparent;border-radius:0;background:transparent;font-family:var(--f-display);font-size:1rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 12px;white-space:nowrap}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
 .kindtabs button{font-size:1.1rem}
@@ -132,7 +132,7 @@ textarea{min-height:160px;resize:vertical;line-height:1.5}
 .editor .fields{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
 .editor input{background:var(--surface)}
 .seg{display:inline-grid;grid-auto-flow:column;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px}
-.seg button{border:0;min-height:36px;padding:0 12px;font-family:var(--f-display);text-transform:uppercase;letter-spacing:.04em;background:transparent;color:var(--muted)}
+.seg button{border:0;min-height:36px;padding:0 12px;white-space:nowrap;font-family:var(--f-display);text-transform:uppercase;letter-spacing:.04em;background:transparent;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--steel);color:var(--bg)}
 .totals{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.9rem;color:var(--muted)}
 .totals b{font-family:var(--f-mono);font-weight:500;color:var(--ink)}
@@ -140,6 +140,22 @@ textarea{min-height:160px;resize:vertical;line-height:1.5}
 .pill{min-height:36px;padding:0 13px;border-radius:999px;font-weight:500;font-size:.88rem;background:var(--surface)}
 .pill[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:var(--bg)}
 .storehead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:6px}
+/* upkeep */
+.cnt.hot{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.urow .main{padding-left:14px}
+.btn.sm{min-height:36px;padding:0 12px;font-size:.85rem}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+dl.kv{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 16px;font-size:.92rem}
+dl.kv dt{color:var(--muted);font:600 .75rem var(--f-display);text-transform:uppercase;letter-spacing:.07em;padding-top:2px}
+dl.kv dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+.logform{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:end;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:12px}
+.logform input{background:var(--surface)}
+.hist .item{padding-left:14px}
+.hist .d{flex:none;width:7.5em;font-family:var(--f-mono);font-size:.88rem}
+.secthead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.toast button{margin-left:12px;min-height:32px;padding:0 10px;background:transparent;color:var(--bg);border-color:var(--bg)}
+@media (max-width:640px){.urow{flex-wrap:wrap}.urow .main{flex-basis:100%;padding-bottom:2px}.urow .side{width:100%;justify-content:space-between;padding:0 10px 10px 14px}.logform{grid-template-columns:1fr}}
+@media (max-width:520px){.kindtabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0}.kindtabs button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px}.kindtabs .cnt{margin-left:0}}
 .shopfilters{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 14px}
 .shopfilters select:disabled{opacity:.6}
 /* media */
@@ -171,7 +187,7 @@ textarea{min-height:160px;resize:vertical;line-height:1.5}
 .saving{font-size:.8rem;color:var(--muted);min-height:1.2em}
 @media (prefers-reduced-motion:no-preference){.card{transition:transform .12s ease,box-shadow .12s ease}.card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.08)}}
 @media (max-width:640px){.shopform{grid-template-columns:1fr 1fr}.shopform .nm,.shopform button{grid-column:1/-1}.linkform{grid-template-columns:1fr}}
-@media (max-width:520px){h1{font-size:1.6rem}.logo{width:42px;height:42px}section.panel{padding:14px}}
+@media (max-width:520px){.tabs button,.kindtabs button{font-size:.95rem;padding:10px 7px}.tabs .cnt{margin-left:2px;padding:1px 6px}h1{font-size:1.6rem}.logo{width:42px;height:42px}section.panel{padding:14px}}
 </style>
 <style>
 /* Garage Terminal additions: back link + sync status bar */
@@ -192,7 +208,7 @@ textarea{min-height:160px;resize:vertical;line-height:1.5}
   <header class="top">
     <div class="brand">
       <svg class="logo" viewBox="0 0 52 52" aria-hidden="true"><rect width="52" height="52" rx="12" fill="var(--steel)"></rect><path d="M12 25 26 13l14 12" fill="none" stroke="var(--bg)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16 23v16h20V23" fill="none" stroke="var(--bg)" stroke-width="3.4" stroke-linejoin="round"></path><rect x="22.5" y="29" width="7" height="10" fill="var(--accent)"></rect></svg>
-      <div><h1>Home Projects</h1><div class="sub">Rooms · tasks · shopping lists</div></div>
+      <div><h1>Home Projects</h1><div class="sub">Rooms · tasks · upkeep · shopping</div></div>
     </div>
     <div class="actions"><span class="saving" id="saving" aria-live="polite"></span><span class="actions" id="topActions"></span></div>
   </header>
@@ -235,7 +251,7 @@ const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
 const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
 
 let db=null,col=null,assets=null,items=[],offline=false,loaded=false,deferRender=false;
-let listTab=(()=>{const v=lsGet("hp-tab");return v==="project"||v==="shop"?v:"room"})();
+let listTab=(()=>{const v=lsGet("hp-tab");return v==="project"||v==="shop"||v==="upkeep"?v:"room"})();
 let view={pid:null,tid:null,ptab:"tasks",ttab:"todo",edit:false,confirm:null,newKind:null,editShop:null,shopStore:"all",showGot:false,shopP:"all",shopT:"all"};
 let lb=null; // {idx, confirm}
 const timers={},writing={},again={};
@@ -289,6 +305,7 @@ async function init(){
     items.forEach(l=>{if(busy(l.id)&&!next.find(x=>x.id===l.id))next.push(l)});
     items=next;
     if(view.pid&&!getP(view.pid)){view.pid=null;view.tid=null}
+    if(view.rid&&!getP(view.rid))view.rid=null;
     softRender();
   },err=>{clearTimeout(fb);goOffline("Saved projects couldn't load ("+(err&&err.message||"error")+"). Changes are kept in this browser only.")});
 }
@@ -307,7 +324,7 @@ function stats(p){
 }
 const isLate=p=>p.target&&p.status!=="Done"&&p.target<today();
 const kindWord=(k,pl)=>k==="room"?(pl?"rooms":"room"):(pl?"projects":"project");
-const allStores=()=>{const set=new Set();items.forEach(p=>(p.tasks||[]).forEach(t=>(t.shop||[]).forEach(s=>{if((s.store||"").trim())set.add(s.store.trim())})));return [...set].sort()};
+const allStores=()=>{const set=new Set();items.forEach(p=>{if((p.kind==="upkeep")&&(p.store||"").trim())set.add(p.store.trim());(p.tasks||[]).forEach(t=>(t.shop||[]).forEach(s=>{if((s.store||"").trim())set.add(s.store.trim())}))});return [...set].sort()};
 const storeList=()=>`<datalist id="stores">${allStores().map(s=>`<option value="${esc(s)}"></option>`).join("")}</datalist>`;
 const checkBox=(on,act,attrs,label)=>`<button class="check" data-act="${act}" ${attrs} role="checkbox" aria-checked="${!!on}" aria-label="${esc(label)}"><span class="box ${on?"on":""}">✓</span></button>`;
 
@@ -315,8 +332,9 @@ const checkBox=(on,act,attrs,label)=>`<button class="check" data-act="${act}" ${
 function render(){
   const top=$("#topActions");
   if(!loaded){return}
+  if(view.rid){const r=getP(view.rid);if(r){top.innerHTML=`<button class="ghost" data-act="u-back">← ${view.uFrom&&getP(view.uFrom)?esc(getP(view.uFrom).name):"Upkeep"}</button>`;renderUpkeep(r);return}view.rid=null}
   if(!view.pid){
-    top.innerHTML=listTab==="shop"?"":`<button class="primary" data-act="new" data-kind="${listTab}">+ Add ${kindWord(listTab)}</button>`;
+    top.innerHTML=listTab==="shop"?"":listTab==="upkeep"?`<button class="primary" data-act="u-new">+ Add reminder</button>`:`<button class="primary" data-act="new" data-kind="${listTab}">+ Add ${kindWord(listTab)}</button>`;
     renderList();return;
   }
   const p=getP(view.pid);if(!p){view.pid=null;view.tid=null;return render()}
@@ -332,9 +350,10 @@ function render(){
 }
 
 function renderList(){
-  const count=k=>k==="shop"?items.reduce((n,p)=>n+stats(p).shopLeft,0):items.filter(p=>p.kind===k).length;
-  const tabs=`<nav class="tabs kindtabs" role="tablist">${[["room","Rooms"],["project","Projects"],["shop","Shopping list"]].map(([k,l])=>`<button role="tab" data-act="ltab" data-v="${k}" aria-selected="${k===listTab}">${l} <span class="cnt">${count(k)}</span></button>`).join("")}</nav>`;
+  const count=k=>k==="shop"?items.reduce((n,p)=>n+stats(p).shopLeft,0):k==="upkeep"?upkeepDue():items.filter(p=>p.kind===k).length;
+  const tabs=`<nav class="tabs kindtabs" role="tablist">${[["room","Rooms"],["project","Projects"],["upkeep","Upkeep"],["shop","Shopping"]].map(([k,l])=>`<button role="tab" data-act="ltab" data-v="${k}" aria-selected="${k===listTab}">${l} <span class="cnt ${k==="upkeep"&&count(k)?"hot":""}" ${k==="upkeep"?'title="Due soon or overdue"':""}>${count(k)}</span></button>`).join("")}</nav>`;
   if(listTab==="shop"){app.innerHTML=tabs+renderShopAll();return}
+  if(listTab==="upkeep"){app.innerHTML=tabs+renderUpkeepList();if(view.newKind==="upkeep")setTimeout(()=>{const i=$("#nu-name");i&&!i.value&&i.focus()},0);return}
   const k=listTab;
   const newForm=view.newKind===k?`<section class="panel" style="margin-bottom:16px"><form data-form="new-p" class="vsec">
       <h3>New ${kindWord(k)}</h3>
@@ -445,7 +464,7 @@ function taskList(p){
       <span class="m">${td.length?`<span>${td.length-open} of ${td.length} to-dos</span>`:""}${sh?`<span>${sh} to buy</span>`:""}${md?`<span>${md} links &amp; pics</span>`:""}${!td.length&&!sh&&!md?"<span>Nothing added yet</span>":""}</span></button>
       <div class="side"><span class="st ${T_CLS[t.status]||"plan"}">${esc(t.status||"To do")}</span><span class="muted" aria-hidden="true">›</span></div></div>`}).join("")}</div>`
     :`<p class="muted">No tasks yet. Break the job into steps you can check off, like "Pull old vanity" or "Run new supply lines".</p>`}
-  </section>`;
+  </section>${roomUpkeep(p)}`;
 }
 function notesPanel(val,label,ph){
   return `<section class="panel"><label>${label}<textarea id="notes" data-live="notes" placeholder="${esc(ph)}">${esc(val)}</textarea></label><p class="note">Saves as you type.</p></section>`;
@@ -453,7 +472,7 @@ function notesPanel(val,label,ph){
 
 function renderTask(p,t){
   const td=t.todos||[],sh=t.shop||[];
-  const tabs=[["todo","To-do",td.filter(x=>!x.done).length],["shop","Shopping",sh.filter(x=>!x.got).length],["notes","Notes",null],["media","Links & pics",(t.links||[]).length+(t.photos||[]).length]];
+  const tabs=[["todo","To-do",td.filter(x=>!x.done).length],["shop","Shopping",sh.filter(x=>!x.got).length],["notes","Notes",null],["media","Links",(t.links||[]).length+(t.photos||[]).length]];
   app.innerHTML=`<div class="head"><div class="t">
       <span class="eyebrow">${esc(p.name)} › Task</span>
       ${view.edit?`<form data-form="edit-t" class="addrow"><input id="et-title" name="title" required maxlength="100" value="${esc(t.title)}" aria-label="Task name"><button class="primary" type="submit">Save</button><button type="button" class="ghost" data-act="edit-cancel">Cancel</button></form>
@@ -590,8 +609,148 @@ function example(kind){
     ]});
 }
 
+/* ---------- upkeep reminders (docs with kind "upkeep") ---------- */
+const UNITS=[["days","day"],["weeks","week"],["months","month"],["years","year"]];
+const UDAYS={days:1,weeks:7,months:30.4,years:365};
+const PRESETS=[["Furnace filter",3,"months","16x25x1"],["Fridge water filter",6,"months",""],["Test smoke & CO alarms",1,"months",""],["Smoke alarm batteries",1,"years","9V"],["Water softener salt",1,"months",""],["Whole-house water filter",6,"months",""],["Range hood filter",3,"months",""],["Dryer vent cleaning",1,"years",""],["Gutter cleaning",6,"months",""],["HVAC service",1,"years",""]];
+const ups=()=>items.filter(x=>x.kind==="upkeep");
+const dOf=s=>new Date(String(s).slice(0,10)+"T00:00:00");
+const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function addInt(s,n,u){const d=dOf(s);n=Math.max(1,Math.round(Number(n)||1));
+  if(u==="days"||u==="weeks"){d.setDate(d.getDate()+n*(u==="weeks"?7:1));return ymd(d)}
+  const m=n*(u==="years"?12:1),day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+m);
+  d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));return ymd(d)}
+const plural=(n,w)=>n+" "+w+(n===1?"":"s");
+const everyText=r=>{const n=Math.max(1,Math.round(Number(r.every)||1));const w=(UNITS.find(u=>u[0]===r.unit)||UNITS[2])[1];return n===1?"Every "+w:"Every "+n+" "+w+"s"};
+function syncLast(r){const h=(r.history||[]).map(x=>x.date).filter(Boolean).sort();r.last=h.length?h[h.length-1]:""}
+function ustate(r){
+  if(!r.last)return {cls:"plan",label:"Not logged yet",ord:-.5,due:null,need:false};
+  const due=addInt(r.last,r.every,r.unit);const days=Math.round((dOf(due)-dOf(today()))/864e5);
+  const w=Math.min(14,Math.max(3,Math.round((Number(r.every)||1)*(UDAYS[r.unit]||30)*.2)));
+  if(days<0)return {cls:"late",label:"Overdue "+plural(-days,"day"),ord:days,due,need:true,over:true};
+  if(days===0)return {cls:"prog",label:"Due today",ord:0,due,need:true};
+  if(days<=w)return {cls:"prog",label:"Due in "+plural(days,"day"),ord:days,due,need:true};
+  return {cls:"done",label:"Due "+fmtDate(due),ord:days,due,need:false};
+}
+const upkeepDue=()=>ups().filter(r=>ustate(r).need).length;
+const roomNames=()=>items.filter(p=>p.kind==="room").map(p=>p.name).filter(Boolean).sort();
+function urow(r){const s=ustate(r);
+  return `<div class="item urow"><button class="main" data-act="u-open" data-id="${esc(r.id)}"><span class="t">${esc(r.name||"Untitled")}</span>
+    <span class="m"><span>${everyText(r)}</span>${r.location?`<span>${esc(r.location)}</span>`:""}${r.part?`<span class="mono">${esc(r.part)}</span>`:""}<span>${r.last?"Last "+fmtDate(r.last):"Never logged"}</span></span></button>
+    <div class="side"><span class="st ${s.cls}">${s.label}</span><button class="btn sm" data-act="u-done" data-id="${esc(r.id)}" aria-label="Log ${esc(r.name)} done today">✓ Done</button></div></div>`}
+function sortUps(list){return list.sort((a,b)=>ustate(a).ord-ustate(b).ord||(a.name||"").localeCompare(b.name||""))}
+function newUpkeepForm(){const pre=view.uPrefill||{};
+  return `<section class="panel" style="margin-bottom:16px"><form data-form="u-new" class="vsec">
+    <div class="secthead"><h3>New reminder</h3>${ups().length?`<button type="button" class="ghost" data-act="u-new-cancel">Cancel</button>`:""}</div>
+    <div class="vsec"><span class="eyebrow">Common ones</span><div class="presets">${PRESETS.map((x,i)=>`<button type="button" class="pill" data-act="u-preset" data-i="${i}">${esc(x[0])}</button>`).join("")}</div></div>
+    <div class="fields">
+      <label class="span2">What needs doing<input id="nu-name" name="name" required maxlength="80" placeholder="Change furnace filter" value="${esc(pre.name)}"></label>
+      <label>Every<input id="nu-every" name="every" type="number" inputmode="numeric" min="1" max="999" step="1" value="${esc(pre.every||3)}" required></label>
+      <label>Unit<select id="nu-unit" name="unit">${UNITS.map(([u])=>`<option value="${u}" ${(pre.unit||"months")===u?"selected":""}>${u[0].toUpperCase()+u.slice(1)}</option>`).join("")}</select></label>
+      <label>Last done<input id="nu-last" name="last" type="date" max="${today()}" value="${esc(pre.last)}"></label>
+      <label>Location<input id="nu-loc" name="location" list="roomlist" maxlength="60" placeholder="Basement" value="${esc(pre.location)}"></label>
+      <label class="span2">Part / size<input id="nu-part" name="part" maxlength="80" placeholder="${esc(pre.partPh||"Filter size, battery type, model #")}" value="${esc(pre.part)}"></label>
+    </div>
+    <datalist id="roomlist">${roomNames().map(n=>`<option value="${esc(n)}"></option>`).join("")}</datalist>
+    <p class="note">Leave "Last done" blank if you're not sure. It'll show as not logged until you tap Done.</p>
+    <div class="actions"><button class="primary" type="submit">Add reminder</button></div>
+  </form></section>`}
+function renderUpkeepList(){
+  const list=sortUps(ups());
+  const showNew=view.newKind==="upkeep"||!list.length;
+  if(!list.length)return (showNew?newUpkeepForm():"")+`<p class="muted desc">Set up recurring chores like filters and batteries. Each one shows when it's next due, and the tab badge counts what's due soon or overdue.</p>`;
+  const st=list.map(ustate);const over=st.filter(s=>s.over).length,soon=st.filter(s=>s.need&&!s.over).length;
+  const need=list.filter(r=>{const s=ustate(r);return s.need||!r.last}),later=list.filter(r=>!need.includes(r));
+  return (showNew?newUpkeepForm():"")+`<div class="status">
+      <div class="stat ${over?"hot":"ok"}"><small>Overdue</small><b>${over}</b></div>
+      <div class="stat ${soon?"warn":""}"><small>Due soon</small><b>${soon}</b></div>
+      <div class="stat"><small>Reminders</small><b>${list.length}</b></div></div>
+    ${need.length?`<div class="vsec" style="margin-bottom:16px"><h3>Needs attention</h3><div class="list">${need.map(urow).join("")}</div></div>`:""}
+    ${later.length?`<div class="vsec"><h3>Coming up</h3><div class="list">${later.map(urow).join("")}</div></div>`:""}`;
+}
+function roomUpkeep(p){
+  if(p.kind!=="room")return "";
+  const nm=(p.name||"").trim().toLowerCase();
+  const list=sortUps(ups().filter(r=>(r.location||"").trim().toLowerCase()===nm&&nm));
+  return `<section class="panel" style="margin-top:16px"><div class="secthead"><h3>Upkeep in this room</h3><button class="btn sm" data-act="u-new-here">+ Reminder</button></div>
+    ${list.length?`<div class="list">${list.map(urow).join("")}</div>`:`<p class="muted">No reminders here yet. Add one, like a filter or alarm battery, with this room as its location.</p>`}</section>`;
+}
+function renderUpkeep(r){
+  const s=ustate(r);const hist=[...(r.history||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const u=safeUrl(r.url);
+  app.innerHTML=`<div class="head"><div class="t">
+      <span class="eyebrow">Upkeep reminder${r.location?" · "+esc(r.location):""}</span>
+      <h2>${esc(r.name||"Untitled")}</h2>
+      <div class="meta"><span class="st ${s.cls}">${s.label}</span><span>${everyText(r)}</span></div>
+    </div>${view.edit?"":`<button data-act="edit">Edit</button>`}</div>
+    ${view.edit?`<section class="panel"><form data-form="u-edit" class="vsec"><h3>Details</h3>
+      <div class="fields">
+        <label class="span2">What needs doing<input id="eu-name" name="name" required maxlength="80" value="${esc(r.name)}"></label>
+        <label>Every<input id="eu-every" name="every" type="number" inputmode="numeric" min="1" max="999" step="1" value="${esc(r.every)}" required></label>
+        <label>Unit<select id="eu-unit" name="unit">${UNITS.map(([x])=>`<option value="${x}" ${r.unit===x?"selected":""}>${x[0].toUpperCase()+x.slice(1)}</option>`).join("")}</select></label>
+        <label>Location<input id="eu-loc" name="location" list="roomlist" maxlength="60" value="${esc(r.location)}"></label>
+        <label>Part / size<input id="eu-part" name="part" maxlength="80" value="${esc(r.part)}"></label>
+        <label>Where to buy<input id="eu-store" name="store" list="stores" maxlength="60" value="${esc(r.store)}" placeholder="Home Depot"></label>
+        <label>Product link<input id="eu-url" name="url" inputmode="url" maxlength="500" value="${esc(r.url)}" placeholder="https://"></label>
+        <label class="span2">Notes<textarea id="eu-notes" name="notes" style="min-height:90px" maxlength="1000" placeholder="Arrow on filter points toward the furnace">${esc(r.notes)}</textarea></label>
+      </div><datalist id="roomlist">${roomNames().map(n=>`<option value="${esc(n)}"></option>`).join("")}</datalist>${storeList()}
+      <div class="between"><div class="actions"><button class="primary" type="submit">Save</button><button type="button" class="ghost" data-act="edit-cancel">Cancel</button></div>
+      ${view.confirm==="u"?`<div class="confirm"><span>Delete this reminder and its log?</span><button type="button" class="danger" data-act="u-del-yes">Delete</button><button type="button" data-act="confirm-no">Keep</button></div>`:`<button type="button" class="danger" data-act="u-del">Delete reminder</button>`}</div>
+    </form></section>`
+    :`<div class="status">
+      <div class="stat ${s.over?"hot":s.need?"warn":r.last?"ok":""}"><small>Next due</small><b>${s.due?fmtDate(s.due):"—"}</b></div>
+      <div class="stat"><small>Last done</small><b>${r.last?fmtDate(r.last):"—"}</b></div>
+      <div class="stat"><small>Times logged</small><b>${hist.length}</b></div></div>
+    <section class="panel">
+      <form data-form="u-log" class="logform">
+        <label>Done on<input id="ul-date" name="date" type="date" max="${today()}" value="${today()}" required></label>
+        <label>Note<input id="ul-note" name="note" maxlength="140" placeholder="Optional, e.g. Filtrete MPR 1500"></label>
+        <button class="primary" type="submit">Log as done</button>
+      </form>
+      ${r.part||r.store||u||r.notes?`<dl class="kv">${r.part?`<dt>Part / size</dt><dd class="mono">${esc(r.part)}</dd>`:""}${r.store?`<dt>Where to buy</dt><dd>${esc(r.store)}</dd>`:""}${u?`<dt>Link</dt><dd><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(u)||u)} ↗</a></dd>`:""}${r.notes?`<dt>Notes</dt><dd>${esc(r.notes)}</dd>`:""}</dl>`
+        :`<p class="muted small">Tap Edit to add the part size, where to buy it and notes.</p>`}
+      <div class="vsec"><h3>Log</h3>${hist.length?`<div class="list hist">${hist.map(h=>`<div class="item"><span class="d">${fmtDate(h.date)}</span><div class="main static"><span class="small ${h.note?"":"muted"}">${h.note?esc(h.note):"Done"}</span></div><div class="side"><button class="x" data-act="u-hist-del" data-id="${esc(h.id)}" aria-label="Remove log entry from ${fmtDate(h.date)}">×</button></div></div>`).join("")}</div>`:`<p class="muted">Nothing logged yet.</p>`}</div>
+    </section>`}`;
+}
+function logDone(r,date,note){
+  const prev=JSON.parse(JSON.stringify(r.history||[]));
+  (r.history=r.history||[]).push({id:uid(),date,note:note||""});syncLast(r);save(r,true);render();
+  const s=ustate(r);
+  const el=$("#toast");el.innerHTML="";el.append(document.createTextNode("Logged. "+(s.due?"Next due "+fmtDate(s.due)+".":"")));
+  const b=document.createElement("button");b.textContent="Undo";b.onclick=()=>{r.history=prev;syncLast(r);save(r,true);el.hidden=true;render()};el.append(b);
+  el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,6000);
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-act]");if(!b||!/^u-/.test(b.dataset.act))return;
+  const a=b.dataset.act,d=b.dataset;const r=view.rid?getP(view.rid):null;
+  switch(a){
+    case"u-new":listTab="upkeep";lsSet("hp-tab","upkeep");view.uPrefill=null;go({pid:null,tid:null,newKind:"upkeep"});break;
+    case"u-new-here":{const p=getP(view.pid);listTab="upkeep";lsSet("hp-tab","upkeep");view.uPrefill={location:p?p.name:""};go({pid:null,tid:null,newKind:"upkeep"});break}
+    case"u-new-cancel":view.newKind=null;view.uPrefill=null;render();break;
+    case"u-preset":{const x=PRESETS[+d.i];const f=(id,v)=>{const el=$(id);if(el)el.value=v};f("#nu-name",x[0]);f("#nu-every",x[1]);f("#nu-unit",x[2]);const pt=$("#nu-part");if(pt){pt.placeholder=x[3]?"e.g. "+x[3]:"Filter size, battery type, model #"}const l=$("#nu-last");l&&l.focus();break}
+    case"u-open":view.uFrom=view.pid&&!view.tid?view.pid:null;go({rid:d.id,pid:null,tid:null});break;
+    case"u-back":{const from=view.uFrom&&getP(view.uFrom)?view.uFrom:null;view.uFrom=null;if(!from){listTab="upkeep"}go({rid:null,pid:from,tid:null,ptab:"tasks"});break}
+    case"u-done":{const x=getP(d.id);if(x)logDone(x,today(),"");break}
+    case"u-del":view.confirm="u";render();break;
+    case"u-del-yes":if(r){removeP(r.id);listTab="upkeep";toast("Reminder deleted");view.uFrom=null;go({rid:null,pid:null,tid:null})}break;
+    case"u-hist-del":if(r){r.history=(r.history||[]).filter(h=>h.id!==d.id);syncLast(r);save(r,true);render()}break;
+  }
+});
+document.addEventListener("submit",e=>{
+  const f=e.target.closest("[data-form]");if(!f||!/^u-/.test(f.dataset.form))return;
+  const v=Object.fromEntries(new FormData(f).entries());Object.keys(v).forEach(k=>v[k]=String(v[k]).trim());
+  const every=Math.max(1,Math.min(999,Math.round(num(v.every,1))||1)),unit=UNITS.some(u=>u[0]===v.unit)?v.unit:"months";
+  const r=view.rid?getP(view.rid):null;
+  switch(f.dataset.form){
+    case"u-new":{if(!v.name)return;const x={id:uid(),kind:"upkeep",name:v.name,every,unit,location:v.location,part:v.part,store:"",url:"",notes:"",history:[],createdAt:new Date().toISOString()};
+      if(v.last)x.history.push({id:uid(),date:v.last,note:""});syncLast(x);items.push(x);save(x,true);view.uPrefill=null;view.newKind=null;render();toast("Reminder added");break}
+    case"u-edit":if(!r||!v.name)return;Object.assign(r,{name:v.name,every,unit,location:v.location,part:v.part,store:v.store,url:v.url?safeUrl(v.url):"",notes:v.notes});save(r,true);view.edit=false;view.confirm=null;render();toast("Saved");break;
+    case"u-log":if(!r||!v.date)return;logDone(r,v.date,v.note);break;
+  }
+});
+
 /* ---------- events ---------- */
-function go(v){Object.assign(view,{edit:false,confirm:null,editShop:null},v);lb=null;render();window.scrollTo(0,0)}
+function go(v){Object.assign(view,{edit:false,confirm:null,editShop:null,rid:null},v);lb=null;render();window.scrollTo(0,0)}
 document.addEventListener("click",async e=>{
   const b=e.target.closest("[data-act]");if(!b||b.tagName==="LABEL")return;
   const a=b.dataset.act,d=b.dataset;const p=getP(view.pid);const t=p&&view.tid?getT(p,view.tid):null;

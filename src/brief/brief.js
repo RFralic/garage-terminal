@@ -13,6 +13,12 @@
 //     (default 5,000); "soon" within 500 miles, "overdue" past it
 //   - the watched services (oil, plugs, filters, tires, brakes): flagged when
 //     last logged more than 12 months ago
+//
+// Home Projects upkeep reminders (homeprojects/{uid}/projects, kind "upkeep")
+// follow Home Projects' own rules (apps/home-projects/index.html):
+//   - next due = last done + every × unit (days, weeks, months, years)
+//   - "soon" within 20% of the interval (at least 3, at most 14 days),
+//     "overdue" past the due date; never-logged reminders aren't included
 
 import { dateKey, daysBetween, fmtLongDate, fmtShortDate, fmtTime } from './time.js';
 
@@ -71,17 +77,47 @@ function nextOil(e) {
   return { at, cur, left, every, state: left == null ? 'ok' : left < 0 ? 'over' : left <= 500 ? 'soon' : 'ok' };
 }
 
+// ---------- Home Projects' own rules -----------------------------------------------
+
+const UNITS = ['days', 'weeks', 'months', 'years'];
+const UDAYS = { days: 1, weeks: 7, months: 30.4, years: 365 };
+const ymdUTC = (d) => d.toISOString().slice(0, 10);
+
+/** "YYYY-MM-DD" plus n units, the same way the app counts (end-of-month safe). */
+function addInterval(key, n, unit) {
+  const [y, m, d] = key.split('-').map(Number);
+  if (unit === 'days' || unit === 'weeks') return ymdUTC(new Date(Date.UTC(y, m - 1, d + n * (unit === 'weeks' ? 7 : 1))));
+  const months = n * (unit === 'years' ? 12 : 1);
+  const first = new Date(Date.UTC(y, m - 1 + months, 1));
+  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  return ymdUTC(new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), Math.min(d, last))));
+}
+
+/** A reminder's next due date and state on `today`, or null when never logged. */
+export function upkeepStatus(r, today) {
+  const hist = (Array.isArray(r.history) ? r.history : []).map((h) => String((h && h.date) || '').slice(0, 10)).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x));
+  const lastKey = hist.sort().pop() || (/^\d{4}-\d{2}-\d{2}/.test(String(r.last || '')) ? String(r.last).slice(0, 10) : '');
+  if (!lastKey) return null;
+  const every = Math.max(1, Math.min(999, Math.round(Number(r.every) || 1)));
+  const unit = UNITS.includes(r.unit) ? r.unit : 'months';
+  const due = addInterval(lastKey, every, unit);
+  const left = daysBetween(today, due);
+  const window = Math.min(14, Math.max(3, Math.round(every * UDAYS[unit] * 0.2)));
+  return { last: lastKey, due, left, state: left < 0 ? 'over' : left <= window ? 'soon' : 'ok' };
+}
+
 // ---------- building -----------------------------------------------------------------
 
 /**
  * records: Logbook records (engines, vehicles, parts), each {id, ...data}
  * projects: Project Tracker projects, each {id, ...data}
+ * upkeep: Home Projects docs, each {id, ...data}; only kind "upkeep" is used
  * events: calendar events from eventsInWindow (or null when no calendar)
  * calendar: 'none' | 'ok' | 'error'
  * frequency: 'daily' (today, then the next 14 days) or 'weekly' (the 7 days
  *   from today, then the week after)
  */
-export function buildBrief({ records = [], projects = [], events = null, nowMs = Date.now(), tz = 'UTC', sections = DEFAULT_SECTIONS, calendar = 'none', frequency = 'daily' }) {
+export function buildBrief({ records = [], projects = [], upkeep = [], events = null, nowMs = Date.now(), tz = 'UTC', sections = DEFAULT_SECTIONS, calendar = 'none', frequency = 'daily' }) {
   const on = { ...DEFAULT_SECTIONS, ...(sections || {}) };
   const today = dateKey(nowMs, tz);
   const weekly = frequency === 'weekly';
@@ -164,6 +200,20 @@ export function buildBrief({ records = [], projects = [], events = null, nowMs =
         }
       }
     }
+    for (const r of upkeep.filter((x) => x && x.kind === 'upkeep')) {
+      const st = upkeepStatus(r, today);
+      if (!st || st.state === 'ok') continue;
+      const n = Math.abs(st.left);
+      const when = st.left < 0 ? `${n} day${n === 1 ? '' : 's'} overdue` : st.left === 0 ? 'due today' : `due in ${n} day${n === 1 ? '' : 's'}`;
+      items.push({
+        machine: String(r.location || '').trim() || 'Home',
+        item: String(r.name || '').trim() || 'Upkeep reminder',
+        detail: [when, st.left !== 0 ? fmtShortDate(st.due) : '', String(r.part || '').trim()].filter(Boolean).join(' · '),
+        state: st.state,
+        rank: st.state === 'over' ? 0 : 1,
+        home: true,
+      });
+    }
     brief.sections.maintenance = items.sort((a, b) => a.rank - b.rank || a.machine.localeCompare(b.machine));
   }
 
@@ -206,8 +256,8 @@ export function buildBrief({ records = [], projects = [], events = null, nowMs =
  * own. The sender emails it when the list changes (alertKey) or once a week
  * while something is still due.
  */
-export function buildAlert({ records = [], nowMs = Date.now(), tz = 'UTC' }) {
-  const brief = buildBrief({ records, nowMs, tz, sections: { today: false, upcoming: false, lowStock: false, maintenance: true, projects: false } });
+export function buildAlert({ records = [], upkeep = [], nowMs = Date.now(), tz = 'UTC' }) {
+  const brief = buildBrief({ records, upkeep, nowMs, tz, sections: { today: false, upcoming: false, lowStock: false, maintenance: true, projects: false } });
   const items = brief.sections.maintenance;
   brief.alert = true;
   brief.title = 'Maintenance Alert';
@@ -292,8 +342,8 @@ ${brief.summary ? `<div style="margin-top:8px;font-size:15px;color:#d6dce5">${es
 </td></tr>
 ${parts.join('\n')}
 <tr><td style="padding:24px 28px 28px;${FONT}font-size:12px;color:${C.muted};line-height:1.6">
-${brief.alert ? 'From your Garage Terminal Logbook. You get this when maintenance comes due, and once a week while it stays due.' : 'From your Garage Terminal Logbook, Project Tracker and calendar.'}<br>
-<a href="${esc(siteUrl)}/apps/logbook" style="color:${C.accent}">Open the Logbook</a> · <a href="${esc(siteUrl)}/apps/morning-brief" style="color:${C.accent}">Change or stop this email</a>
+${brief.alert ? 'From your Garage Terminal Logbook and Home Projects. You get this when maintenance comes due, and once a week while it stays due.' : 'From your Garage Terminal Logbook, Project Tracker, Home Projects and calendar.'}<br>
+<a href="${esc(siteUrl)}/apps/logbook" style="color:${C.accent}">Open the Logbook</a> · ${(s.maintenance || []).some((m) => m.home) ? `<a href="${esc(siteUrl)}/apps/home-projects" style="color:${C.accent}">Open Home Projects</a> · ` : ''}<a href="${esc(siteUrl)}/apps/morning-brief" style="color:${C.accent}">Change or stop this email</a>
 </td></tr>
 </table></td></tr></table></body></html>`;
 

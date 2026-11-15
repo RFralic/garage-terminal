@@ -1,12 +1,13 @@
 // morning-brief.js: the /apps/morning-brief page. A signed-in member turns the
 // daily or weekly email on, picks the day, time, time zone and sections, optionally adds
 // their calendar's secret iCal address, and sees a preview built from their
-// Logbook and Project Tracker data with the same code the sender uses.
+// Logbook, Project Tracker and Home Projects upkeep data with the same code the
+// sender uses.
 //
 // Settings: briefs/{uid}. Last send: briefStatus/{uid} (written by
 // scripts/send-briefs.mjs). Rules: MORNING BRIEF section of firestore.rules.
 
-import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase.js';
 import { mountHeader } from '../lib/header.js';
 import { watchSession } from '../lib/session.js';
@@ -84,11 +85,11 @@ function read() {
 
 // ---------- preview --------------------------------------------------------------------
 
-let data = { records: [], projects: [] };
+let data = { records: [], projects: [], upkeep: [] };
 function drawPreview() {
   const s = read();
   const brief = s.mode === 'maintenance'
-    ? buildAlert({ records: data.records, tz: s.tz })
+    ? buildAlert({ records: data.records, upkeep: data.upkeep, tz: s.tz })
     : buildBrief({ ...data, events: null, tz: s.tz, sections: s.sections, calendar: s.icsUrl ? 'ok' : 'none', frequency: s.frequency });
   $('mb-preview').srcdoc = renderBrief(brief, { siteUrl: location.origin }).html;
 }
@@ -101,16 +102,19 @@ let me = null;
 async function load(user) {
   me = user;
   $('mb-email').textContent = user.email || '(no email on this account)';
-  const [settings, status, records, projects] = await Promise.all([
+  const [settings, status, records, projects, upkeep] = await Promise.all([
     getDoc(doc(db, 'briefs', user.uid)),
     getDoc(doc(db, 'briefStatus', user.uid)),
     getDocs(collection(db, 'logbook', user.uid, 'records')),
     getDocs(collection(db, 'logbook', user.uid, 'projects')),
+    // Home Projects upkeep reminders; the preview still works if these can't be read
+    getDocs(query(collection(db, 'homeprojects', user.uid, 'projects'), where('kind', '==', 'upkeep'))).catch((err) => { console.error(err); return { docs: [] }; }),
   ]);
   fill(settings.exists() ? settings.data() : { enabled: false, hour: 6, tz: here, sections: DEFAULT_SECTIONS });
   data = {
     records: records.docs.map((d) => ({ id: d.id, ...d.data() })),
     projects: projects.docs.map((d) => ({ id: d.id, ...d.data() })),
+    upkeep: upkeep.docs.map((d) => ({ id: d.id, ...d.data() })),
   };
   showLast(status.exists() ? status.data() : null);
   show('form');

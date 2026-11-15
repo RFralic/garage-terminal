@@ -9,8 +9,9 @@
 //   - due when it's past their chosen hour in their time zone, it hasn't gone
 //     out today, and it's no more than 4 hours late (so turning it on in the
 //     evening doesn't send one right away); "Send a test now" sends at once
-//   - reads their own Logbook records and Project Tracker projects, and their
-//     calendar's secret iCal address if they gave one
+//   - reads their own Logbook records, Project Tracker projects and Home
+//     Projects upkeep reminders, and their calendar's secret iCal address if
+//     they gave one
 //   - builds the email with src/brief/brief.js (same as the page's preview)
 //     and sends it from brief@garageterminal.com through Resend
 //     (scripts/lib/resend.mjs); replies go to support@garageterminal.com
@@ -53,6 +54,12 @@ async function fetchCalendar(url) {
   return text;
 }
 
+/** The member's Home Projects upkeep reminders (homeprojects/{uid}/projects, kind "upkeep"). */
+async function readUpkeep(uid) {
+  const snap = await db.collection(`homeprojects/${uid}/projects`).where('kind', '==', 'upkeep').get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
 const docs = new Map();
 for (const q of [db.collection('briefs').where('enabled', '==', true), db.collection('briefs').where('sendNow', '==', true)]) {
   for (const d of (await q.get()).docs) docs.set(d.id, d);
@@ -89,8 +96,11 @@ for (const [uid, snap] of docs) {
     }
 
     if (alerts) {
-      const records = (await db.collection(`logbook/${uid}/records`).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
-      const alert = buildAlert({ records, nowMs, tz });
+      const [records, upkeep] = await Promise.all([
+        db.collection(`logbook/${uid}/records`).get().then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        readUpkeep(uid),
+      ]);
+      const alert = buildAlert({ records, upkeep, nowMs, tz });
       const key = alertKey(alert);
       const weekOld = !status.lastAlertDate || daysBetween(status.lastAlertDate, today) >= 7;
       const send = test || (key !== '' && (key !== (status.lastAlertKey || '') || weekOld));
@@ -113,8 +123,11 @@ for (const [uid, snap] of docs) {
       continue;
     }
 
-    const [records, projects] = await Promise.all(['records', 'projects'].map(async (name) =>
-      (await db.collection(`logbook/${uid}/${name}`).get()).docs.map((d) => ({ id: d.id, ...d.data() }))));
+    const [[records, projects], upkeep] = await Promise.all([
+      Promise.all(['records', 'projects'].map(async (name) =>
+        (await db.collection(`logbook/${uid}/${name}`).get()).docs.map((d) => ({ id: d.id, ...d.data() })))),
+      readUpkeep(uid),
+    ]);
 
     let events = null;
     let calendar = 'none';
@@ -130,7 +143,7 @@ for (const [uid, snap] of docs) {
       }
     }
 
-    const brief = buildBrief({ records, projects, events, nowMs, tz, sections: b.sections, calendar, frequency: weekly ? 'weekly' : 'daily' });
+    const brief = buildBrief({ records, projects, upkeep, events, nowMs, tz, sections: b.sections, calendar, frequency: weekly ? 'weekly' : 'daily' });
     const mail = renderBrief(brief, { siteUrl: SITE });
     await sendMail({
       apiKey, from: FROM, to: account.email, replyTo: REPLY_TO,

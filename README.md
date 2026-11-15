@@ -125,7 +125,7 @@ service account key. Run it as a dry run first; it never changes the old project
 ## Morning Brief
 
 A daily or weekly email for any signed-in member, set up at `/apps/morning-brief`. Daily: today's
-calendar and the next 14 days; weekly (on the member's chosen day): the 7 days ahead and the week after. Plus parts at or below their reorder level, maintenance coming due (the Logbook's own rules) and open
+calendar and the next 14 days; weekly (on the member's chosen day): the 7 days ahead and the week after. Plus parts at or below their reorder level, maintenance coming due (the Logbook's own rules, plus Home Projects upkeep reminders that are overdue or due soon by that app's rules) and open
 Project Tracker jobs. Members can instead choose "Only maintenance alerts" (`mode: 'maintenance'`): checked
 daily at their time and emailed only when something new or worse comes due, or weekly while it stays due
 (`briefStatus.lastAlertKey`). Settings are in `briefs/{uid}` (private; the address can only be the member's own
