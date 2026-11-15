@@ -458,7 +458,8 @@ service cloud.firestore {
     match /briefs/{uid} {
       allow read, delete: if isSelf(uid);
       allow create, update: if isSelf(uid)
-        && request.resource.data.keys().hasOnly(['enabled', 'email', 'hour', 'tz', 'icsUrl', 'sections', 'sendNow', 'updatedAt', 'frequency', 'weekday'])
+        && request.resource.data.keys().hasOnly(['enabled', 'email', 'hour', 'tz', 'icsUrl', 'sections', 'sendNow', 'updatedAt', 'frequency', 'weekday', 'mode'])
+        && (!('mode' in request.resource.data) || request.resource.data.mode in ['brief', 'maintenance'])
         && (!('frequency' in request.resource.data) || request.resource.data.frequency in ['daily', 'weekly'])
         && (!('weekday' in request.resource.data)
             || (request.resource.data.weekday is int && request.resource.data.weekday >= 0 && request.resource.data.weekday <= 6))

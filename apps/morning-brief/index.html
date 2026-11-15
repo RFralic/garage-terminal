@@ -66,7 +66,15 @@
         </div>
 
         <form id="mb-form" class="mb" hidden novalidate>
-          <label class="check big"><input type="checkbox" id="mb-enabled"> Email me a Morning Brief</label>
+          <label class="check big"><input type="checkbox" id="mb-enabled"> Turn on emails</label>
+
+          <label class="field-label">What to send
+            <select class="field" id="mb-mode">
+              <option value="brief">Morning Brief (the sections I pick below)</option>
+              <option value="maintenance">Only maintenance alerts</option>
+            </select>
+          </label>
+          <p class="mutedt small" id="mb-mode-note" hidden>Checked every day at your time. You get an email only when maintenance comes due or gets more overdue, and a reminder once a week while it stays due.</p>
 
           <div>
             <span class="field-label">Sent to</span>
@@ -74,7 +82,7 @@
             <p class="mutedt small">Always your own Google address.</p>
           </div>
 
-          <div class="row2">
+          <div class="row2" id="mb-often">
             <label class="field-label">How often
               <select class="field" id="mb-frequency">
                 <option value="daily">Every day</option>
@@ -95,12 +103,12 @@
             </label>
           </div>
 
-          <fieldset>
+          <fieldset id="mb-sections-box">
             <legend>Sections</legend>
             <div id="mb-sections"></div>
           </fieldset>
 
-          <fieldset>
+          <fieldset id="mb-calendar-box">
             <legend>Calendar (optional)</legend>
             <label class="field-label" for="mb-ics">Secret address in iCal format</label>
             <input class="field" id="mb-ics" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics">
