@@ -3,7 +3,7 @@
 Home page, open forum, wiki/library and sysop moderation tools, on Firebase.
 The full spec and build phases are in [PLAN.md](PLAN.md).
 
-Live site: https://garage-terminal-15499.web.app
+Live site: https://garageterminal.com (also https://garage-terminal-15499.web.app)
 
 ## Layout
 
@@ -179,13 +179,16 @@ Authentication → check that most requests show as *verified*, then **Enforce**
 links stop working with the database (their addresses aren't registered with reCAPTCHA); the live site is
 unaffected. To add a domain, add it in the reCAPTCHA admin console too.
 
-## Adding a custom domain (later)
+## Custom domain
 
-1. Firebase console → Hosting → **Add custom domain**; copy the DNS records it shows into your domain
-   registrar and wait for it to say *Connected*.
+The site is at **garageterminal.com** (registered with Cloudflare, DNS on Cloudflare); `www.` redirects to
+it, and `garage-terminal-15499.web.app` keeps working. To add another domain:
+
+1. Firebase console → Hosting → **Add custom domain**; add the DNS records it shows in Cloudflare with the
+   proxy **off** (grey cloud, "DNS only") and wait for it to say *Connected*.
 2. Firebase console → Authentication → Settings → **Authorized domains** → add the domain.
-3. Google Cloud console → APIs & Services → Credentials → the OAuth web client → **Authorized redirect
-   URIs** → add `https://YOUR-DOMAIN/__/auth/handler` (phones finish sign-in there).
+3. Google Cloud console → APIs & Services → Credentials → the OAuth web client → **Authorized JavaScript
+   origins** → add `https://YOUR-DOMAIN`, and **Authorized redirect URIs** → add
+   `https://YOUR-DOMAIN/__/auth/handler` (phones finish sign-in there).
 4. reCAPTCHA admin console → the Garage Terminal key → add the domain (App Check).
-5. In the code, replace `https://garage-terminal-15499.web.app` in the link-preview tags (search the HTML
-   files for `og:url`) with the new address.
+5. The link-preview tags (search the HTML files for `og:url`) use `https://garageterminal.com`.
