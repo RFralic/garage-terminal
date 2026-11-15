@@ -4,7 +4,7 @@
 #  - Push to main, in this order:
 #      1. Firestore rules + indexes, Storage rules
 #      2. Starting data (areas, settings) if missing: scripts/seed.mjs
-#      3. The website (garage-terminal-15499.web.app)
+#      3. The website (garageterminal.com, also garage-terminal-15499.web.app)
 #      4. Cloud Functions (last, so a functions problem never blocks the site),
 #         plus a 1-day clean-up policy for old function images
 #  - Pull request: deploys the website only to a temporary preview link, posted on
