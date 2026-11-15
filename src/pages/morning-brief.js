@@ -11,7 +11,7 @@ import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where
 import { db } from '../lib/firebase.js';
 import { mountHeader } from '../lib/header.js';
 import { watchSession } from '../lib/session.js';
-import { DEFAULT_SECTIONS, SECTIONS, WEEKDAYS, buildAlert, buildBrief, renderBrief } from '../brief/brief.js';
+import { DEFAULT_SECTIONS, SECTIONS, WEEKDAYS, buildAlert, buildBrief, renderBrief, upkeepStatus } from '../brief/brief.js';
 import { normalizeCalendarUrl } from '../brief/ics.js';
 import { isValidTimeZone } from '../brief/time.js';
 
@@ -51,7 +51,7 @@ for (const [key, label] of Object.entries(SECTIONS)) {
   const i = document.createElement('input');
   i.type = 'checkbox';
   i.dataset.section = key;
-  l.append(i, ` ${label}`);
+  l.append(i, ` ${key === 'maintenance' ? 'Maintenance: Logbook services and Home Projects upkeep' : label}`);
   $('mb-sections').append(l);
 }
 const sectionBoxes = () => [...document.querySelectorAll('[data-section]')];
@@ -92,6 +92,26 @@ function drawPreview() {
     ? buildAlert({ records: data.records, upkeep: data.upkeep, tz: s.tz })
     : buildBrief({ ...data, events: null, tz: s.tz, sections: s.sections, calendar: s.icsUrl ? 'ok' : 'none', frequency: s.frequency });
   $('mb-preview').srcdoc = renderBrief(brief, { siteUrl: location.origin }).html;
+  upkeepNote(brief.today);
+}
+
+/** Says what the preview found in Home Projects, so a quiet Maintenance section makes sense. */
+function upkeepNote(today) {
+  const list = data.upkeep || [];
+  const el = $('mb-upkeep-note');
+  if (data.upkeepError) { el.textContent = "Home Projects upkeep reminders couldn't be read just now. Reload to try again."; return; }
+  if (!list.length) {
+    el.replaceChildren('No upkeep reminders on this account yet. Add them on the Upkeep tab in ');
+    const a = document.createElement('a'); a.href = '/apps/home-projects'; a.textContent = 'Home Projects';
+    el.append(a, ' while signed in here.');
+    return;
+  }
+  const st = list.map((r) => upkeepStatus(r, today));
+  const due = st.filter((x) => x && x.state !== 'ok').length;
+  const never = st.filter((x) => !x).length;
+  const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
+  el.textContent = `Home Projects: ${n(list.length, 'upkeep reminder')}, ${due ? `${due} due soon or overdue (shown under Maintenance)` : 'none due soon'}`
+    + (never ? `. ${n(never, 'reminder')} ${never === 1 ? "isn't" : "aren't"} included until you log a last-done date.` : '.');
 }
 $('mb-form').addEventListener('change', drawPreview);
 
@@ -108,13 +128,14 @@ async function load(user) {
     getDocs(collection(db, 'logbook', user.uid, 'records')),
     getDocs(collection(db, 'logbook', user.uid, 'projects')),
     // Home Projects upkeep reminders; the preview still works if these can't be read
-    getDocs(query(collection(db, 'homeprojects', user.uid, 'projects'), where('kind', '==', 'upkeep'))).catch((err) => { console.error(err); return { docs: [] }; }),
+    getDocs(query(collection(db, 'homeprojects', user.uid, 'projects'), where('kind', '==', 'upkeep'))).catch((err) => { console.error(err); return { docs: [], failed: true }; }),
   ]);
   fill(settings.exists() ? settings.data() : { enabled: false, hour: 6, tz: here, sections: DEFAULT_SECTIONS });
   data = {
     records: records.docs.map((d) => ({ id: d.id, ...d.data() })),
     projects: projects.docs.map((d) => ({ id: d.id, ...d.data() })),
     upkeep: upkeep.docs.map((d) => ({ id: d.id, ...d.data() })),
+    upkeepError: !!upkeep.failed,
   };
   showLast(status.exists() ? status.data() : null);
   show('form');
