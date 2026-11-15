@@ -10,7 +10,7 @@ import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'fireb
 import { db } from '../lib/firebase.js';
 import { mountHeader } from '../lib/header.js';
 import { watchSession } from '../lib/session.js';
-import { DEFAULT_SECTIONS, SECTIONS, WEEKDAYS, buildBrief, renderBrief } from '../brief/brief.js';
+import { DEFAULT_SECTIONS, SECTIONS, WEEKDAYS, buildAlert, buildBrief, renderBrief } from '../brief/brief.js';
 import { normalizeCalendarUrl } from '../brief/ics.js';
 import { isValidTimeZone } from '../brief/time.js';
 
@@ -32,6 +32,12 @@ for (let h = 0; h < 24; h++) $('mb-hour').append(new Option(hourLabel(h), String
 WEEKDAYS.forEach((d, i) => $('mb-weekday').append(new Option(d, String(i))));
 const showDay = () => { $('mb-weekday-wrap').hidden = $('mb-frequency').value !== 'weekly'; };
 $('mb-frequency').addEventListener('change', showDay);
+const showMode = () => {
+  const alerts = $('mb-mode').value === 'maintenance';
+  for (const id of ['mb-often', 'mb-sections-box', 'mb-calendar-box']) $(id).hidden = alerts;
+  $('mb-mode-note').hidden = !alerts;
+};
+$('mb-mode').addEventListener('change', showMode);
 
 const here = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
 const zones = (typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [])
@@ -55,6 +61,8 @@ function fill(b) {
   $('mb-frequency').value = b.frequency === 'weekly' ? 'weekly' : 'daily';
   $('mb-weekday').value = String(Number.isInteger(b.weekday) ? b.weekday : 0);
   showDay();
+  $('mb-mode').value = b.mode === 'maintenance' ? 'maintenance' : 'brief';
+  showMode();
   $('mb-tz').value = isValidTimeZone(b.tz) ? b.tz : here;
   $('mb-ics').value = b.icsUrl || '';
   const on = { ...DEFAULT_SECTIONS, ...(b.sections || {}) };
@@ -64,6 +72,7 @@ function fill(b) {
 function read() {
   return {
     enabled: $('mb-enabled').checked,
+    mode: $('mb-mode').value === 'maintenance' ? 'maintenance' : 'brief',
     hour: parseInt($('mb-hour').value, 10),
     frequency: $('mb-frequency').value === 'weekly' ? 'weekly' : 'daily',
     weekday: parseInt($('mb-weekday').value, 10),
@@ -78,7 +87,9 @@ function read() {
 let data = { records: [], projects: [] };
 function drawPreview() {
   const s = read();
-  const brief = buildBrief({ ...data, events: null, tz: s.tz, sections: s.sections, calendar: s.icsUrl ? 'ok' : 'none', frequency: s.frequency });
+  const brief = s.mode === 'maintenance'
+    ? buildAlert({ records: data.records, tz: s.tz })
+    : buildBrief({ ...data, events: null, tz: s.tz, sections: s.sections, calendar: s.icsUrl ? 'ok' : 'none', frequency: s.frequency });
   $('mb-preview').srcdoc = renderBrief(brief, { siteUrl: location.origin }).html;
 }
 $('mb-form').addEventListener('change', drawPreview);
@@ -129,8 +140,10 @@ async function save(sendNow) {
   try {
     await setDoc(doc(db, 'briefs', me.uid), { ...s, email: me.email, sendNow: !!sendNow, updatedAt: serverTimestamp() });
     setStatus(sendNow
-      ? 'Saved. Your test brief will arrive within about 30 minutes.'
-      : s.enabled
+      ? 'Saved. Your test email will arrive within the hour (or run Actions › Morning Brief to send it now).'
+      : s.enabled && s.mode === 'maintenance'
+        ? `Saved. You'll get an email when maintenance comes due (checked daily around ${hourLabel(s.hour)}).`
+        : s.enabled
         ? `Saved. Your brief will arrive ${s.frequency === 'weekly' ? `every ${WEEKDAYS[s.weekday]}` : 'each day'} shortly after ${hourLabel(s.hour)}.`
         : 'Saved. The brief is off.', 'ok');
   } catch (err) {

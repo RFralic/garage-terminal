@@ -77,6 +77,13 @@ describe('Morning Brief settings', () => {
     await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { frequency: 'weekly', weekday: '1' })));
   });
 
+  test('full brief or only maintenance alerts', async () => {
+    const db = as('bob');
+    await assertSucceeds(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { mode: 'maintenance' })));
+    await assertSucceeds(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { mode: 'brief' })));
+    await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { mode: 'everything' })));
+  });
+
   test('members cannot write the send status', async () => {
     await assertFails(setDoc(doc(as('bob'), 'briefStatus', 'bob'), { lastResult: 'sent' }));
   });

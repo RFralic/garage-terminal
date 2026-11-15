@@ -199,6 +199,29 @@ export function buildBrief({ records = [], projects = [], events = null, nowMs =
   return brief;
 }
 
+// ---------- maintenance alerts ------------------------------------------------------
+
+/**
+ * "Only maintenance alerts": the same maintenance list as the brief, on its
+ * own. The sender emails it when the list changes (alertKey) or once a week
+ * while something is still due.
+ */
+export function buildAlert({ records = [], nowMs = Date.now(), tz = 'UTC' }) {
+  const brief = buildBrief({ records, nowMs, tz, sections: { today: false, upcoming: false, lowStock: false, maintenance: true, projects: false } });
+  const items = brief.sections.maintenance;
+  brief.alert = true;
+  brief.title = 'Maintenance Alert';
+  brief.summary = items.length
+    ? `${items.length} item${items.length === 1 ? '' : 's'}: ${items.slice(0, 2).map((m) => `${m.machine} ${m.item.toLowerCase()}`).join(', ')}${items.length > 2 ? ` and ${items.length - 2} more` : ''}`
+    : 'Nothing due right now';
+  return brief;
+}
+
+/** What's due, as one string: a change means something new or worse came due. */
+export function alertKey(brief) {
+  return (brief.sections.maintenance || []).map((m) => `${m.machine}|${m.item}|${m.state}`).sort().join('\n');
+}
+
 // ---------- the email --------------------------------------------------------------
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -248,14 +271,16 @@ export function renderBrief(brief, { siteUrl = 'https://garageterminal.com' } = 
       pill(p.out ? 'Out' : 'Low', p.out ? 'over' : 'soon'))) : '', 'Nothing below its reorder level.'));
   }
   if (s.maintenance) {
-    parts.push(section(SECTIONS.maintenance, s.maintenance.length ? rows(s.maintenance, (m) => row('', `${m.machine}: ${m.item}`, m.detail,
+    parts.push(section(brief.alert ? 'Coming due' : SECTIONS.maintenance, s.maintenance.length ? rows(s.maintenance, (m) => row('', `${m.machine}: ${m.item}`, m.detail,
       pill(m.state === 'over' ? 'Overdue' : m.state === 'soon' ? 'Due soon' : 'Check', m.state === 'over' ? 'over' : 'soon'))) : '', 'Everything is on schedule.'));
   }
   if (s.projects) {
     parts.push(section(SECTIONS.projects, s.projects.length ? rows(s.projects, (p) => row('', p.title, p.detail, p.urgent ? pill('Due', 'over') : '')) : '', 'No open projects.'));
   }
 
-  const subject = `${brief.title || 'Morning Brief'} · ${brief.weekly ? 'week of ' : ''}${fmtShortDate(brief.today)}${brief.summary ? ` · ${brief.summary}` : ''}`;
+  const subject = brief.alert
+    ? `Maintenance due · ${brief.summary}`
+    : `${brief.title || 'Morning Brief'} · ${brief.weekly ? 'week of ' : ''}${fmtShortDate(brief.today)}${brief.summary ? ` · ${brief.summary}` : ''}`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:${C.bg}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.bg}"><tr><td align="center" style="padding:20px 12px">
@@ -267,7 +292,7 @@ ${brief.summary ? `<div style="margin-top:8px;font-size:15px;color:#d6dce5">${es
 </td></tr>
 ${parts.join('\n')}
 <tr><td style="padding:24px 28px 28px;${FONT}font-size:12px;color:${C.muted};line-height:1.6">
-From your Garage Terminal Logbook, Project Tracker and calendar.<br>
+${brief.alert ? 'From your Garage Terminal Logbook. You get this when maintenance comes due, and once a week while it stays due.' : 'From your Garage Terminal Logbook, Project Tracker and calendar.'}<br>
 <a href="${esc(siteUrl)}/apps/logbook" style="color:${C.accent}">Open the Logbook</a> · <a href="${esc(siteUrl)}/apps/morning-brief" style="color:${C.accent}">Change or stop this email</a>
 </td></tr>
 </table></td></tr></table></body></html>`;

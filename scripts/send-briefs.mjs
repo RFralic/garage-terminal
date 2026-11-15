@@ -3,6 +3,9 @@
 // Run every 30 minutes by .github/workflows/morning-brief.yml. For each member
 // who turned the brief on (briefs/{uid}, set on /apps/morning-brief):
 //   - daily, or weekly on their chosen day (frequency, weekday)
+//   - or "only maintenance alerts" (mode: 'maintenance'): checked every day at
+//     their time, emailed only when something new or worse comes due, or once
+//     a week while something stays due
 //   - due when it's past their chosen hour in their time zone, it hasn't gone
 //     out today, and it's no more than 4 hours late (so turning it on in the
 //     evening doesn't send one right away); "Send a test now" sends at once
@@ -22,9 +25,9 @@
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { buildBrief, renderBrief } from '../src/brief/brief.js';
+import { alertKey, buildAlert, buildBrief, renderBrief } from '../src/brief/brief.js';
 import { eventsInWindow, normalizeCalendarUrl } from '../src/brief/ics.js';
-import { dateKey, isValidTimeZone, zonedParts, zonedToMs } from '../src/brief/time.js';
+import { dateKey, daysBetween, isValidTimeZone, zonedParts, zonedToMs } from '../src/brief/time.js';
 import { sendMail } from './lib/resend.mjs';
 
 const SITE = 'https://garageterminal.com';
@@ -68,7 +71,8 @@ for (const [uid, snap] of docs) {
   const hour = Number.isInteger(b.hour) ? b.hour : 6;
   const local = zonedParts(nowMs, tz);
   const dueAt = zonedToMs(local.y, local.m, local.d, hour, 0, 0, tz);
-  const weekly = b.frequency === 'weekly';
+  const alerts = b.mode === 'maintenance';
+  const weekly = !alerts && b.frequency === 'weekly';
   const rightDay = !weekly || local.dow === (Number.isInteger(b.weekday) ? b.weekday : 0);
   const due = b.enabled === true && rightDay && status.lastSentDate !== today && nowMs >= dueAt && nowMs < dueAt + LATE_HOURS * 3600000;
   // A test is only labelled [Test] when it isn't also the member's scheduled
@@ -82,6 +86,31 @@ for (const [uid, snap] of docs) {
     const account = await auth.getUser(uid);
     if (!account.email || !account.emailVerified || account.email.toLowerCase() !== String(b.email || '').toLowerCase()) {
       throw new Error('address does not match the account');
+    }
+
+    if (alerts) {
+      const records = (await db.collection(`logbook/${uid}/records`).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
+      const alert = buildAlert({ records, nowMs, tz });
+      const key = alertKey(alert);
+      const weekOld = !status.lastAlertDate || daysBetween(status.lastAlertDate, today) >= 7;
+      const send = test || (key !== '' && (key !== (status.lastAlertKey || '') || weekOld));
+      if (send) {
+        const mail = renderBrief(alert, { siteUrl: SITE });
+        await sendMail({
+          apiKey, from: FROM, to: account.email, replyTo: REPLY_TO,
+          subject: test ? `[Test] ${mail.subject}` : mail.subject,
+          html: mail.html, text: mail.text,
+          headers: { 'List-Unsubscribe': `<${SITE}/apps/morning-brief>` },
+        });
+      }
+      await statusRef.set({
+        ...(test ? {} : { lastSentDate: today, lastAlertKey: key, ...(send ? { lastAlertDate: today } : {}) }),
+        ...(send ? { lastSentAt: FieldValue.serverTimestamp() } : {}),
+        lastResult: send ? (test ? 'test sent' : 'alert sent') : 'checked, nothing new due',
+      }, { merge: true });
+      if (send) tally.sent++; else tally.notDue++;
+      console.log(`Member ${tally.checked}: maintenance ${send ? `alert sent (${test ? 'test' : 'scheduled'})` : 'checked, nothing new'}`);
+      continue;
     }
 
     const [records, projects] = await Promise.all(['records', 'projects'].map(async (name) =>
