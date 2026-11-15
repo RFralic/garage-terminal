@@ -71,7 +71,10 @@ for (const [uid, snap] of docs) {
   const weekly = b.frequency === 'weekly';
   const rightDay = !weekly || local.dow === (Number.isInteger(b.weekday) ? b.weekday : 0);
   const due = b.enabled === true && rightDay && status.lastSentDate !== today && nowMs >= dueAt && nowMs < dueAt + LATE_HOURS * 3600000;
-  const test = b.sendNow === true;
+  // A test is only labelled [Test] when it isn't also the member's scheduled
+  // brief: if a test request is waiting when the real one is due, the one
+  // email that goes out is the real brief.
+  const test = b.sendNow === true && !due;
   if (!due && !test) { tally.notDue++; continue; }
 
   try {
@@ -108,18 +111,19 @@ for (const [uid, snap] of docs) {
     });
 
     await statusRef.set({
-      ...(test && !due ? {} : { lastSentDate: today }),
+      ...(test ? {} : { lastSentDate: today }),
       lastSentAt: FieldValue.serverTimestamp(),
       lastResult: test ? 'test sent' : 'sent',
       lastCalendar: calendar,
     }, { merge: true });
     tally.sent++;
+    console.log(`Member ${tally.checked}: sent (${test ? 'test' : 'scheduled'})`);
   } catch (err) {
     tally.failed++;
     console.log(`Member ${tally.checked}: not sent (${String(err.message).slice(0, 80)})`);
     await statusRef.set({ lastResult: `error: ${String(err.message).slice(0, 200)}`, lastErrorAt: FieldValue.serverTimestamp() }, { merge: true });
   } finally {
-    if (test) await snap.ref.update({ sendNow: false });
+    if (b.sendNow === true) await snap.ref.update({ sendNow: false });
   }
 }
 
