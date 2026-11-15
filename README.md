@@ -27,7 +27,7 @@ Live site: https://garage-terminal-15499.web.app
 | `public/apps/sw.js` | Keeps the Logbook and Project Tracker pages for offline use |
 | `apps/morning-brief/index.html`, `src/pages/morning-brief.js` | Morning Brief settings and preview |
 | `src/brief/` | Builds the Morning Brief (shared by the page and the sender): `brief.js`, `ics.js` (calendar feeds), `time.js` |
-| `scripts/send-briefs.mjs`, `scripts/lib/smtp.mjs` | Sends the Morning Brief emails (GitHub action "Morning Brief", every 30 minutes) |
+| `scripts/send-briefs.mjs`, `scripts/lib/resend.mjs` | Sends the Morning Brief emails (GitHub action "Morning Brief", every 30 minutes) |
 | `apps/tap-drill-chart/index.html` | Tap Drill Chart, copied from its Claude artifact (re-copy if the artifact changes) |
 | `404.html` | Not-found page |
 | `src/styles/base.css` | Shared look: colors, fonts, header, footer, terminal boxes |
@@ -130,8 +130,9 @@ Project Tracker jobs. Settings are in `briefs/{uid}` (private; the address can o
 verified Google email), the last send in `briefStatus/{uid}`.
 
 The GitHub action "Morning Brief" runs `scripts/send-briefs.mjs` every 30 minutes and sends each brief on
-the first run after the member's chosen hour. It sends through Gmail with an app password and needs two
-secrets: `GMAIL_ADDRESS` and `GMAIL_APP_PASSWORD`. Calendars come from the member's secret iCal address
+the first run after the member's chosen hour. It sends from `brief@garageterminal.com` through Resend
+(domain verified in Resend, DNS on Cloudflare), with replies going to `support@garageterminal.com`
+(Cloudflare Email Routing forwards it). It needs one secret: `RESEND_API_KEY`. Calendars come from the member's secret iCal address
 (`src/brief/ics.js`), so no Google Calendar permission is needed. GitHub pauses scheduled actions after 60
 days without a commit to the repo; re-enable it under Actions if that happens.
 

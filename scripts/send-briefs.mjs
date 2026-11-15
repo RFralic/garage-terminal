@@ -8,14 +8,15 @@
 //   - reads their own Logbook records and Project Tracker projects, and their
 //     calendar's secret iCal address if they gave one
 //   - builds the email with src/brief/brief.js (same as the page's preview)
-//     and sends it from the site's Gmail account (scripts/lib/smtp.mjs)
+//     and sends it from brief@garageterminal.com through Resend
+//     (scripts/lib/resend.mjs); replies go to support@garageterminal.com
 //   - records what happened in briefStatus/{uid} (readable by the member)
 //
 // The brief only ever goes to the member's own verified Google address.
 // Logs show counts only, never addresses or content (workflow logs are public).
 //
 // Needs: GOOGLE_APPLICATION_CREDENTIALS (deploy service account),
-// GMAIL_ADDRESS and GMAIL_APP_PASSWORD (GitHub secrets).
+// RESEND_API_KEY (GitHub secret).
 
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
@@ -23,14 +24,15 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { buildBrief, renderBrief } from '../src/brief/brief.js';
 import { eventsInWindow, normalizeCalendarUrl } from '../src/brief/ics.js';
 import { dateKey, isValidTimeZone, zonedParts, zonedToMs } from '../src/brief/time.js';
-import { sendMail } from './lib/smtp.mjs';
+import { sendMail } from './lib/resend.mjs';
 
 const SITE = 'https://garageterminal.com';
 const LATE_HOURS = 4;
-const user = process.env.GMAIL_ADDRESS;
-const pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
-if (!user || !pass) {
-  console.error('Add the GMAIL_ADDRESS and GMAIL_APP_PASSWORD secrets first (see README, Morning Brief).');
+const FROM = 'Garage Terminal Morning Brief <brief@garageterminal.com>';
+const REPLY_TO = 'support@garageterminal.com';
+const apiKey = (process.env.RESEND_API_KEY || '').trim();
+if (!apiKey) {
+  console.error('Add the RESEND_API_KEY secret first (see README, Morning Brief).');
   process.exit(1);
 }
 
@@ -96,10 +98,9 @@ for (const [uid, snap] of docs) {
     const brief = buildBrief({ records, projects, events, nowMs, tz, sections: b.sections, calendar });
     const mail = renderBrief(brief, { siteUrl: SITE });
     await sendMail({
-      user, pass, to: account.email,
+      apiKey, from: FROM, to: account.email, replyTo: REPLY_TO,
       subject: test ? `[Test] ${mail.subject}` : mail.subject,
       html: mail.html, text: mail.text,
-      fromName: 'Garage Terminal Morning Brief',
       headers: { 'List-Unsubscribe': `<${SITE}/apps/morning-brief>` },
     });
 
