@@ -202,7 +202,7 @@ ${left ? `<td width="86" style="${FONT}font-size:14px;font-weight:600;color:${C.
 ${right ? `<td align="right" style="${FONT}vertical-align:top;white-space:nowrap">${right}</td>` : ''}
 </tr></table></td></tr>`;
 
-export function renderBrief(brief, { siteUrl = 'https://garage-terminal-15499.web.app' } = {}) {
+export function renderBrief(brief, { siteUrl = 'https://garageterminal.com' } = {}) {
   const s = brief.sections;
   const parts = [];
   const calNote = brief.calendar === 'none'

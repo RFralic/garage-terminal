@@ -25,7 +25,7 @@ import { eventsInWindow, normalizeCalendarUrl } from '../src/brief/ics.js';
 import { dateKey, isValidTimeZone, zonedParts, zonedToMs } from '../src/brief/time.js';
 import { sendMail } from './lib/smtp.mjs';
 
-const SITE = 'https://garage-terminal-15499.web.app';
+const SITE = 'https://garageterminal.com';
 const LATE_HOURS = 4;
 const user = process.env.GMAIL_ADDRESS;
 const pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
