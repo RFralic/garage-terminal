@@ -124,8 +124,8 @@ service account key. Run it as a dry run first; it never changes the old project
 
 ## Morning Brief
 
-A daily email for any signed-in member, set up at `/apps/morning-brief`: today's calendar, the next 14
-days, parts at or below their reorder level, maintenance coming due (the Logbook's own rules) and open
+A daily or weekly email for any signed-in member, set up at `/apps/morning-brief`. Daily: today's
+calendar and the next 14 days; weekly (on the member's chosen day): the 7 days ahead and the week after. Plus parts at or below their reorder level, maintenance coming due (the Logbook's own rules) and open
 Project Tracker jobs. Settings are in `briefs/{uid}` (private; the address can only be the member's own
 verified Google email), the last send in `briefStatus/{uid}`.
 

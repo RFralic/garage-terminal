@@ -1,5 +1,5 @@
 // morning-brief.js: the /apps/morning-brief page. A signed-in member turns the
-// daily email on, picks the time, time zone and sections, optionally adds
+// daily or weekly email on, picks the day, time, time zone and sections, optionally adds
 // their calendar's secret iCal address, and sees a preview built from their
 // Logbook and Project Tracker data with the same code the sender uses.
 //
@@ -10,7 +10,7 @@ import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'fireb
 import { db } from '../lib/firebase.js';
 import { mountHeader } from '../lib/header.js';
 import { watchSession } from '../lib/session.js';
-import { DEFAULT_SECTIONS, SECTIONS, buildBrief, renderBrief } from '../brief/brief.js';
+import { DEFAULT_SECTIONS, SECTIONS, WEEKDAYS, buildBrief, renderBrief } from '../brief/brief.js';
 import { normalizeCalendarUrl } from '../brief/ics.js';
 import { isValidTimeZone } from '../brief/time.js';
 
@@ -29,6 +29,9 @@ const setStatus = (text, kind = 'wait') => { const s = $('mb-status'); s.textCon
 
 const hourLabel = (h) => `${((h + 11) % 12) + 1}:00 ${h < 12 ? 'AM' : 'PM'}`;
 for (let h = 0; h < 24; h++) $('mb-hour').append(new Option(hourLabel(h), String(h)));
+WEEKDAYS.forEach((d, i) => $('mb-weekday').append(new Option(d, String(i))));
+const showDay = () => { $('mb-weekday-wrap').hidden = $('mb-frequency').value !== 'weekly'; };
+$('mb-frequency').addEventListener('change', showDay);
 
 const here = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
 const zones = (typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [])
@@ -49,6 +52,9 @@ const sectionBoxes = () => [...document.querySelectorAll('[data-section]')];
 function fill(b) {
   $('mb-enabled').checked = !!b.enabled;
   $('mb-hour').value = String(Number.isInteger(b.hour) ? b.hour : 6);
+  $('mb-frequency').value = b.frequency === 'weekly' ? 'weekly' : 'daily';
+  $('mb-weekday').value = String(Number.isInteger(b.weekday) ? b.weekday : 0);
+  showDay();
   $('mb-tz').value = isValidTimeZone(b.tz) ? b.tz : here;
   $('mb-ics').value = b.icsUrl || '';
   const on = { ...DEFAULT_SECTIONS, ...(b.sections || {}) };
@@ -59,6 +65,8 @@ function read() {
   return {
     enabled: $('mb-enabled').checked,
     hour: parseInt($('mb-hour').value, 10),
+    frequency: $('mb-frequency').value === 'weekly' ? 'weekly' : 'daily',
+    weekday: parseInt($('mb-weekday').value, 10),
     tz: $('mb-tz').value,
     icsUrl: normalizeCalendarUrl($('mb-ics').value),
     sections: Object.fromEntries(sectionBoxes().map((b) => [b.dataset.section, b.checked])),
@@ -70,7 +78,7 @@ function read() {
 let data = { records: [], projects: [] };
 function drawPreview() {
   const s = read();
-  const brief = buildBrief({ ...data, events: null, tz: s.tz, sections: s.sections, calendar: s.icsUrl ? 'ok' : 'none' });
+  const brief = buildBrief({ ...data, events: null, tz: s.tz, sections: s.sections, calendar: s.icsUrl ? 'ok' : 'none', frequency: s.frequency });
   $('mb-preview').srcdoc = renderBrief(brief, { siteUrl: location.origin }).html;
 }
 $('mb-form').addEventListener('change', drawPreview);
@@ -122,7 +130,9 @@ async function save(sendNow) {
     await setDoc(doc(db, 'briefs', me.uid), { ...s, email: me.email, sendNow: !!sendNow, updatedAt: serverTimestamp() });
     setStatus(sendNow
       ? 'Saved. Your test brief will arrive within about 30 minutes.'
-      : s.enabled ? `Saved. Your brief will arrive each day shortly after ${hourLabel(s.hour)}.` : 'Saved. The daily email is off.', 'ok');
+      : s.enabled
+        ? `Saved. Your brief will arrive ${s.frequency === 'weekly' ? `every ${WEEKDAYS[s.weekday]}` : 'each day'} shortly after ${hourLabel(s.hour)}.`
+        : 'Saved. The brief is off.', 'ok');
   } catch (err) {
     console.error(err);
     setStatus("Couldn't save. Check your connection and try again.", 'bad');
