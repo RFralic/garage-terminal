@@ -1,5 +1,6 @@
 // app-filter.js: the controls above /apps on the home page:
 //   - category buttons (All · Garage · Gym · …), below
+//   - a ★ Favorites button and a star on every app card (below the categories)
 //   - the Grid / List switch (at the end of this file)
 //
 // Each app card in index.html has a category field:
@@ -51,17 +52,74 @@ function button(id, label, count) {
   return b;
 }
 
-function select(id) {
-  for (const b of bar.querySelectorAll('.chip')) b.setAttribute('aria-pressed', String(b.dataset.category === id));
-  for (const card of cards) card.hidden = id !== '' && categoryOf(card) !== id;
+// ---------- Favorites ------------------------------------------------------------
+// Each card gets a star button. Starred apps show under the "★ Favorites" button.
+// An app is identified by its Open link (e.g. "/apps/repclock"), so renaming an
+// app keeps it starred. Saved in this browser only (like the Grid/List choice).
+
+const FAV = '__fav';
+const FAV_KEY = 'gt.apps.favorites';
+const TAB_KEY = 'gt.apps.tab';
+const appKey = (card) => card.querySelector('.meta a')?.getAttribute('href') || card.querySelector('h3')?.textContent.trim() || '';
+const nameOf = (card) => card.querySelector('h3')?.textContent.trim() || 'this app';
+let favs = new Set();
+try { favs = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]').filter((k) => typeof k === 'string')); } catch { /* none saved */ }
+const saveFavs = () => { try { localStorage.setItem(FAV_KEY, JSON.stringify([...favs])); } catch { /* storage blocked: works for this visit */ } };
+
+const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg>';
+function paintStar(card) {
+  const on = favs.has(appKey(card));
+  const b = card.querySelector('.fav-btn');
+  b.setAttribute('aria-pressed', String(on));
+  b.setAttribute('aria-label', `${on ? 'Remove' : 'Add'} ${nameOf(card)} ${on ? 'from' : 'to'} favorites`);
+  b.title = on ? 'Remove from favorites' : 'Add to favorites';
+}
+for (const card of cards) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'fav-btn';
+  b.innerHTML = STAR;
+  b.addEventListener('click', () => {
+    const k = appKey(card);
+    if (favs.has(k)) favs.delete(k); else favs.add(k);
+    saveFavs();
+    paintStar(card);
+    favCount.textContent = String(favs.size);
+    if (current === FAV) select(FAV); // un-starring on the Favorites tab hides the card
+  });
+  card.querySelector('.apphead').append(b);
+  paintStar(card);
 }
 
+// Shown on the Favorites tab when nothing is starred yet.
+const empty = document.createElement('p');
+empty.className = 'fav-empty';
+empty.hidden = true;
+empty.innerHTML = 'No favorites yet. Tap the <span aria-hidden="true">☆</span> on any app to add it here.';
+list.after(empty);
+
+let current = '';
+function select(id) {
+  current = id;
+  for (const b of bar.querySelectorAll('.chip')) b.setAttribute('aria-pressed', String(b.dataset.category === id));
+  for (const card of cards) card.hidden = id === FAV ? !favs.has(appKey(card)) : id !== '' && categoryOf(card) !== id;
+  empty.hidden = !(id === FAV && !cards.some((c) => favs.has(appKey(c))));
+  try { localStorage.setItem(TAB_KEY, id); } catch { /* fine */ }
+}
+
+const favButton = button(FAV, '★ Favorites', favs.size);
+favButton.classList.add('fav-chip');
+const favCount = favButton.querySelector('.chip-count');
 bar.replaceChildren(
   button('', 'All', cards.length),
+  favButton,
   ...order.map((id) => button(id, labelOf(id), counts.get(id))),
 );
 bar.hidden = false;
-select(''); // "All" by default
+// Open on the tab used last time (All the first time).
+let startTab = '';
+try { startTab = localStorage.getItem(TAB_KEY) || ''; } catch { /* All */ }
+select(startTab === FAV || counts.has(startTab) ? startTab : '');
 
 // ---------- Grid / List view ----------------------------------------------------
 // Grid: the full cards. List: one compact row per app (icon, name, Open link),

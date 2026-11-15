@@ -15,6 +15,15 @@ h1{margin:0;font-family:var(--mono);font-weight:700;font-size:clamp(32px,6vw,62p
 .apphead img{flex:none;width:48px;height:48px;border-radius:12px;display:block}
 .apphead div{display:flex;flex-direction:column;gap:4px;min-width:0}
 .app h3{margin:0;font-size:17px;font-weight:600}
+/* Favorites star (added by src/pages/app-filter.js) */
+.fav-btn{flex:none;margin-left:auto;width:44px;height:44px;margin-top:-10px;margin-right:-10px;display:inline-flex;align-items:center;justify-content:center;background:none;border:0;border-radius:999px;color:var(--muted);cursor:pointer}
+.fav-btn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
+.fav-btn:hover{color:var(--fg)}
+.fav-btn[aria-pressed="true"]{color:var(--amber)}
+.fav-btn[aria-pressed="true"] svg{fill:currentColor}
+.fav-btn:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
+.fav-empty{margin:4px 0 0;color:var(--muted);font-size:15px}
+.apps[data-view="list"] .fav-btn{margin:0 -10px 0 0}
 .app p{margin:0;color:var(--muted);font-size:15px}
 .meta{font-family:var(--mono);font-size:13px;margin-top:4px!important}
 .shot{height:280px;overflow:hidden;border-radius:10px;border:1px solid var(--line-2);background:var(--bar)}
