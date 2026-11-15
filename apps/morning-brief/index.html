@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<!-- /apps/morning-brief: turn on the daily Morning Brief email and preview it. Logic: src/pages/morning-brief.js -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Morning Brief · Garage Terminal</title>
+<meta name="description" content="A daily email with your calendar, low stock from your garage inventory, maintenance coming due and open projects.">
+<meta name="theme-color" content="#0B0E12">
+<!-- Site icons: SVG for modern browsers, .ico/.png fallbacks, home-screen icon, web manifest -->
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/src/styles/base.css">
+<link rel="stylesheet" href="/src/styles/forms.css">
+<style>
+.mb{display:flex;flex-direction:column;gap:18px}
+.mb fieldset{border:1px solid var(--line-2);border-radius:8px;padding:14px 16px;margin:0;display:flex;flex-direction:column;gap:10px}
+.mb legend{font-family:var(--mono);font-size:13px;color:var(--soft);padding:0 6px}
+.mb .check{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
+.mb .check input{width:22px;height:22px;accent-color:var(--green);flex:none}
+.mb .check.big{font-weight:600;font-size:17px}
+.mb .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.mb .row2{grid-template-columns:1fr}}
+.mb select.field{appearance:auto}
+.mb .btns{display:flex;flex-wrap:wrap;gap:10px}
+.mb details summary{cursor:pointer;color:var(--green);min-height:44px;display:flex;align-items:center}
+.mb details ol{margin:6px 0 0;padding-left:20px;line-height:1.7}
+.mb .readonly{font-family:var(--mono);overflow-wrap:anywhere}
+.preview{width:100%;height:900px;border:1px solid var(--line-2);border-radius:8px;background:#eef0f3}
+</style>
+<script type="module" src="/src/pages/morning-brief.js"></script>
+</head>
+<body>
+<header>
+  <nav class="wrap" aria-label="Main">
+    <a class="logo" href="/"><img class="logo-mark" src="/logo.svg" alt="" width="28" height="28">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
+    <div class="links">
+      <a href="/#apps">/apps</a>
+      <a href="/forum">/forum</a>
+      <a href="/wiki">/wiki</a>
+      <a href="/#bbs" hidden>/bbs</a>
+    </div>
+  </nav>
+  <div class="wrap session" id="session" aria-live="polite"></div>
+</header>
+
+<main class="wrap page">
+  <section class="block narrow">
+    <div class="shead"><h1>&gt; morning_brief</h1><span>daily email</span></div>
+    <div class="term">
+      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>brief.cfg</span></div>
+      <div class="tbody">
+        <p>A short email each morning: your calendar, parts running low in your Logbook inventory, maintenance coming due and open Project Tracker jobs.</p>
+
+        <div id="mb-loading"><p class="mutedt">connecting…</p></div>
+
+        <div id="mb-guest" hidden>
+          <p class="mutedt">Sign in with the Google account you use for the Logbook.</p>
+          <a class="btn primary" href="/join?next=%2Fapps%2Fmorning-brief">Sign in &gt;</a>
+        </div>
+
+        <form id="mb-form" class="mb" hidden novalidate>
+          <label class="check big"><input type="checkbox" id="mb-enabled"> Email me a Morning Brief every day</label>
+
+          <div>
+            <span class="field-label">Sent to</span>
+            <p class="readonly" id="mb-email"></p>
+            <p class="mutedt small">Always your own Google address.</p>
+          </div>
+
+          <div class="row2">
+            <label class="field-label">Time
+              <select class="field" id="mb-hour"></select>
+            </label>
+            <label class="field-label">Time zone
+              <select class="field" id="mb-tz"></select>
+            </label>
+          </div>
+
+          <fieldset>
+            <legend>Sections</legend>
+            <div id="mb-sections"></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Calendar (optional)</legend>
+            <label class="field-label" for="mb-ics">Secret address in iCal format</label>
+            <input class="field" id="mb-ics" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics">
+            <details>
+              <summary>Where do I find this?</summary>
+              <ol class="small">
+                <li>Open <strong>Google Calendar</strong> on a computer (or "Desktop site" in your phone's browser).</li>
+                <li>Settings (gear) → under <strong>Settings for my calendars</strong>, pick your calendar.</li>
+                <li><strong>Integrate calendar</strong> → copy <strong>Secret address in iCal format</strong>.</li>
+              </ol>
+              <p class="mutedt small">Apple and Outlook calendars have a similar "publish" or "subscribe" link. Treat it like a password: anyone with it can see your calendar. Only you can see it here.</p>
+            </details>
+          </fieldset>
+
+          <div class="btns">
+            <button class="btn primary" type="submit" id="mb-save">Save</button>
+            <button class="btn ghost" type="button" id="mb-test">Save and send me a test</button>
+          </div>
+          <p class="field-status" id="mb-status" data-kind="wait" aria-live="polite"></p>
+          <p class="mutedt small" id="mb-last"></p>
+        </form>
+
+        <p class="field-status" id="mb-error" data-kind="bad" role="alert" hidden></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="mb-preview-block" hidden>
+    <div class="shead"><h2>&gt; preview</h2><span>from your Logbook right now</span></div>
+    <p class="mutedt small">Calendar events show in the email itself; the preview can't read your calendar.</p>
+    <iframe class="preview" id="mb-preview" title="Morning Brief preview" sandbox=""></iframe>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>© Garage Terminal</span><span>NO CARRIER</span></div>
+</footer>
+</body>
+</html>

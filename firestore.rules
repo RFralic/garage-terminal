@@ -8,7 +8,8 @@ rules_version = '2';
 //
 // Sections: members (users, handles, private, admins) · forum (settings, areas,
 // threads, posts) · moderation (reports, modlog) · library · RepClock (per-member workouts) · Home Projects (per-member projects) ·
-// Logbook + Project Tracker (per-member records, projects, tracker settings).
+// Logbook + Project Tracker (per-member records, projects, tracker settings) ·
+// Morning Brief (per-member email settings).
 //
 // Cloud Functions use the Admin SDK, which bypasses these rules. That's how:
 //   - counters (replyCount, lastReplyAt, postCount) are kept up to date, and
@@ -434,6 +435,47 @@ service cloud.firestore {
         && part in ['records', 'projects', 'trackerSettings']
         && docId.matches('^[A-Za-z0-9_-]{1,64}$')
         && request.resource.data is map;
+    }
+
+    // =========================================================================
+    // MORNING BRIEF (apps/morning-brief): each member's daily email settings
+    // =========================================================================
+
+    // briefs/{uid}: the member's own settings. The email can only ever be the
+    // member's own verified Google address, so nobody can send briefs to
+    // someone else. The calendar address is secret, so only the member can
+    // read it. Sent by scripts/send-briefs.mjs (Admin SDK).
+    function briefSections(s) {
+      return s is map
+        && s.keys().hasOnly(['today', 'upcoming', 'lowStock', 'maintenance', 'projects'])
+        && (!('today' in s) || s.today is bool)
+        && (!('upcoming' in s) || s.upcoming is bool)
+        && (!('lowStock' in s) || s.lowStock is bool)
+        && (!('maintenance' in s) || s.maintenance is bool)
+        && (!('projects' in s) || s.projects is bool);
+    }
+
+    match /briefs/{uid} {
+      allow read, delete: if isSelf(uid);
+      allow create, update: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(['enabled', 'email', 'hour', 'tz', 'icsUrl', 'sections', 'sendNow', 'updatedAt'])
+        && request.resource.data.enabled is bool
+        && request.auth.token.email_verified == true
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.hour is int
+        && request.resource.data.hour >= 0 && request.resource.data.hour <= 23
+        && request.resource.data.tz is string && request.resource.data.tz.size() <= 64
+        && request.resource.data.icsUrl is string && request.resource.data.icsUrl.size() <= 2000
+        && (request.resource.data.icsUrl == '' || request.resource.data.icsUrl.matches('^https://.+'))
+        && briefSections(request.resource.data.sections)
+        && request.resource.data.sendNow is bool
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    // briefStatus/{uid}: when the last brief went out, or why it didn't.
+    // Written only by the sender.
+    match /briefStatus/{uid} {
+      allow read: if isSelf(uid);
     }
   }
 }
