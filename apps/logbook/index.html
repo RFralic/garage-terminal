@@ -106,12 +106,68 @@ textarea{min-height:80px;resize:vertical}
 .stk{display:inline-block;font:600 .72rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:3px;border:1px solid var(--line);white-space:nowrap}
 .stk.ok{color:var(--ok);border-color:var(--ok)}.stk.low{color:var(--warn);border-color:var(--warn)}.stk.out{color:var(--accent);border-color:var(--accent)}.stk.none{color:var(--muted)}
 .banner.ok{border-color:var(--ok);color:var(--ink)}
-.oilbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:6px;background:var(--surface-2);padding:12px 14px}
-.oilbar.soon{border-left-color:var(--warn)}.oilbar.over{border-left-color:var(--accent)}.oilbar.none{border-left-color:var(--line)}
-.oilbar>div{display:grid;gap:2px;min-width:0}
-.oilbar small{font:600 .72rem var(--f-display);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
-.oilbar b{font:500 1.05rem var(--f-mono)}.oilbar span{font-size:.8rem}
-.oilbar.soon>div:last-child b{color:var(--warn)}.oilbar.over>div:last-child b{color:var(--accent)}
+/* Maintenance due: Due tab, schedule rows, interval sheet. Overdue = accent, due soon = warn, on schedule = ok */
+.cnt.hot{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.due{display:grid;gap:16px}
+.duestats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.dstat{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column}
+.dstat b{font:700 1.9rem/1 var(--f-display)}.dstat small{font-size:.82rem;color:var(--ink)}
+.dstat.over{border-color:var(--accent)}.dstat.over b{color:var(--accent)}
+.dstat.soon{border-color:var(--warn)}.dstat.soon b{color:var(--warn)}.dstat.ok b{color:var(--ok)}
+.dgroup{display:grid;gap:8px}
+.dhead{font-size:1rem}.dhead span{color:var(--muted);font-weight:500}
+.dhead.over{color:var(--accent)}.dhead.soon{color:var(--warn)}.dhead.later{color:var(--steel)}
+.duecard{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:10px}
+.duecard.over{border-color:var(--accent)}
+.dtop{display:flex;gap:10px;align-items:flex-start}
+.dico{flex:none;width:36px;height:36px;border-radius:6px;background:var(--steel);display:flex;align-items:center;justify-content:center}
+.dico .eqi{color:var(--bg)}
+.dmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.dmach{all:unset;cursor:pointer;font:600 .78rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--steel);overflow-wrap:anywhere;padding:2px 0}
+.dmach:hover{text-decoration:underline}.dmach:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.dmain b{font-weight:600;font-size:1rem}.dmain span{font-size:.85rem;color:var(--muted)}
+.dpill{flex:none;padding:2px 8px;border:1px solid var(--line);border-radius:4px;font:600 .75rem var(--f-display);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;color:var(--muted)}
+.dpill.over{color:var(--accent);border-color:var(--accent)}.dpill.soon{color:var(--warn);border-color:var(--warn)}
+.dpill.ok{color:var(--ok);border-color:var(--ok)}.dpill.later{color:var(--steel);border-color:var(--steel)}
+.dbar{height:6px;border-radius:3px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden}
+.dbar i{display:block;height:100%;background:var(--ok)}
+.dbar.over i{background:var(--accent)}.dbar.soon i{background:var(--warn)}.dbar.later i{background:var(--steel)}
+.dacts{display:flex;gap:8px}.dacts button{min-height:44px}.dacts .primary{flex:1}
+.meterbox{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--steel);color:var(--bg);border-radius:8px;padding:12px 14px}
+.meterbox>div{display:grid;gap:2px;min-width:0}
+.meterbox small{font:600 .72rem var(--f-display);text-transform:uppercase;letter-spacing:.07em;opacity:.85}
+.meterbox b{font:500 1.15rem var(--f-mono)}.meterbox .muted{color:inherit;opacity:.85;font-size:.8rem}
+.meterbox button{background:transparent;color:inherit;border-color:currentColor}
+.meterbox label{color:inherit;flex:1 1 180px}.meterbox .actions{margin:0}
+.meterbox .primary{background:var(--bg);color:var(--ink);border-color:var(--bg)}
+.schedhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.schedhead .muted{font-size:.8rem}
+.sched{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.srow{display:grid;gap:6px;padding:12px;background:var(--surface);border-bottom:1px solid var(--line)}
+.srow:last-child{border-bottom:0}
+.srow1,.srow2,.srow3{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.srow2{font-size:.85rem}.srow2 .mono{text-align:right}
+.srow3{font-size:.8rem}.srow3 .ghost{min-height:36px;padding:4px 8px}
+.addsched{border-style:dashed;color:var(--muted);min-height:44px;background:transparent}
+body.sheet-open{overflow:hidden}
+.sheetwrap{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:min(560px,100%);max-height:92vh;overflow:auto;background:var(--surface);border-radius:14px 14px 0 0;border-top:1px solid var(--line);
+  padding:18px max(16px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:14px}
+@media (min-width:640px){.sheetwrap{align-items:center}.sheet{border-radius:14px;border:1px solid var(--line)}}
+.sheethead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.sheethead small{font:600 .75rem var(--f-display);text-transform:uppercase;letter-spacing:.1em;color:var(--steel)}
+.sheethead h2{font-size:1.5rem;text-transform:uppercase}
+.sheetx{width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);color:var(--ink)}
+.sfield{border:0;margin:0;padding:0;display:grid;gap:8px;min-width:0}
+.sfield legend{padding:0;margin-bottom:8px;font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.fields2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.shint{margin:0;font-size:.85rem}
+.sinv{margin:-8px 0 0;font-size:.85rem}.sinv:empty{display:none}
+.sinv.ok{color:var(--ok)}.sinv.out{color:var(--accent)}.sinv.none{color:var(--muted)}
+.snext{background:var(--surface-2);border-radius:6px;padding:10px 12px;font-size:.9rem}.snext:empty{display:none}
+.scheck{display:flex;align-items:center;gap:10px;min-height:44px;font-size:.9rem;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500}
+.scheck input{width:20px;height:20px;accent-color:var(--accent)}
+.smsg{margin:0;color:var(--accent);font-size:.9rem}.smsg:empty{display:none}
+.sbtns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.sbtns button{min-height:48px}
 .nextoil.soon dd{color:var(--warn)}.nextoil.over dd{color:var(--accent)}
 .formnote{margin:0;padding:10px 12px;border:1px solid var(--warn);border-left-width:4px;border-radius:6px;font-size:.9rem}
 .addinv{min-height:32px;padding:3px 10px;font-size:.8rem;color:var(--steel);border-color:var(--steel);background:transparent}
@@ -161,12 +217,6 @@ th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);verti
 th{font:600 .75rem var(--f-display);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);background:var(--surface-2);white-space:nowrap}
 td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 tr:last-child td{border-bottom:none}
-.status{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
-.stat{border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:4px;padding:8px 12px;background:var(--surface-2)}
-.stat.none{border-left-color:var(--line)}
-.stat.old{border-left-color:var(--warn)}
-.stat small{display:block;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
-.stat b{font-family:var(--f-mono);font-weight:500;font-size:.92rem}
 .doclinks{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 a.doc{display:inline-flex;align-items:center;gap:6px;font:600 .85rem var(--f-body);color:var(--steel);border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:7px 11px;text-decoration:none;min-height:36px}
 a.doc:hover{border-color:var(--steel)}a.doc:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -225,7 +275,7 @@ a.doc::after{content:"↗";font-weight:400}
 
 <script>window.fbReady=new Promise((res,rej)=>{window.fbResolve=res;window.fbReject=rej;setTimeout(()=>rej(new Error("timeout")),15000)});</script>
 <!-- Garage Terminal: sign-in and storage from this site (src/apps/logbook-backend.js), kept offline too -->
-<script>window.__gtOfflineCache=true</script>
+<script>window.__gtOfflineCache=true;window.__gtSite=true</script>
 <script type="module" src="/src/apps/logbook-backend.js"></script>
 <script>
 const TASKS=["Oil change","Spark plug","Air filter","Fuel filter","Fuel stabilizer","Blade sharpened","Carb cleaned","Belt","Grease / lube","Winterized","Other"];
@@ -280,16 +330,17 @@ const fmtMi=n=>Math.round(n).toLocaleString("en-US")+" mi";
 function nextOil(e){if(!e||e.kind!=="vehicle")return null;
   const oil=sortedLog(e).find(l=>(l.tasks||[]).includes("Oil & filter")&&milesN(l.hours)!=null);if(!oil)return null;
   const every=milesN(e.oilInterval)||5000,at=milesN(oil.hours)+every,cur=milesN(e.hours);
-  const left=cur==null?null:at-cur;return {at,every,left,from:milesN(oil.hours),date:oil.date,state:left==null?"ok":left<0?"over":left<=500?"soon":"ok"}}
+  const left=cur==null?null:at-cur;return {at,every,left,from:milesN(oil.hours),date:oil.date,state:left==null?"ok":left<0?"over":left<=oilWarn(e)?"soon":"ok"}}
+const oilWarn=e=>{const s=schedOf(e).find(x=>x.task==="Oil & filter");return s&&milesN(s.warnMeter)!=null?milesN(s.warnMeter):500};
 const nextOilText=n=>!n?"":n.left==null?fmtMi(n.at):n.left<0?`${fmtMi(n.at)} · ${fmtMi(-n.left)} overdue`:`${fmtMi(n.at)} · ${fmtMi(n.left)} to go`;
 const KINDS={
  engine:{one:"engine",One:"Engine",plural:"Small engines",types:EQUIP,typeLabel:"Equipment type",spec:SPEC,tasks:TASKS,
-   watch:["Oil change","Spark plug","Air filter","Fuel filter"],meterLabel:"Engine hours",meterCol:"Hours",unit:" h",
+   meterLabel:"Engine hours",meterCol:"Hours",unit:" h",
    partPh:"Part (e.g. Blade, belt, pre-filter)",namePh:"Back yard mower",logPh:"Used NGK BPR5ES, gapped 0.030. Oil was dark.",
    cardRows:e=>[["Engine",[e.engineMake,e.engineModel].filter(Boolean).join(" ")],["Spark plug",withBrand(e.plugBrand,e.plug)],["Oil",[e.oilType,e.oilCapacity].filter(Boolean).join(" · ")],["Air filter",withBrand(e.airFilterBrand,e.airFilter)]],
    emptyMsg:"Add your first mower, generator, or saw. You'll record its spark plug, oil, filters and part numbers, then log each service."},
  vehicle:{one:"vehicle",One:"Vehicle",plural:"Vehicles",types:VTYPES,typeLabel:"Vehicle type",spec:VSPEC,tasks:VTASKS,
-   watch:["Oil & filter","Tire rotation","Air filter","Brakes"],meterLabel:"Mileage",meterCol:"Miles",unit:" mi",
+   meterLabel:"Mileage",meterCol:"Miles",unit:" mi",
    partPh:"Part (e.g. Serpentine belt, headlight bulb)",namePh:"Work truck",logPh:"Mobil 1 5W-20, FL-500S filter. Rotated tires.",
    cardRows:e=>[["Vehicle",[e.year,e.make,e.model].filter(Boolean).join(" ")],["Mileage",milesN(e.hours)!=null?fmtMi(milesN(e.hours)):e.hours],["Next oil",nextOil(e)?nextOilText(nextOil(e)):""],["Oil",[e.oilType,e.oilCapacity].filter(Boolean).join(" · ")],["Oil filter",withBrand(e.oilFilterBrand,e.oilFilter)]],
    emptyMsg:"Add your car or truck. You'll record its oil, filters, tires and part numbers, then log each service with the mileage."}
@@ -300,7 +351,7 @@ const dname=e=>{if(!e)return"";if((e.name||"").trim())return e.name.trim();
   const mm=(kindOf(e)==="vehicle"?[e.year,e.make,e.model]:[e.make,e.model]).map(x=>(x||"").trim()).filter(Boolean).join(" ");
   return mm||(e.equipment&&kindOf(e)!=="vehicle"?e.equipment:"")||"Unnamed "+(K(e)?K(e).one:"item")};
 const byName=(a,b)=>dname(a).localeCompare(dname(b));
-let listKind=(()=>{try{const v=localStorage.getItem("sel-kind");return v==="vehicle"||v==="part"?v:"engine"}catch(e){return"engine"}})();
+let listKind=(()=>{try{const v=localStorage.getItem("sel-kind");return v==="vehicle"||v==="part"||v==="due"?v:"engine"}catch(e){return"engine"}})();
 let listView=(()=>{try{return localStorage.getItem("sel-view")==="list"?"list":"grid"}catch(e){return"grid"}})(); /* engines & vehicles: "grid" cards or a compact "list" */
 let db=null, col=null, engines=[], view={id:null,tab:"specs"}, offline=false, draft=null, pendingDelete=false, editing=false;
 const $=s=>document.querySelector(s);
@@ -313,6 +364,73 @@ const docsOf=e=>(e.docs||[]).filter(d=>safeUrl(d.url));
 const sortedLog=e=>[...(e.log||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
 const lastFor=(e,task)=>sortedLog(e).find(l=>(l.tasks||[]).includes(task));
 const monthsSince=s=>{if(!s)return null;const d=new Date(s+"T00:00");return (Date.now()-d)/(1000*60*60*24*30.4)};
+/* ---- due rules: start ----
+   Maintenance due. Garage Terminal's Morning Brief (garage-terminal/src/brief/brief.js) keeps an
+   exact copy of this block so the email and the app always agree: change both together (a test
+   there checks they match). Uses milesN, sortedLog and fmtMi from the page.
+   A machine's schedule is e.schedule = [{id, task, every, months, warnMeter, warnDays, part, brief, snooze}]:
+     every: miles (vehicles) or engine hours (small engines) · months: calendar months · either may be blank
+     warnMeter / warnDays: "due soon" this close · brief: false leaves it out of the Morning Brief
+     snooze: "YYYY-MM-DD", hidden from Overdue / Due soon until that day
+   No saved schedule -> DUE_DEFAULTS. A vehicle's "Oil & filter" mileage is its oilInterval spec (default 5,000).
+   Due = the last log entry with that task + the interval, whichever of meter or months comes first.
+   Never logged -> state "none" (not tracked yet). */
+const DUE_DEFAULTS={
+  engine:[["Oil change",50,12],["Spark plug",100,12],["Air filter",25,12],["Fuel filter",100,12]],
+  vehicle:[["Oil & filter",5000,12],["Tire rotation",7500,12],["Air filter",15000,12],["Brakes",10000,12]]};
+const DUE_WARN={engine:[[5,14],[10,30],[2,7]],vehicle:[[500,14],[1000,30],[250,7]]}; // [meter, days]; the first is the default
+const DUE_MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const dueKind=e=>e&&e.kind==="vehicle"?"vehicle":"engine";
+const dueSlug=t=>String(t||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")||"service";
+const dueYmd=k=>String(k||"").slice(0,10).split("-").map(Number);
+const dueDays=(a,b)=>{const [y1,m1,d1]=dueYmd(a),[y2,m2,d2]=dueYmd(b);return Math.round((Date.UTC(y2,m2-1,d2)-Date.UTC(y1,m1-1,d1))/864e5)};
+const dueAddDays=(k,n)=>{const [y,m,d]=dueYmd(k);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10)};
+function dueAddMonths(k,n){const [y,m,d]=dueYmd(k);const f=new Date(Date.UTC(y,m-1+n,1));
+  const last=new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+1,0)).getUTCDate();
+  return new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth(),Math.min(d,last))).toISOString().slice(0,10)}
+const dueDay=k=>{const [y,m,d]=dueYmd(k);return `${DUE_MON[m-1]} ${d}, ${y}`};
+const dueMonth=k=>{const [y,m]=dueYmd(k);return `${DUE_MON[m-1]} ${y}`};
+const dueSpan=n=>n<14?`${n} day${n===1?"":"s"}`:n<60?`${Math.round(n/7)} weeks`:`${Math.round(n/30.4)} months`;
+const dueMeter=(kd,n)=>kd==="vehicle"?fmtMi(n):`${(Math.round(n*10)/10).toLocaleString("en-US")} h`;
+/** The services tracked on a machine (its saved schedule, or the defaults). */
+function schedOf(e){const kd=dueKind(e),w=DUE_WARN[kd][0];
+  const list=Array.isArray(e&&e.schedule)?e.schedule:DUE_DEFAULTS[kd].map(([task,every,months])=>
+    ({id:dueSlug(task),task,every:String(every),months:String(months),warnMeter:String(w[0]),warnDays:String(w[1]),part:"",brief:true}));
+  return list.filter(s=>s&&String(s.task||"").trim())}
+/** One service's status on `today` ("YYYY-MM-DD"). */
+function dueOf(e,s,today){const kd=dueKind(e),w=DUE_WARN[kd][0];
+  const every=kd==="vehicle"&&s.task==="Oil & filter"?(milesN(e.oilInterval)||5000):milesN(s.every);
+  const months=milesN(s.months);
+  const warnM=milesN(s.warnMeter)??w[0],warnD=milesN(s.warnDays)??w[1];
+  const log=sortedLog(e).filter(l=>(l.tasks||[]).includes(s.task)&&/^\d{4}-\d{2}-\d{2}/.test(String(l.date||"")));
+  const r={s,task:s.task,kd,every:every||null,months:months||null,last:log[0]||null,lastMeter:null,m:null,t:null,
+    state:"none",by:null,pct:0,upcoming:false,snoozed:!!(s.snooze&&String(s.snooze)>=today),brief:s.brief!==false,text:"",short:""};
+  if(!r.last)return r;
+  const lm=log.find(l=>milesN(l.hours)!=null),cur=milesN(e.hours);
+  if(lm)r.lastMeter=milesN(lm.hours);
+  if(every&&lm){const at=r.lastMeter+every,left=cur==null?null:at-cur;
+    r.m={at,left,used:cur==null?null:cur-r.lastMeter,state:left==null?"ok":left<0?"over":left<=warnM?"soon":"ok",pct:left==null?0:(every-left)/every}}
+  if(months){const from=String(r.last.date).slice(0,10),due=dueAddMonths(from,months),left=dueDays(today,due),total=Math.max(1,dueDays(from,due));
+    r.t={due,left,used:total-left,total,state:left<0?"over":left<=warnD?"soon":"ok",pct:(total-left)/total}}
+  const rank={over:0,soon:1,ok:2},sides=[r.m,r.t].filter(Boolean);
+  if(!sides.length)return r;
+  const d=[...sides].sort((a,b)=>rank[a.state]-rank[b.state]||b.pct-a.pct)[0]; // the worse side decides
+  r.state=d.state;r.by=d===r.m?"meter":"time";r.pct=Math.max(0,Math.min(1,d.pct));
+  r.upcoming=r.state==="ok"&&(!!(r.t&&r.t.left<=92)||!!(r.m&&r.m.pct>=2/3)); // "Coming up": within 3 months, or 2/3 of the miles / hours used
+  const M=n=>dueMeter(kd,n);
+  if(r.by==="meter"){const m=r.m;
+    if(m.left==null){r.text=`Due at ${M(m.at)} · update the ${kd==="vehicle"?"mileage":"engine hours"} to check`;r.short=`at ${M(m.at)}`}
+    else if(m.state==="over"){r.text=`${M(-m.left)} overdue · was due at ${M(m.at)}`;r.short=`${M(-m.left)} overdue`}
+    else if(m.state==="soon"){r.text=`Due in ${M(m.left)} · at ${M(m.at)}`;r.short=`in ${M(m.left)}`}
+    else{r.text=`Due at ${M(m.at)} · in ${M(m.left)}`;r.short=`at ${M(m.at)}`}}
+  else{const t=r.t;
+    if(t.state==="over"){r.text=`${dueSpan(-t.left)} overdue · was due ${dueDay(t.due)}`;r.short=`${dueSpan(-t.left)} overdue`}
+    else if(t.state==="soon"){r.text=t.left===0?"Due today":`Due ${dueDay(t.due)} · in ${dueSpan(t.left)}`;r.short=t.left===0?"today":`in ${dueSpan(t.left)}`}
+    else{r.text=`Due ${dueMonth(t.due)} · in ${dueSpan(t.left)}`;r.short=dueMonth(t.due)}}
+  return r}
+/** Every tracked service on a machine, with its status. */
+const dueList=(e,today)=>schedOf(e).map(s=>dueOf(e,s,today));
+/* ---- due rules: end ---- */
 
 /* ---------- storage ---------- */
 function lsLoad(){try{return JSON.parse(localStorage.getItem("sel-engines-local")||"[]")}catch(e){return[]}}
@@ -396,16 +514,19 @@ function render(){
   if(partEdit){const rt=partEdit.returnTo&&engines.find(x=>x.id===partEdit.returnTo);
     top.innerHTML=`<button class="ghost" id="backBtn">← ${rt?esc(dname(rt)):"Inventory"}</button>`;$("#backBtn").onclick=()=>{closePart()};renderPartEdit();return}
   if(!view.id&&listKind==="part"){top.innerHTML=`<button class="primary" id="addBtn">+ Add part</button>`;$("#addBtn").onclick=()=>openPart(null);renderList();drawBackup();return}
+  if(!view.id&&listKind==="due"){top.innerHTML="";renderList();return}
   if(!view.id){top.innerHTML=`<button class="primary" id="addBtn">+ Add ${KINDS[listKind].one}</button>`;$("#addBtn").onclick=()=>addEngine(listKind);renderList();drawBackup();return}
-  top.innerHTML=`<button class="ghost" id="backBtn">← All ${K(current()).plural.toLowerCase()}</button>`;$("#backBtn").onclick=()=>{view={id:null,tab:"specs"};draft=null;pendingDelete=false;editing=false;render()};
+  top.innerHTML=`<button class="ghost" id="backBtn">← ${listKind==="due"?"Maintenance due":"All "+K(current()).plural.toLowerCase()}</button>`;$("#backBtn").onclick=()=>{view={id:null,tab:"specs"};draft=null;pendingDelete=false;editing=false;render()};
   renderDetail();
 }
 function renderList(){
   const app=$("#app");
   const count=kd=>engines.filter(e=>kindOf(e)===kd).length;
-  const kt=`<nav class="tabs kindtabs" role="tablist">${[...Object.entries(KINDS).map(([kd,c])=>[kd,c.plural]),["part","Inventory"]].map(([kd,lab])=>`<button role="tab" data-kind="${kd}" aria-selected="${kd===listKind}">${lab} <span class="cnt">${count(kd)}</span></button>`).join("")}</nav>`;
+  const kt=`<nav class="tabs kindtabs" role="tablist">${[...Object.entries(KINDS).map(([kd,c])=>[kd,c.plural]),["part","Inventory"],["due","Due"]].map(([kd,lab])=>{const n=kd==="due"?dueNow().length:count(kd);
+    return `<button role="tab" data-kind="${kd}" aria-selected="${kd===listKind}">${lab} <span class="cnt${kd==="due"&&n?" hot":""}">${n}</span></button>`}).join("")}</nav>`;
   const wire=()=>app.querySelectorAll("[data-kind]").forEach(b=>b.onclick=()=>{listKind=b.dataset.kind;try{localStorage.setItem("sel-kind",listKind)}catch(e){}render()});
   if(listKind==="part"){renderInventory(kt,wire);return}
+  if(listKind==="due"){renderDue(kt,wire);return}
   const k=KINDS[listKind];
   const items=engines.filter(e=>kindOf(e)===listKind);
   if(!items.length){app.innerHTML=kt+`<div class="empty"><h2>No ${k.plural.toLowerCase()} yet</h2><p class="muted">${k.emptyMsg}</p><button class="primary" id="addEmpty">+ Add ${k.one}</button></div>`;$("#addEmpty").onclick=()=>addEngine(listKind);wire();return}
@@ -446,7 +567,7 @@ function renderDetail(){
   const e=current(); const app=$("#app");
   if(!e){view.id=null;render();return}
   if(!draft||draft.id!==e.id)draft=JSON.parse(JSON.stringify(e));
-  const tabs=[["specs","Specs & parts"],["log","Service log"],["print","Print record"]];
+  const tabs=[["specs","Specs & parts"],["log","Schedule & log"],["print","Print record"]];
   app.innerHTML=`
    <div class="head"><div class="t"><h2>${esc(dname(e))}</h2><div class="muted">${esc((kindOf(e)==="vehicle"?[(e.name||"").trim()?[e.year,e.make,e.model].filter(Boolean).join(" "):"",e.trim,e.engine]:[e.equipment,(e.name||"").trim()?[e.make,e.model].filter(Boolean).join(" "):"",[e.engineMake,e.engineModel].filter(Boolean).join(" ")&&("Engine: "+[e.engineMake,e.engineModel].filter(Boolean).join(" ")),e.engineType]).filter(Boolean).join(" · "))} ${e.example?'<span class="tag ex">Example</span>':""}</div>
      ${docsOf(e).length?`<div class="doclinks">${docsOf(e).map(d=>`<a class="doc" href="${esc(safeUrl(d.url))}" target="_blank" rel="noopener">${esc(d.label||"Link")}</a>`).join("")}</div>`:""}</div></div>
@@ -542,6 +663,7 @@ function renderSpecs(e){
     const bad=(d.docs||[]).find(x=>x.url&&!safeUrl(x.url));if(bad){$("#savedMsg").style.color="var(--accent)";$("#savedMsg").textContent="One link isn't a web address. Paste the full link from Drive.";return}
     d.docs=(d.docs||[]).filter(x=>x.url).map(x=>({label:x.label.trim()||"Service manual",url:safeUrl(x.url)}));
     const out={...e,...d};delete out._new;delete out._pickerShown;
+    if(String(out.hours||"")!==String(e.hours||""))out.hoursAt=today(); // "Mileage updated …" on the schedule
     const btn=$("#saveSpecs");btn.disabled=true;
     try{await saveEngine(out);draft=null;editing=false;render();const m=$("#savedMsg");if(m)m.textContent="Saved"}catch(err){$("#savedMsg").textContent="Couldn't save: "+(err.message||err.code);btn.disabled=false}};
   $("#cancelEdit").onclick=()=>{pendingDelete=false;editing=false;draft=null;
@@ -555,13 +677,11 @@ const PH={engineType:"Single-cylinder OHV",make:"Honda",model:"HRN216",serial:"M
 
 function renderLog(e){
   const log=sortedLog(e);const k=K(e);
-  const watch=k.watch;
-  const no=nextOil(e),isV=kindOf(e)==="vehicle";
+  /* work-done chips: the usual jobs plus any custom services tracked on this machine */
+  const tl=[...k.tasks,...new Set(schedOf(e).map(x=>x.task).filter(t=>!k.tasks.includes(t)))];
   $("#panel").innerHTML=`<section class="panel">
-    ${isV?`<div class="oilbar ${no?no.state:"none"}"><div><small>Current mileage</small><b>${milesN(e.hours)!=null?fmtMi(milesN(e.hours)):"Not set"}</b></div>
-      <div><small>Next oil change</small><b>${no?nextOilText(no):"Log an oil change with mileage"}</b>${no?`<span class="muted">${fmtMi(no.every)} after the ${fmtDate(no.date)} oil change at ${fmtMi(no.from)}</span>`:""}</div></div>`:""}
-    <div><h3>Last done</h3><div class="status" style="margin-top:8px">${watch.map(t=>{const l=lastFor(e,t);const m=l?monthsSince(l.date):null;
-      return `<div class="stat ${!l?"none":m>12?"old":""}"><small>${t}</small><b>${l?fmtDate(l.date):"Not logged"}</b>${l&&l.hours?`<span class="muted mono"> · ${esc(l.hours)}${k.unit}</span>`:""}</div>`}).join("")}</div></div>
+    ${meterBox(e)}
+    ${scheduleBox(e)}
     <form class="logform" id="logForm">
       <h3>Log a service</h3>
       <div class="fields">
@@ -569,7 +689,7 @@ function renderLog(e){
         <label>${k.meterLabel}<input id="l-hours" class="pn" inputmode="decimal" value="${esc(e.hours||"")}" placeholder="Optional"></label>
         <label>Cost<input id="l-cost" class="pn" inputmode="decimal" placeholder="$ optional"></label>
       </div>
-      <div><label>Work done</label><div class="chips" style="margin-top:6px">${k.tasks.map((t,i)=>`<label class="chip"><input type="checkbox" id="t-${i}" value="${esc(t)}">${esc(t)}</label>`).join("")}</div></div>
+      <div><label>Work done</label><div class="chips" style="margin-top:6px">${tl.map((t,i)=>`<label class="chip"><input type="checkbox" id="t-${i}" value="${esc(t)}">${esc(t)}</label>`).join("")}</div></div>
       <label>Notes / parts used<textarea id="l-notes" placeholder="${esc(k.logPh)}"></textarea></label>
       <div class="actions"><button class="primary" type="submit">Add to log</button><span id="logMsg" class="saved"></span></div>
     </form>
@@ -579,23 +699,171 @@ function renderLog(e){
     </tbody></table></div>`:`<p class="muted">No services logged yet. Use the form above to record the first one.</p>`}</div>
   </section>`;
   $("#logForm").onsubmit=async ev=>{ev.preventDefault();
-    const tasks=k.tasks.filter((t,i)=>$("#t-"+i).checked);
+    const tasks=tl.filter((t,i)=>$("#t-"+i).checked);
     const notes=$("#l-notes").value.trim();
     if(!tasks.length&&!notes){$("#logMsg").textContent="Tick at least one job or add a note.";$("#logMsg").style.color="var(--accent)";return}
     const entry={id:uid(),date:$("#l-date").value||today(),hours:$("#l-hours").value.trim(),cost:$("#l-cost").value.replace(/^\$/,"").trim(),tasks,notes};
     const out={...e,log:[...(e.log||[]),entry]};
     const num=v=>parseFloat(String(v||"").replace(/,/g,""));
-    if(entry.hours&&(!e.hours||num(entry.hours)>=num(e.hours)))out.hours=entry.hours;
+    if(entry.hours&&(!e.hours||num(entry.hours)>=num(e.hours))){out.hours=entry.hours;out.hoursAt=entry.date}
+    if(Array.isArray(e.schedule))out.schedule=e.schedule.map(x=>{if(!tasks.includes(x.task)||!x.snooze)return x;const {snooze,...y}=x;return y}); // done: wake any snooze
     try{await saveEngine(out);draft=null;const m=$("#logMsg");if(m){const bits=["Added."];
       if(out.hours!==e.hours&&milesN(out.hours)!=null)bits.push(`Mileage updated to ${fmtMi(milesN(out.hours))}.`);
       const n2=nextOil(out);if(tasks.includes("Oil & filter")&&n2)bits.push(`Next oil change at ${fmtMi(n2.at)}.`);
       m.style.color="";m.textContent=bits.join(" ")}}catch(err){$("#logMsg").textContent="Couldn't save: "+(err.message||err.code)}};
+  wireMeter(e);
+  $("#addSched").onclick=()=>openSheet(e,null);
+  $("#panel").querySelectorAll("[data-sched]").forEach(b=>b.onclick=()=>openSheet(e,b.dataset.sched));
+  if(logPrefill&&logPrefill.id===e.id){const i=tl.indexOf(logPrefill.task);logPrefill=null; // "Log it as done" from the Due tab
+    if(i>=0)$("#t-"+i).checked=true;const f=$("#logForm");f.scrollIntoView({block:"start"});$("#l-hours").focus({preventScroll:true})}
   $("#panel").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{pendingLog=b.dataset.del;renderLog(e)});
   $("#panel").querySelectorAll("[data-no]").forEach(b=>b.onclick=()=>{pendingLog=null;renderLog(e)});
   $("#panel").querySelectorAll("[data-yes]").forEach(b=>b.onclick=async()=>{const id=b.dataset.yes;pendingLog=null;
     try{await saveEngine({...e,log:(e.log||[]).filter(l=>l.id!==id)})}catch(err){showBanner("Couldn't delete entry: "+(err.message||err.code))}});
 }
 let pendingLog=null;
+/* ---------- Maintenance due: the Due tab, each machine's service schedule, and the interval sheet ---------- */
+let dueFilter="all", logPrefill=null, sheet=null, meterEdit=false;
+const DUE_LABEL={over:"Overdue",soon:"Due soon",ok:"OK",none:"Not logged"};
+const dueAll=()=>machines().flatMap(e=>dueList(e,today()).map(d=>({...d,e})));
+/** Overdue and due-soon services that aren't snoozed: the Due tab's badge. */
+const dueNow=()=>dueAll().filter(d=>(d.state==="over"||d.state==="soon")&&!d.snoozed);
+const meterWord=e=>kindOf(e)==="vehicle"?"mileage":"engine hours";
+/** The progress bar's spoken label, e.g. "7,100 of 7,500 mi". */
+function dueBarLabel(d){const side=d.by==="meter"?d.m:d.t;if(!side)return"";
+  if(d.by==="meter")return side.used==null?"":`${(Math.round(Math.max(0,side.used)*10)/10).toLocaleString("en-US")} of ${dueMeter(d.kd,d.every)}`;
+  return `${Math.max(0,side.used)} of ${side.total} days`}
+const dueBar=d=>d.state==="none"?"":`<div class="dbar ${d.snoozed?"later":d.state}" role="img" aria-label="${esc(dueBarLabel(d)||Math.round(d.pct*100)+"%")}"><i style="width:${Math.round(d.pct*100)}%"></i></div>`;
+const everyText=(e,s)=>{const kd=dueKind(e);const ev=kd==="vehicle"&&s.task==="Oil & filter"?(milesN(e.oilInterval)||5000):milesN(s.every);const mo=milesN(s.months);
+  const bits=[ev?dueMeter(kd,ev):"",mo?`${mo} month${mo===1?"":"s"}`:""].filter(Boolean);return bits.length?"Every "+bits.join(" or "):"No interval set"};
+const fmtShortDay=k=>{const [y,m,d]=dueYmd(k);return `${DUE_MON[m-1]} ${d}`};
+
+function renderDue(kt,wire){
+  const app=$("#app");const all=dueAll();
+  const shown=all.filter(d=>dueFilter==="all"||d.kd===dueFilter);
+  const over=shown.filter(d=>d.state==="over"&&!d.snoozed),soon=shown.filter(d=>d.state==="soon"&&!d.snoozed);
+  const later=shown.filter(d=>d.state!=="none"&&(d.snoozed||d.upcoming)),onSched=shown.filter(d=>d.state==="ok"||(d.snoozed&&d.state!=="none"));
+  const untracked=shown.filter(d=>d.state==="none").length;
+  const byPct=(a,b)=>b.pct-a.pct||dname(a.e).localeCompare(dname(b.e));
+  const card=d=>`<article class="duecard ${d.snoozed?"later":d.state}">
+      <div class="dtop"><span class="dico">${eqIcon(d.e.equipment)||eqIcon("Other")}</span>
+        <div class="dmain"><button class="dmach" data-open="${esc(d.e.id)}">${esc(dname(d.e))}</button><b>${esc(d.task)}</b><span>${esc(d.text)}${d.snoozed?` · snoozed until ${esc(fmtShortDay(d.s.snooze))}`:""}</span></div>
+        <span class="dpill ${d.snoozed?"later":d.state==="ok"?"later":d.state}">${d.snoozed?"Snoozed":d.state==="ok"?"Later":DUE_LABEL[d.state]}</span></div>
+      ${dueBar(d)}
+      <div class="dacts"><button class="primary" data-done="${esc(d.e.id)}" data-task="${esc(d.task)}">Log it as done</button>${d.snoozed?`<button data-snooze="${esc(d.e.id)}" data-sid="${esc(d.s.id)}" data-off="1">Unsnooze</button>`:d.state==="ok"?"":`<button data-snooze="${esc(d.e.id)}" data-sid="${esc(d.s.id)}">Snooze</button>`}</div>
+    </article>`;
+  const group=(cls,title,items)=>`<section class="dgroup"><h3 class="dhead ${cls}">${title} <span>· ${items.length}</span></h3>
+    ${items.length?items.sort(byPct).map(card).join(""):`<p class="muted" style="margin:0;font-size:.9rem">Nothing here.</p>`}</section>`;
+  const filters=[["all","All machines"],["engine","Small engines"],["vehicle","Vehicles"]];
+  let body;
+  if(!machines().length)body=`<div class="empty"><h2>Nothing to track yet</h2><p class="muted">Add an engine or a vehicle, then log its services. Due dates are worked out from the log.</p></div>`;
+  else body=`<div class="duestats">
+      <div class="dstat over"><b>${over.length}</b><small>Overdue</small></div>
+      <div class="dstat soon"><b>${soon.length}</b><small>Due soon</small></div>
+      <div class="dstat ok"><b>${onSched.length}</b><small>On schedule</small></div></div>
+    <div class="chips" role="group" aria-label="Show">${filters.map(([id,l])=>`<button type="button" class="fchip" data-dfilter="${id}" aria-pressed="${dueFilter===id}">${l}</button>`).join("")}</div>
+    ${group("over","Overdue",over)}${group("soon","Due soon",soon)}${group("later","Coming up",later)}
+    ${untracked?`<p class="muted" style="margin:0;font-size:.85rem">${untracked} tracked service${untracked===1?" has":"s have"} never been logged, so ${untracked===1?"it isn't":"they aren't"} counted yet. Log ${untracked===1?"it":"them"} once on the machine's Schedule &amp; log tab.</p>`:""}
+    <p class="muted" style="margin:0;font-size:.85rem">Due is worked out from your service log: the last time each service was logged, plus how often it's due (miles, engine hours or months). Update a machine's mileage or hours to keep it accurate.</p>`;
+  app.innerHTML=kt+`<div class="due">${body}</div>`;
+  wire();
+  app.querySelectorAll("[data-dfilter]").forEach(b=>b.onclick=()=>{dueFilter=b.dataset.dfilter;render()});
+  app.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{view={id:b.dataset.open,tab:"log"};draft=null;editing=false;pendingDelete=false;render();window.scrollTo(0,0)});
+  app.querySelectorAll("[data-done]").forEach(b=>b.onclick=()=>{logPrefill={id:b.dataset.done,task:b.dataset.task};view={id:b.dataset.done,tab:"log"};draft=null;editing=false;pendingDelete=false;render()});
+  app.querySelectorAll("[data-snooze]").forEach(b=>b.onclick=async()=>{const e=engines.find(x=>x.id===b.dataset.snooze);if(!e)return;
+    const list=schedOf(e).map(s=>({...s}));const s=list.find(x=>x.id===b.dataset.sid);if(!s)return;
+    if(b.dataset.off)delete s.snooze;else s.snooze=dueAddDays(today(),7);
+    try{await saveEngine({...e,schedule:list});if(!b.dataset.off)showToast(`Snoozed ${s.task} on ${dname(e)} for a week.`)}catch(err){showBanner("Couldn't save: "+(err.message||err.code))}});
+}
+
+/** A machine's meter (mileage / engine hours) with a quick Update button. */
+function meterBox(e){const k=K(e),cur=milesN(e.hours);
+  if(meterEdit)return `<form class="meterbox" id="meterForm"><label>${k.meterLabel}<input id="m-val" class="pn" inputmode="decimal" value="${esc(e.hours||"")}" placeholder="${kindOf(e)==="vehicle"?"86,240":"112"}"></label>
+    <div class="actions"><button class="primary" type="submit">Save</button><button type="button" id="m-cancel">Cancel</button></div></form>`;
+  return `<div class="meterbox"><div><small>${k.meterLabel}</small><b>${cur!=null?esc(dueMeter(kindOf(e),cur)):"Not set"}</b>${e.hoursAt?`<span class="muted">Updated ${esc(fmtShortDay(e.hoursAt))}${String(e.hoursAt).slice(0,4)!==today().slice(0,4)?", "+esc(String(e.hoursAt).slice(0,4)):""}</span>`:""}</div>
+    <button type="button" id="m-edit">Update ${kindOf(e)==="vehicle"?"mileage":"hours"}</button></div>`}
+function wireMeter(e){
+  if($("#m-edit"))$("#m-edit").onclick=()=>{meterEdit=true;renderLog(e);const i=$("#m-val");if(i){i.focus();i.select()}};
+  if($("#m-cancel"))$("#m-cancel").onclick=()=>{meterEdit=false;renderLog(e)};
+  if($("#meterForm"))$("#meterForm").onsubmit=async ev=>{ev.preventDefault();const v=$("#m-val").value.trim();
+    if(v&&milesN(v)==null){$("#m-val").setCustomValidity("Enter a number");$("#m-val").reportValidity();$("#m-val").setCustomValidity("");return}
+    meterEdit=false;try{await saveEngine({...e,hours:v,hoursAt:today()})}catch(err){showBanner("Couldn't save: "+(err.message||err.code))}};
+}
+/** The machine's service schedule, soonest first. */
+function scheduleBox(e){const rank={over:0,soon:1,ok:2,none:3};
+  const rows=dueList(e,today()).sort((a,b)=>rank[a.state]-rank[b.state]||b.pct-a.pct);
+  const lastTxt=d=>d.last?`Last: ${fmtShortDay(d.last.date)}${String(d.last.date).slice(0,4)!==today().slice(0,4)?", "+String(d.last.date).slice(0,4):""}${d.lastMeter!=null?" · "+dueMeter(d.kd,d.lastMeter):""}`:"Not logged yet. Log it once to start tracking.";
+  return `<div class="vsec"><div class="schedhead"><h3>Service schedule</h3><span class="muted">soonest first</span></div>
+    ${rows.length?`<div class="sched">${rows.map(d=>`<div class="srow ${d.snoozed?"later":d.state}">
+      <div class="srow1"><b>${esc(d.task)}</b><span class="dpill ${d.snoozed?"later":d.state}">${d.snoozed?"Snoozed":DUE_LABEL[d.state]}</span></div>
+      ${dueBar(d)}
+      <div class="srow2"><span class="muted">${esc(lastTxt(d))}</span><span class="mono">${esc(d.short)}</span></div>
+      <div class="srow3"><span class="muted">${esc(everyText(e,d.s))}${d.s.part?` · ${esc(d.s.part)}`:""}</span><button type="button" class="ghost" data-sched="${esc(d.s.id)}">Change</button></div>
+    </div>`).join("")}</div>`:`<p class="muted" style="margin:0">No services tracked. Add one to see when it's due.</p>`}
+    <button type="button" class="addsched" id="addSched">+ Add a service to track</button></div>`}
+
+/** The bottom sheet for one tracked service: how often it's due, the warning, the part, the brief. */
+function openSheet(e,sid){const s=sid?schedOf(e).find(x=>x.id===sid):null;
+  sheet={eid:e.id,sid:s?s.id:null,back:document.activeElement};renderSheet()}
+function closeSheet(){const back=sheet&&sheet.back;sheet=null;const w=$("#sheetWrap");if(w)w.remove();document.body.classList.remove("sheet-open");if(back&&back.isConnected)back.focus()}
+function renderSheet(){const old=$("#sheetWrap");if(old)old.remove();if(!sheet)return;
+  const e=engines.find(x=>x.id===sheet.eid);if(!e){sheet=null;return}
+  const kd=dueKind(e),k=K(e),s=sheet.sid?schedOf(e).find(x=>x.id===sheet.sid):null;
+  const isOil=kd==="vehicle"&&s&&s.task==="Oil & filter";
+  const ev=s?(isOil?(e.oilInterval||"5000"):(s.every||"")):"",mo=s?(s.months||""):"";
+  const warns=DUE_WARN[kd],unitW=kd==="vehicle"?"mi":"h";
+  const wm=s?(milesN(s.warnMeter)??warns[0][0]):warns[0][0],wd=s?(milesN(s.warnDays)??warns[0][1]):warns[0][1];
+  const wtxt=([m,d],i)=>`${m.toLocaleString("en-US")} ${unitW} or ${d===7?"1 week":d===14?"2 weeks":d===30?"1 month":d+" days"}${i===0?" (suggested)":""}`;
+  const wopts=warns.map((w,i)=>`<option value="${w[0]}|${w[1]}"${w[0]===wm&&w[1]===wd?" selected":""}>${wtxt(w,i)}</option>`).join("")
+    +(warns.some(w=>w[0]===wm&&w[1]===wd)?"":`<option value="${wm}|${wd}" selected>${wtxt([wm,wd],1)}</option>`);
+  const custom=[...new Set(schedOf(e).map(x=>x.task).filter(t=>!k.tasks.includes(t)))];
+  const w=document.createElement("div");w.id="sheetWrap";w.className="sheetwrap";
+  w.innerHTML=`<form class="sheet" id="sheetForm" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheethead"><div><small>${esc(dname(e))}</small><h2 id="sheetTitle">${s?esc(s.task):"Track a service"}</h2></div>
+      <button type="button" class="ghost sheetx" id="sheetClose" aria-label="Close"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
+    <label>Service<input id="s-task" list="s-tasks" value="${esc(s?s.task:"")}" placeholder="e.g. ${esc(k.tasks[1]||k.tasks[0])}" ${isOil?"readonly":""} required><datalist id="s-tasks">${[...k.tasks.filter(t=>t!=="Other"),...custom].map(t=>`<option value="${esc(t)}"></option>`).join("")}</datalist></label>
+    <fieldset class="sfield"><legend>Due every</legend>
+      <div class="fields2"><label>${kd==="vehicle"?"Miles":"Engine hours"}<input id="s-every" class="pn" inputmode="decimal" value="${esc(ev?Number(milesN(ev)).toLocaleString("en-US"):"")}" placeholder="${kd==="vehicle"?"5,000":"50"}"></label>
+      <label>Months<input id="s-months" class="pn" inputmode="numeric" value="${esc(mo)}" placeholder="12"></label></div>
+      <p class="muted shint">Whichever comes first. Leave one blank to use only the other.${isOil?" This is also the ${k.one}'s Oil change every spec.":""}</p></fieldset>
+    <label>Warn me when it's this close<select id="s-warn">${wopts}</select></label>
+    <label>Part used (optional)<input id="s-part" value="${esc(s?s.part||"":"")}" placeholder="e.g. ${kd==="vehicle"?"Motorcraft FA-1883":"NGK BPR5ES"}"></label>
+    <p class="sinv" id="s-inv" aria-live="polite"></p>
+    <div class="snext" id="s-next" aria-live="polite"></div>
+    ${window.__gtSite?`<label class="scheck"><input type="checkbox" id="s-brief" ${!s||s.brief!==false?"checked":""}>Include in the Morning Brief email</label>`:""}
+    <p class="smsg" id="s-msg" role="alert"></p>
+    <div class="sbtns"><button type="button" id="${s?"s-stop":"s-cancel"}">${s?"Stop tracking":"Cancel"}</button><button type="submit" class="primary">Save</button></div>
+  </form>`;
+  document.body.appendChild(w);document.body.classList.add("sheet-open");
+  const read=()=>{const [wM,wD]=$("#s-warn").value.split("|").map(Number);
+    return {...(s||{}),id:s?s.id:dueSlug($("#s-task").value)+"-"+uid().slice(0,4),task:$("#s-task").value.trim(),
+      every:String(milesN($("#s-every").value)??""),months:String(milesN($("#s-months").value)??""),warnMeter:String(wM),warnDays:String(wD),
+      part:$("#s-part").value.trim(),brief:$("#s-brief")?$("#s-brief").checked:(s?s.brief!==false:true)}};
+  const preview=()=>{const n=read();
+    const inv=n.part?partsOf().filter(p=>partHits(p,n.part)||pnMatch(withBrand(p.brand,p.number),n.part)):[];
+    const q=inv.reduce((a,p)=>a+qtyN(p),0),locs=[...new Set(inv.map(p=>p.location).filter(Boolean))].join(", ");
+    $("#s-inv").className="sinv "+(!n.part?"":inv.length?(q>0?"ok":"out"):"none");
+    $("#s-inv").textContent=!n.part?"":inv.length?`In inventory: ${q}${locs?" · "+locs:""}`:"Not in your inventory";
+    const probe={...e,oilInterval:isOil?n.every:e.oilInterval};const d=n.task?dueOf(probe,n,today()):null;
+    const at=d&&d.m?dueMeter(kd,d.m.at):"",when=d&&d.t?dueMonth(d.t.due):"";
+    $("#s-next").innerHTML=!n.task?"":!d.last?`<span class="muted">${esc(n.task)} hasn't been logged on this ${esc(k.one)} yet. Log it once and the next due date is worked out from there.</span>`
+      :(at||when)?`Next due: <b>${esc([at,when].filter(Boolean).join(" or "))}</b>${at&&when?", whichever comes first":""}.<br><span class="muted">Last done ${esc(dueDay(d.last.date))}${d.lastMeter!=null?" at "+esc(dueMeter(kd,d.lastMeter)):""} (from your service log).</span>`
+      :`<span class="muted">Enter ${kd==="vehicle"?"miles":"hours"}, months or both.</span>`};
+  w.querySelectorAll("input,select").forEach(i=>i.addEventListener("input",preview));preview();
+  w.addEventListener("click",ev=>{if(ev.target===w)closeSheet()});
+  w.addEventListener("keydown",ev=>{if(ev.key==="Escape"){ev.preventDefault();closeSheet()}});
+  $("#sheetClose").onclick=closeSheet;
+  if($("#s-cancel"))$("#s-cancel").onclick=closeSheet;
+  const save=async(list,extra)=>{const cur=engines.find(x=>x.id===e.id)||e;try{await saveEngine({...cur,...(extra||{}),schedule:list});closeSheet()}catch(err){$("#s-msg").textContent="Couldn't save: "+(err.message||err.code)}};
+  if($("#s-stop"))$("#s-stop").onclick=()=>save(schedOf(e).filter(x=>x.id!==s.id).map(x=>({...x})));
+  $("#sheetForm").onsubmit=ev=>{ev.preventDefault();const n=read(),msg=$("#s-msg");
+    if(!n.task){msg.textContent="Name the service.";$("#s-task").focus();return}
+    if(!milesN(n.every)&&!milesN(n.months)){msg.textContent=`Enter ${kd==="vehicle"?"miles":"engine hours"}, months or both.`;$("#s-every").focus();return}
+    if(schedOf(e).some(x=>x.task.toLowerCase()===n.task.toLowerCase()&&x.id!==n.id)){msg.textContent=`${n.task} is already tracked on this ${k.one}.`;return}
+    const list=schedOf(e).map(x=>({...x}));const i=list.findIndex(x=>x.id===n.id);if(i<0)list.push(n);else list[i]=n;
+    save(list,isOil&&milesN(n.every)?{oilInterval:String(milesN(n.every))}:null)};
+  const first=$(s?"#s-every":"#s-task");if(first)first.focus();
+}
 
 /* ---------- file saving ---------- */
 const DL={save:async({filename,data})=>{

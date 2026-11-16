@@ -13,6 +13,8 @@
 //      Google sign-in and Firestore, with the offline cache switched on
 //   4. links between the two apps point at their new addresses
 //   5. offline: the old /sw.js is replaced by /apps/sw.js (public/apps/sw.js)
+// The Logbook's maintenance "due rules" block is also copied, word for word,
+// into src/brief/brief.js (tests/brief.maintenance.test.js checks they match).
 // The script stops with an error if a page changed in a way these edits no
 // longer fit, rather than producing a broken page.
 
@@ -52,7 +54,8 @@ const ICONS = [
 
 const BACKEND = [
   '<!-- Garage Terminal: sign-in and storage from this site (src/apps/logbook-backend.js), kept offline too -->',
-  '<script>window.__gtOfflineCache=true</script>',
+  // __gtSite: the Logbook shows Garage Terminal-only options (the Morning Brief checkbox on a service)
+  '<script>window.__gtOfflineCache=true;window.__gtSite=true</script>',
   '<script type="module" src="/src/apps/logbook-backend.js"></script>',
 ].join('\n');
 
