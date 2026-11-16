@@ -87,6 +87,37 @@ function select(options, value) {
   return s;
 }
 
+/**
+ * "Size or count": a number and a unit (8 oz, 1.5 lb, 12 pieces…), or "Other…" to type
+ * anything. Returns { node, get() } where get() gives the text that's saved ("12 pieces").
+ */
+function sizeField(value, { disabled = false, label = 'Size or count' } = {}) {
+  const p = L.parseSize(value);
+  const num = input({ type: 'text', inputmode: 'decimal', value: p.num || '', placeholder: '12', 'aria-label': `${label}: amount`, maxlength: '8', disabled, style: 'width:90px;flex:none' });
+  const unit = el('select', { class: 'field', 'aria-label': `${label}: unit`, disabled, style: 'flex:1;min-width:0' });
+  for (const [group, units] of L.SIZE_UNITS) {
+    const g = el('optgroup', { label: group });
+    for (const u of units) g.append(new Option(u, u));
+    unit.append(g);
+  }
+  unit.append(new Option('Other…', '__other'));
+  const other = input({ value: p.other || '', placeholder: 'e.g. 8 oz (half-pint), family size', maxlength: '40', 'aria-label': label, disabled });
+  unit.value = p.other ? '__other' : p.unit || store.get('ptSizeUnit', 'count');
+  const sync = () => { const o = unit.value === '__other'; other.hidden = !o; num.hidden = o; };
+  unit.addEventListener('change', () => {
+    if (unit.value === '__other') { if (!other.value && num.value) other.value = num.value; sync(); other.focus(); return; }
+    store.set('ptSizeUnit', unit.value);
+    sync();
+  });
+  sync();
+  const node = el('div', { class: 'f' }, el('span', { class: 'field-label' }, label),
+    el('div', { style: 'display:flex;gap:8px' }, num, unit), other);
+  return {
+    node,
+    get: () => (unit.value === '__other' ? other.value.trim() : L.formatSize(num.value.replace(',', '.').trim(), unit.value)),
+  };
+}
+
 // ---------- pop-up sheets ------------------------------------------------------------
 
 let sheet = null;
@@ -625,7 +656,7 @@ function openItem(item, prefill = {}) {
 
   const name = input({ value: d.name, maxlength: '120', required: true, disabled: ro });
   const brand = input({ value: d.brand || '', maxlength: '60', disabled: ro });
-  const size = input({ value: d.size || '', maxlength: '40', placeholder: '15.5 oz', disabled: ro });
+  const size = sizeField(d.size || '', { disabled: ro });
   const locs = locationsInUse();
   if (d.location && !locs.includes(d.location)) locs.push(d.location);
   const where = select([...locs, ['__other', 'Somewhere else…']], d.location || 'Pantry');
@@ -691,7 +722,8 @@ function openItem(item, prefill = {}) {
       el('div', {}, el('span', {}, hm.method || ''), el('span', {}, [hm.made && 'made ' + L.fmtMDY(hm.made), hm.useBy && 'use by ' + L.fmtMY(hm.useBy)].filter(Boolean).join(' · '))),
       el('div', {}, btn('Print labels', () => openLabels({ ...item, ...d }), 'primary'))) : null,
     field('Name', name),
-    el('div', { class: 'pt-two' }, field('Brand', brand), field('Size', size)),
+    field('Brand', brand),
+    size.node,
     el('div', { class: 'pt-two' }, field('Where', el('div', { style: 'display:flex;flex-direction:column;gap:6px' }, where, whereOther)), field('Keep at least', keep)),
     el('div', { class: 'f' }, el('span', { class: 'field-label' }, 'How many, by expiration date'), lotRows,
       ro ? null : btn('+ Another date', () => { d.lots.push({ qty: 1, expires: '' }); drawLots(); }, 'ghost')),
@@ -710,7 +742,7 @@ function openItem(item, prefill = {}) {
     const b = e.currentTarget;
     d.name = name.value.trim();
     if (!d.name) { msg.textContent = 'Give it a name.'; msg.classList.add('bad'); name.focus(); return; }
-    d.brand = brand.value.trim(); d.size = size.value.trim(); d.notes = notes.value.trim();
+    d.brand = brand.value.trim(); d.size = size.get(); d.notes = notes.value.trim();
     d.location = where.value === '__other' ? (whereOther.value.trim() || 'Pantry') : where.value;
     const k = parseInt(keep.value, 10);
     d.keepAtLeast = Number.isFinite(k) && k > 0 ? Math.min(k, 999) : null;
@@ -751,7 +783,7 @@ function openBatch() {
   const name = input({ maxlength: '120', placeholder: 'Strawberry jam' });
   const method = select(methods, methods.includes(lastMethod) ? lastMethod : 'Water bath');
   const qty = input({ type: 'number', min: '1', max: '999', inputmode: 'numeric', value: 12 });
-  const size = input({ maxlength: '40', placeholder: '8 oz (half-pint)' });
+  const size = sizeField('');
   const made = input({ type: 'date', value: today });
   const useBy = input({ type: 'date', value: L.useByFor(method.value, today, S.pantry.useBy) });
   let useByTouched = false;
@@ -769,7 +801,7 @@ function openBatch() {
     const b = e.currentTarget;
     const data = {
       name: name.value.trim(), method: method.value, qty: Math.max(1, Math.min(999, parseInt(qty.value, 10) || 1)),
-      size: size.value.trim(), made: made.value || today, useBy: useBy.value, location: where.value, notes: notes.value.trim(),
+      size: size.get(), made: made.value || today, useBy: useBy.value, location: where.value, notes: notes.value.trim(),
     };
     if (!data.name) { msg.textContent = 'What is it?'; msg.classList.add('bad'); name.focus(); return; }
     b.disabled = true;
@@ -790,7 +822,8 @@ function openBatch() {
   openSheet('New homemade batch', `Batch ${next} · code ${L.spacedCode(L.batchCode(next))}`, [
     field('What is it', name),
     field('How it was put up', method),
-    el('div', { class: 'pt-two' }, field('Jars / packs', qty), field('Size', size)),
+    field('Jars / bags / packs', qty),
+    el('div', {}, size.node, el('p', { class: 'mutedt small', style: 'margin:4px 0 0' }, 'What\'s in each one: a weight or volume (8 oz), or a count for bags of things (12 pieces).')),
     el('div', { class: 'pt-two' }, field('Made', made), field('Use by', useBy)),
     el('p', { class: 'mutedt small', style: 'margin:-6px 0 0' }, 'Use by is suggested from how it was put up; change it if you like. Defaults are under Household.'),
     field('Where', where),
