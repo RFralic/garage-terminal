@@ -9,6 +9,7 @@ rules_version = '2';
 // Sections: members (users, handles, private, admins) · forum (settings, areas,
 // threads, posts) · moderation (reports, modlog) · library · RepClock (per-member workouts) · Home Projects (per-member projects) ·
 // Logbook + Project Tracker (per-member records, projects, tracker settings) ·
+// Pantry (shared by a household: pantries, items, activity, shopping, invites) ·
 // Morning Brief (per-member email settings).
 //
 // Cloud Functions use the Admin SDK, which bypasses these rules. That's how:
@@ -443,6 +444,175 @@ service cloud.firestore {
         && part in ['records', 'projects', 'trackerSettings']
         && docId.matches('^[A-Za-z0-9_-]{1,64}$')
         && request.resource.data is map;
+    }
+
+    // =========================================================================
+    // PANTRY (apps/pantry): food and supplies, shared by a household
+    // =========================================================================
+
+    // Unlike the other apps, a pantry belongs to several people. The pantry doc
+    // lists them, each with a role:
+    //   owner   (one, the person who started it): invite, change roles, remove
+    //           people, rename, use-by defaults
+    //   member  scan in and out, add and edit items, homemade batches
+    //   viewer  read everything; may add to and tick off the shopping list
+    //
+    //   pantries/{pid}            { name, owner, members: {uid: role}, memberIds: [uid],
+    //                               memberNames: {uid: name}, nextBatch, useBy: {method: months},
+    //                               inviteCode, inviteExpires, joinCode, createdAt, updatedAt }
+    //   pantries/{pid}/items/{id}     one food or supply item (src/pantry/store.js)
+    //   pantries/{pid}/activity/{id}  who did what; added, never edited
+    //   pantries/{pid}/shopping/{id}  things added to the shopping list by hand
+    //   pantryInvites/{code}      { pantryId, pantryName, createdBy, expiresAt }
+    //
+    // Joining: the owner makes an 8-character invite code (pantryInvites/{code}
+    // plus inviteCode/inviteExpires on the pantry). Someone with the code reads
+    // the invite to learn which pantry, then adds only themselves, as a member,
+    // quoting the code; the rule checks it matches and hasn't expired.
+    // Codes can't be listed, only looked up exactly.
+    function pantryRoles() {
+      return ['owner', 'member', 'viewer'];
+    }
+
+    function validPantry(d) {
+      return d.keys().hasOnly(['name', 'owner', 'members', 'memberIds', 'memberNames', 'nextBatch', 'useBy',
+                               'inviteCode', 'inviteExpires', 'joinCode', 'createdAt', 'updatedAt'])
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 60
+        && d.owner is string
+        && d.members is map && d.memberIds is list
+        && d.memberIds.size() >= 1 && d.memberIds.size() <= 20
+        && d.memberIds.size() == d.members.size()
+        && d.memberIds.toSet() == d.members.keys().toSet()
+        && d.members.values().toSet().hasOnly(pantryRoles())
+        && d.members[d.owner] == 'owner'
+        && d.memberNames is map && d.memberNames.keys().hasOnly(d.memberIds)
+        && d.nextBatch is int && d.nextBatch >= 0 && d.nextBatch <= 9999999
+        && (!('useBy' in d) || (d.useBy is map && d.useBy.size() <= 20))
+        && (!('inviteCode' in d) || (d.inviteCode is string && (d.inviteCode == '' || d.inviteCode.matches('^[A-Z0-9]{8}$'))))
+        && (!('inviteExpires' in d) || d.inviteExpires is timestamp);
+    }
+
+    function pantryRole(pid) {
+      return get(/databases/$(database)/documents/pantries/$(pid)).data.members[request.auth.uid];
+    }
+    function canReadPantry(pid) {
+      return signedIn() && pantryRole(pid) in pantryRoles();
+    }
+    function canEditPantry(pid) {
+      return signedIn() && pantryRole(pid) in ['owner', 'member'];
+    }
+
+    // The owner changes settings, invites, roles and who's in it (never the owner itself).
+    function pantryOwnerUpdate(d, r) {
+      return r.owner == request.auth.uid
+        && d.owner == r.owner
+        && !d.diff(r).affectedKeys().hasAny(['createdAt', 'joinCode'])
+        && d.nextBatch >= r.nextBatch
+        && validPantry(d);
+    }
+
+    // A member or the owner takes the next homemade batch number.
+    function pantryBatchBump(d, r) {
+      return r.members[request.auth.uid] in ['owner', 'member']
+        && d.diff(r).affectedKeys().hasOnly(['nextBatch'])
+        && d.nextBatch == r.nextBatch + 1;
+    }
+
+    // Someone with a valid invite code adds themselves, as a member.
+    function pantryJoin(d, r) {
+      let me = request.auth.uid;
+      return !(me in r.memberIds)
+        && r.memberIds.size() < 20
+        && 'inviteCode' in r && r.inviteCode is string && r.inviteCode != ''
+        && d.joinCode == r.inviteCode
+        && 'inviteExpires' in r && r.inviteExpires > request.time
+        && d.diff(r).affectedKeys().hasOnly(['members', 'memberIds', 'memberNames', 'joinCode'])
+        && d.members.diff(r.members).affectedKeys().hasOnly([me]) && d.members[me] == 'member'
+        && d.memberIds.toSet() == r.memberIds.toSet().union([me].toSet())
+        && d.memberIds.size() == r.memberIds.size() + 1
+        && d.memberNames.diff(r.memberNames).affectedKeys().hasOnly([me])
+        && (!(me in d.memberNames) || (d.memberNames[me] is string && d.memberNames[me].size() <= 40));
+    }
+
+    // Anyone but the owner can leave.
+    function pantryLeave(d, r) {
+      let me = request.auth.uid;
+      return me in r.memberIds && r.owner != me
+        && d.diff(r).affectedKeys().hasOnly(['members', 'memberIds', 'memberNames'])
+        && !(me in d.members)
+        && d.members.diff(r.members).affectedKeys().hasOnly([me])
+        && d.memberIds.toSet() == r.memberIds.toSet().difference([me].toSet())
+        && d.memberIds.size() == r.memberIds.size() - 1
+        && d.memberNames.diff(r.memberNames).affectedKeys().hasOnly([me]);
+    }
+
+    match /pantries/{pid} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberIds;
+
+      allow create: if signedIn()
+        && pid.matches('^[A-Za-z0-9_-]{1,64}$')
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.memberIds == [request.auth.uid]
+        && request.resource.data.nextBatch == 0
+        && !('inviteCode' in request.resource.data)
+        && !('joinCode' in request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && validPantry(request.resource.data);
+
+      allow update: if signedIn()
+        && (pantryOwnerUpdate(request.resource.data, resource.data)
+            || pantryBatchBump(request.resource.data, resource.data)
+            || pantryJoin(request.resource.data, resource.data)
+            || pantryLeave(request.resource.data, resource.data));
+
+      allow delete: if signedIn() && resource.data.owner == request.auth.uid;
+
+      match /items/{itemId} {
+        allow read: if canReadPantry(pid);
+        allow delete: if canEditPantry(pid);
+        allow create, update: if canEditPantry(pid)
+          && itemId.matches('^[A-Za-z0-9_-]{1,64}$')
+          && request.resource.data.keys().hasOnly(['name', 'brand', 'size', 'location', 'keepAtLeast', 'barcodes', 'lots',
+                                                   'photo', 'notes', 'homemade', 'createdAt', 'updatedAt', 'updatedBy'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 120
+          && request.resource.data.lots is list && request.resource.data.lots.size() <= 50
+          && request.resource.data.barcodes is list && request.resource.data.barcodes.size() <= 20
+          && request.resource.data.updatedBy == request.auth.uid
+          && request.resource.data.updatedAt == request.time;
+      }
+
+      match /activity/{entryId} {
+        allow read: if canReadPantry(pid);
+        allow create: if canReadPantry(pid)
+          && request.resource.data.keys().hasOnly(['by', 'who', 'what', 'at'])
+          && request.resource.data.by == request.auth.uid
+          && request.resource.data.who is string && request.resource.data.who.size() <= 40
+          && request.resource.data.what is string && request.resource.data.what.size() <= 200
+          && request.resource.data.at == request.time;
+        allow delete: if signedIn() && pantryRole(pid) == 'owner';
+      }
+
+      match /shopping/{entryId} {
+        allow read, delete: if canReadPantry(pid);
+        allow create, update: if canReadPantry(pid)
+          && request.resource.data.keys().hasOnly(['name', 'done', 'by', 'who', 'at'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 120
+          && request.resource.data.done is bool;
+      }
+    }
+
+    match /pantryInvites/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn()
+        && code.matches('^[A-Z0-9]{8}$')
+        && request.resource.data.keys().hasOnly(['pantryId', 'pantryName', 'createdBy', 'expiresAt'])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.pantryName is string && request.resource.data.pantryName.size() <= 60
+        && request.resource.data.expiresAt is timestamp
+        && get(/databases/$(database)/documents/pantries/$(request.resource.data.pantryId)).data.owner == request.auth.uid;
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
     }
 
     // =========================================================================

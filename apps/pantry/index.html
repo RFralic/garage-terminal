@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<!-- /apps/pantry: a household's food and supplies, logged in and out by barcode. Logic: src/pages/pantry.js -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pantry · Garage Terminal</title>
+<meta name="description" content="Food and household supplies shared by your household: scan things in and out, see what's expiring and running low, and print barcode labels for homemade food.">
+<meta name="theme-color" content="#0B0E12">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/src/styles/base.css">
+<link rel="stylesheet" href="/src/styles/forms.css">
+<link rel="stylesheet" href="/src/styles/pantry.css">
+<!-- Barcode scanner shared with the Logbook (camera + Bluetooth); sets window.GTScan -->
+<script src="/apps/scanner.js"></script>
+<script type="module" src="/src/pages/pantry.js"></script>
+</head>
+<body class="pt-body">
+<header>
+  <nav class="wrap" aria-label="Main">
+    <a class="logo" href="/"><img class="logo-mark" src="/logo.svg" alt="" width="28" height="28">GARAGE_TERMINAL<span class="cursor" aria-hidden="true">_</span></a>
+    <div class="links">
+      <a href="/#apps">/apps</a>
+      <a href="/forum">/forum</a>
+      <a href="/wiki">/wiki</a>
+      <a href="/#bbs" hidden>/bbs</a>
+    </div>
+  </nav>
+  <div class="wrap session" id="session" aria-live="polite"></div>
+</header>
+
+<main class="wrap pt-main" id="pt">
+  <div id="pt-loading"><p class="mutedt mono">connecting…</p></div>
+
+  <!-- Not signed in -->
+  <section id="pt-guest" class="pt-card" hidden>
+    <p class="pt-key">&gt;_ PANTRY</p>
+    <h1>Pantry</h1>
+    <p>Food and household supplies, shared with the people you live with. Scan things in and out, see what's expiring and running low, and print barcode labels for homemade food.</p>
+    <a class="btn primary" id="pt-signin" href="/join?next=%2Fapps%2Fpantry">Sign in with Google &gt;</a>
+  </section>
+
+  <!-- Signed in, not in a pantry yet (also "start another" / "join another") -->
+  <section id="pt-start" class="pt-card" hidden>
+    <p class="pt-key">&gt;_ PANTRY</p>
+    <h1 id="pt-start-title">Set up your pantry</h1>
+    <form id="pt-new" class="pt-form">
+      <label class="field-label" for="pt-new-name">Start a new pantry</label>
+      <input class="field" id="pt-new-name" maxlength="60" placeholder="Household" autocomplete="off">
+      <button class="btn primary" type="submit">Start it</button>
+    </form>
+    <p class="pt-or">or</p>
+    <form id="pt-code" class="pt-form">
+      <label class="field-label" for="pt-code-in">Join one with an invite code</label>
+      <input class="field" id="pt-code-in" placeholder="K7Q2-MXAB" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button class="btn ghost" type="submit">Look it up</button>
+    </form>
+    <p class="field-status" id="pt-start-msg" role="status"></p>
+    <button class="btn ghost" type="button" id="pt-start-back" hidden>← Back to my pantry</button>
+  </section>
+
+  <!-- Someone opened an invite link or typed a code -->
+  <section id="pt-join" class="pt-card" hidden>
+    <p class="pt-key">&gt;_ PANTRY · INVITE</p>
+    <h1>Join <span id="pt-join-name"></span>?</h1>
+    <p>You'll be able to scan things in and out, add items and use the shopping list. Everyone in the pantry sees what you change.</p>
+    <div class="pt-btns">
+      <button class="btn primary" type="button" id="pt-join-yes">Join</button>
+      <button class="btn ghost" type="button" id="pt-join-no">Not now</button>
+    </div>
+    <p class="field-status" id="pt-join-msg" role="status"></p>
+  </section>
+
+  <!-- The app -->
+  <section id="pt-app" hidden>
+    <div class="pt-top">
+      <div class="pt-title">
+        <p class="pt-key">&gt;_ PANTRY</p>
+        <h1 id="pt-name"></h1>
+        <label class="pt-switch" id="pt-switch-wrap" hidden><span class="sr">Switch pantry</span><select class="field" id="pt-switch"></select></label>
+      </div>
+      <button type="button" class="pt-people" id="pt-people" aria-label="People in this pantry"></button>
+    </div>
+
+    <div id="tab-pantry" class="pt-tab"></div>
+    <div id="tab-shopping" class="pt-tab" hidden></div>
+    <div id="tab-household" class="pt-tab" hidden></div>
+  </section>
+
+  <p class="pt-toast" id="pt-toast" role="status" aria-live="polite"></p>
+</main>
+
+<nav class="pt-tabs" id="pt-tabs" aria-label="Pantry sections" hidden>
+  <button type="button" data-tab="pantry" aria-current="page"><span class="pt-tabicon" aria-hidden="true">■</span>Pantry</button>
+  <button type="button" data-tab="shopping"><span class="pt-tabicon" id="pt-shop-count" aria-hidden="true">≡</span>Shopping</button>
+  <button type="button" data-tab="household"><span class="pt-tabicon" aria-hidden="true">◎</span>Household</button>
+</nav>
+
+<footer>
+  <div class="wrap"><span>© Garage Terminal</span><a class="footer-mail" href="mailto:support@garageterminal.com">support@garageterminal.com</a><span>NO CARRIER</span></div>
+</footer>
+</body>
+</html>
