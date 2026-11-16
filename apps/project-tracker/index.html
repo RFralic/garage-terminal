@@ -184,6 +184,7 @@ a.btn{text-decoration:none}
 @page{size:letter;margin:0.6in}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="/apps/scanner.js"></script>
 <script>window.fbReady=new Promise((res,rej)=>{window.fbResolve=res;window.fbReject=rej;setTimeout(()=>rej(new Error("timeout")),15000)});</script>
 <!-- Garage Terminal: sign-in and storage from this site (src/apps/logbook-backend.js), kept offline too -->
 <script>window.__gtOfflineCache=true;window.__gtSite=true</script>
@@ -486,7 +487,7 @@ function allParts(p){const out=[];(p.tasks||[]).forEach(t=>(t.parts||[]).forEach
 function brands(){const s=new Set();Object.values(projects).forEach(p=>allParts(p).forEach(x=>{if(x.brand&&x.brand.trim())s.add(x.brand.trim())}));return [...s].sort((a,b)=>a.localeCompare(b))}
 function partFields(x,sups,isNew){
   const p=projects[view.pid]||{};const fl=isFluid(x);
-  return `<div class="grid2"><label class="f">Brand<input type="text" name="brand" maxlength="60" list="brand-list" value="${esc(x.brand||'')}" placeholder="e.g. Kohler"></label><label class="f">Part #<input type="text" name="num" maxlength="60" class="mono" value="${esc(x.num||'')}"></label></div>
+  return `<div class="grid2"><label class="f">Brand<input type="text" name="brand" maxlength="60" list="brand-list" value="${esc(x.brand||'')}" placeholder="e.g. Kohler"></label><label class="f">Part #<input type="text" name="num" maxlength="60" class="mono" data-scan aria-label="Part #" value="${esc(x.num||'')}"></label></div>
     <div class="grid2"><label class="f">Amount<input type="number" name="qty" min="${fl?'0.1':'1'}" max="9999" step="${fl?'0.1':'1'}" value="${esc(numStr(x.qty))}" inputmode="decimal" data-qtyfor="1"></label>
     <label class="f">Measured in<select name="unit" data-unitsel="1">${UNITS.map(([v,l])=>`<option value="${v}" ${(x.unit||'')===v?'selected':''}>${l}</option>`).join('')}</select></label></div>
     ${p.kind==='customer'&&isNew?`<label class="f"><span data-pricelabel="1">Price ${perText(x)} ($)</span><input type="number" name="price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" class="mono"></label>`:''}

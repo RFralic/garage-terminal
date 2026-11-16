@@ -6,13 +6,14 @@
 //   - The two pages: network first, saved copy when offline.
 //   - /assets/* (the site's built code, named by content so never stale):
 //     saved copy first.
-//   - /__/firebase/init.json (the site's Firebase settings): network first,
-//     saved copy when offline, so sign-in and the database can start.
+//   - /__/firebase/init.json (the site's Firebase settings) and /apps/scanner.js
+//     (the barcode scanner both pages use): network first, saved copy when offline.
 // Every other request, and every other page under /apps/, passes straight through.
 //
 // Bump CACHE whenever this file changes so old copies are cleared.
-const CACHE = 'gt-apps-v1';
+const CACHE = 'gt-apps-v2';
 const PAGES = ['/apps/logbook', '/apps/project-tracker'];
+const FILES = ['/__/firebase/init.json', '/apps/scanner.js'];
 const pageKey = (path) => PAGES.find((p) => path === p || path === p + '/' || path === p + '/index.html');
 
 /** Saves a page and the /assets/ files it uses. */
@@ -28,7 +29,7 @@ async function savePage(cache, path) {
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE)
-      .then((c) => Promise.all([...PAGES.map((p) => savePage(c, p).catch(() => {})), c.add('/__/firebase/init.json').catch(() => {})]))
+      .then((c) => Promise.all([...PAGES.map((p) => savePage(c, p).catch(() => {})), ...FILES.map((f) => c.add(f).catch(() => {}))]))
       .then(() => self.skipWaiting()),
   );
 });
@@ -67,7 +68,7 @@ self.addEventListener('fetch', (e) => {
     if (key) e.respondWith(networkFirst(r, key));
     return;
   }
-  if (u.pathname === '/__/firebase/init.json') {
+  if (FILES.includes(u.pathname)) {
     e.respondWith(networkFirst(r, u.pathname));
     return;
   }
