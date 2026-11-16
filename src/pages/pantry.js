@@ -18,7 +18,7 @@ import { el, timeAgo } from '../lib/ui.js';
 import * as L from '../pantry/logic.js';
 import * as St from '../pantry/store.js';
 import { lookupProduct } from '../pantry/off.js';
-import { LABEL_SIZES, fontsReady, labelBlob, labelFileName, renderLabel, shareOrSave } from '../pantry/label.js';
+import { LABEL_SIZES, canShareImages, fontsReady, labelBlob, labelFileName, renderLabel, saveToPhone, shareImage } from '../pantry/label.js';
 
 mountHeader();
 
@@ -852,7 +852,7 @@ async function openLabels(it, intro = '') {
   const step2 = el('li', {});
   let canvas;
   const draw = () => {
-    step2.textContent = `In Katasymbol, start a label the same size (${LABEL_SIZES[size].name}) and add the image.`;
+    step2.textContent = `In Katasymbol, start a new label and set it to ${LABEL_SIZES[size].name} (the size of the roll that's loaded).`;
     canvas = renderLabel(data, size);
     canvas.style.width = Math.min(canvas.width * 2, 480) + 'px';
     canvas.setAttribute('role', 'img');
@@ -865,21 +865,32 @@ async function openLabels(it, intro = '') {
   openSheet(`Labels: ${data.name}`, `Batch ${data.batch} · ${L.spacedCode(data.code)}`, [
     intro ? el('p', { class: 'pt-msg' }, intro) : null,
     sizes, preview,
-    el('div', { class: 'pt-btns' }, btn('Save label image', async (e) => {
-      const b = e.currentTarget;
-      b.disabled = true;
-      try {
-        const how = await shareOrSave(await labelBlob(canvas), labelFileName(data, size));
-        msg.textContent = how === 'shared' ? 'Sent. Print it from Katasymbol.' : how === 'downloaded' ? 'Saved to your downloads.' : '';
-      } catch (err) { msg.textContent = `Couldn't save the image: ${errText(err)}`; }
-      b.disabled = false;
-    }, 'primary'), btn('Done', closeSheet, 'ghost')),
+    el('div', { class: 'pt-btns' },
+      btn('Save to phone', async (e) => {
+        const b = e.currentTarget;
+        b.disabled = true;
+        try {
+          const name = labelFileName(data, size);
+          saveToPhone(await labelBlob(canvas), name);
+          msg.textContent = `Saved ${name} to Downloads. Now add it to a ${LABEL_SIZES[size].name} label in Katasymbol (steps below).`;
+        } catch (err) { msg.textContent = `Couldn't save the image: ${errText(err)}`; }
+        b.disabled = false;
+      }, 'primary'),
+      canShareImages() ? btn('Share…', async (e) => {
+        const b = e.currentTarget;
+        b.disabled = true;
+        try { await shareImage(await labelBlob(canvas), labelFileName(data, size)); } catch (err) { msg.textContent = `Couldn't share it: ${errText(err)}`; }
+        b.disabled = false;
+      }) : null,
+      btn('Done', closeSheet, 'ghost')),
     msg,
     el('ol', { class: 'pt-steps' },
-      el('li', {}, 'Save label image (on a phone, pick Katasymbol or Save image).'),
+      el('li', {}, 'Tap Save to phone. The image goes to Downloads (in the Gallery too, under Download).'),
       step2,
-      el('li', {}, 'Stretch it to fill the whole label; no photo effects.'),
+      el('li', {}, 'Add a picture to the label (its Image tool) and pick the saved label from Downloads.'),
+      el('li', {}, 'Stretch it to fill the whole label; turn off any photo or dither effect.'),
       el('li', {}, `Print ${copies > 0 ? copies : 'one per jar'}${copies > 0 ? (copies === 1 ? ' copy' : ' copies') : ''}.`)),
+    el('p', { class: 'mutedt small', style: 'margin:0' }, 'Sharing the image straight to Katasymbol opens it as a full-page picture print instead of a label, so add it to a label as above. Tip: save the finished label as a template in Katasymbol, then just swap the image next time.'),
   ], { focus: '.pt-b' });
   draw();
   await fontsReady();
