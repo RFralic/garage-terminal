@@ -28,6 +28,8 @@ Live site: https://garageterminal.com (also https://garage-terminal-15499.web.ap
 | `apps/morning-brief/index.html`, `src/pages/morning-brief.js` | Morning Brief settings and preview |
 | `src/brief/` | Builds the Morning Brief (shared by the page and the sender): `brief.js`, `ics.js` (calendar feeds), `time.js` |
 | `scripts/send-briefs.mjs`, `scripts/lib/resend.mjs` | Sends the Morning Brief emails (GitHub action "Morning Brief", every 30 minutes) |
+| `apps/pantry/index.html`, `src/pages/pantry.js`, `src/styles/pantry.css` | Pantry: a household's food and supplies, scanned in and out |
+| `src/pantry/` | Pantry parts: `logic.js` (counts, dates, barcodes, batch codes), `store.js` (Firestore), `code128.js`, `label.js` (label images), `off.js` (Open Food Facts lookup) |
 | `apps/tap-drill-chart/index.html` | Tap Drill Chart, copied from its Claude artifact (re-copy if the artifact changes) |
 | `404.html` | Not-found page |
 | `src/styles/base.css` | Shared look: colors, fonts, header, footer, terminal boxes |
@@ -137,6 +139,28 @@ the first run after the member's chosen hour. It sends from `brief@garagetermina
 (Cloudflare Email Routing forwards it). It needs one secret: `RESEND_API_KEY`. Calendars come from the member's secret iCal address
 (`src/brief/ics.js`), so no Google Calendar permission is needed. GitHub pauses scheduled actions after 60
 days without a commit to the repo; re-enable it under Actions if that happens.
+
+## Pantry
+
+`/apps/pantry`: food and household supplies, **shared by a household**, logged in and out with the Logbook's
+barcode scanner (`public/apps/scanner.js`: phone camera or a Bluetooth scanner in keyboard mode).
+
+- **Shared, with roles.** Unlike the other apps, a pantry belongs to several people: `pantries/{pid}` lists
+  them in `members: {uid: role}` (+ `memberIds`, `memberNames`). Owner: invites, roles, settings. Member:
+  scans, adds, edits. Viewer: looks, and can use the shopping list. Items, activity and the hand-added
+  shopping list are subcollections. See the PANTRY section of `firestore.rules` and `tests/pantry.rules.test.js`.
+- **Invites.** The owner makes an 8-character code (`pantryInvites/{code}`, works 7 days) and shares a link,
+  `/apps/pantry?join=CODE`. The person signs in and adds only themselves, as a member; the rules check the
+  code matches the pantry's current one and hasn't expired. Codes can be looked up but not listed.
+- **Counts by expiration date.** Each item keeps "lots" (`[{qty, expires}]`); "Used 1" takes from the one
+  that expires first. "Keep at least" puts an item on the shopping list when it runs low.
+- **New store barcodes** are looked up in Open Food Facts (free, no key; only the barcode is sent).
+- **Homemade batches** take the pantry's next batch number in a transaction; batch 42's barcode is
+  `20000042` (8 digits starting with 2, a range kept for in-store use, so it never clashes with a real
+  UPC), printed as Code 128 set C. `src/pantry/label.js` draws labels at the exact size of a 203 dpi
+  thermal label printer (30×20, 40×30, 50×80 mm), pure black and white, with the dpi stored in the PNG.
+  They're saved as images to print from the printer's app (made for the Katasymbol / Supvan T50M, which
+  has no open protocol to print to directly). The 30×20 label was printed and scanned on Nov 16, 2026.
 
 ## Adding an app to the home page
 
