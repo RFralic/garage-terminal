@@ -113,7 +113,8 @@ export function renderLabel(d, sizeKey) {
       y += 52;
     }
     y += 6;
-    const rows = [['Method', d.method], ['Size', d.size], ['Made', d.made && fmtMDY(d.made)], ['Use by', d.useBy && fmtMY(d.useBy)]].filter((r) => r[1]);
+    const isCount = /\b(count|pieces|servings)$/.test(d.size || '');
+    const rows = [['Method', d.method], [isCount ? 'Count' : 'Size', d.size], ['Made', d.made && fmtMDY(d.made)], ['Use by', d.useBy && fmtMY(d.useBy)]].filter((r) => r[1]);
     for (const [k, v] of rows) {
       ctx.font = `400 25px ${SANS}`;
       ctx.fillText(k, m, y);
