@@ -114,6 +114,7 @@ pt = swap(pt, '<body>\n<div class="wrap" id="app">', `<body>\n${bar(' gt-solo')}
 pt = swapFirebaseModule(pt, BACKEND, 'tracker.html');
 // 4. links
 pt = swap(pt, 'href="/"', 'href="/apps/logbook"', 'Logbook links', 2);
+pt = swap(pt, 'const LOGBOOK_HREF="/";', 'const LOGBOOK_HREF="/apps/logbook";', '"Open in Logbook" address');
 // 5. offline
 pt = swap(pt, '<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));</script>', SW, 'service worker');
 

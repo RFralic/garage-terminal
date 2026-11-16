@@ -102,6 +102,7 @@ textarea{min-height:80px;resize:vertical}
 .specview>div{padding:9px 12px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);min-width:0;margin:-0px}
 .specview dt{font:600 .72rem var(--f-display);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
 .specview dd{margin:2px 0 0;font-size:.95rem;overflow-wrap:anywhere}
+td.lnotes{white-space:pre-line}
 .vsec{display:grid;gap:8px}.vnotes{margin:0;white-space:pre-wrap}
 .stk{display:inline-block;font:600 .72rem var(--f-display);text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:3px;border:1px solid var(--line);white-space:nowrap}
 .stk.ok{color:var(--ok);border-color:var(--ok)}.stk.low{color:var(--warn);border-color:var(--warn)}.stk.out{color:var(--accent);border-color:var(--accent)}.stk.none{color:var(--muted)}
@@ -449,6 +450,11 @@ async function removeEngine(id){
 function showBanner(t){const b=$("#banner");b.textContent=t;b.hidden=!t}
 
 let currentUser=null, signedOut=false, unsub=null, FB=null, authErr="";
+/* A link like "?m=<record id>" (the Project Tracker's "Open in Logbook") opens that machine's Schedule & log. */
+let linkTo=(()=>{try{return new URLSearchParams(location.search).get("m")}catch(e){return null}})();
+function openLinked(final){if(!linkTo)return;const e=engines.find(x=>x.id===linkTo&&kindOf(x)!=="part");
+  if(e){view={id:e.id,tab:"log"};listKind=kindOf(e);draft=null;editing=false;pendingDelete=false}
+  if(e||final){linkTo=null;try{history.replaceState(null,"",location.pathname)}catch(x){}}}
 async function init(){
   try{FB=await window.fbReady}catch(e){FB=null}
   if(!FB){goOffline("Couldn't connect to sync. Changes are kept on this device only for now.");return}
@@ -463,6 +469,7 @@ async function init(){
     unsub=col.onSnapshot(snap=>{
       clearTimeout(slow);if(!snap.metadata.fromCache)showBanner("");
       engines=snap.docs.map(d=>({id:d.id,...d.data()}));
+      openLinked(!snap.metadata.fromCache);
       if(view.id&&!engines.find(e=>e.id===view.id)&&!(draft&&draft._new&&draft.id===view.id)){view.id=null;draft=null}
       render();
     },err=>{clearTimeout(slow);showBanner("Your records couldn't load ("+(err&&err.code||"error")+"). Try signing out and back in.")});
@@ -694,7 +701,7 @@ function renderLog(e){
       <div class="actions"><button class="primary" type="submit">Add to log</button><span id="logMsg" class="saved"></span></div>
     </form>
     <div><h3>History</h3>${log.length?`<div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>Date</th><th>${k.meterCol}</th><th>Work done</th><th>Notes</th><th>Cost</th><th></th></tr></thead><tbody>
-      ${log.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td class="n">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td>${esc(l.notes||"")}</td><td class="n">${l.cost?"$"+esc(l.cost):""}</td>
+      ${log.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td class="n">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}</td><td class="n">${l.cost?"$"+esc(l.cost):""}</td>
         <td>${pendingLog===l.id?`<span class="confirm"><button class="danger" data-yes="${esc(l.id)}">Delete</button><button data-no>Keep</button></span>`:`<button class="ghost" data-del="${esc(l.id)}">Delete</button>`}</td></tr>`).join("")}
     </tbody></table></div>`:`<p class="muted">No services logged yet. Use the form above to record the first one.</p>`}</div>
   </section>`;
@@ -1093,12 +1100,12 @@ function sheetBody(e){
   <div class="two"><div><h2>Specifications</h2><table class="kv">${rows||"<tr><td>No specs recorded</td></tr>"}</table></div>
   <div><h2>Part numbers</h2><table><thead><tr><th>Part</th><th>Brand</th><th>Part #</th></tr></thead><tbody>${parts.map(p=>`<tr><td>${esc(p[0])}</td><td>${esc(p[2])}</td><td class="m">${esc(p[1]||"")}</td></tr>`).join("")||"<tr><td colspan=3>None recorded</td></tr>"}</tbody></table></div></div>
   <h2>Service log</h2><table class="log"><thead><tr><th style="width:13%">Date</th><th style="width:10%">${k.meterCol}</th><th style="width:27%">Work done</th><th>Notes / parts used</th><th style="width:10%">Cost</th></tr></thead><tbody>
-  ${log.map(l=>`<tr><td class="m">${fmtDate(l.date)}</td><td class="m">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td>${esc(l.notes||"")}</td><td class="m">${l.cost?"$"+esc(l.cost):""}</td></tr>`).join("")}${blanks}</tbody></table>
+  ${log.map(l=>`<tr><td class="m">${fmtDate(l.date)}</td><td class="m">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}</td><td class="m">${l.cost?"$"+esc(l.cost):""}</td></tr>`).join("")}${blanks}</tbody></table>
   ${(e.torque||[]).length?`<h2>Torque specs &amp; bolt sizes</h2><table><thead><tr><th style="width:30%">Fastener</th><th style="width:16%">Socket / wrench</th><th style="width:15%">Torque</th><th>Notes</th></tr></thead><tbody>${tqSorted(e).map(t=>`<tr><td>${esc(t.item)}</td><td class="m">${esc(t.size||"")}</td><td class="m">${esc(t.value)} ${esc(t.value?t.unit||"ft-lb":"")}</td><td>${esc(t.notes||"")}</td></tr>`).join("")}</tbody></table>`:""}
   ${docsOf(e).length?`<h2>Manuals &amp; links</h2><table><tbody>${docsOf(e).map(d=>`<tr><th style="width:28%">${esc(d.label)}</th><td class="m url">${esc(safeUrl(d.url))}</td></tr>`).join("")}</tbody></table>`:""}
   ${e.notes?`<h2>Notes</h2><p class="notes">${esc(e.notes)}</p>`:""}`;
 }
-const SHEET_CSS=`body{font-family:"Helvetica Neue",Arial,sans-serif;color:#111;margin:0;padding:28px;font-size:12px;line-height:1.4}
+const SHEET_CSS=`td.lnotes{white-space:pre-line}body{font-family:"Helvetica Neue",Arial,sans-serif;color:#111;margin:0;padding:28px;font-size:12px;line-height:1.4}
 .hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:8px;margin-bottom:14px;gap:12px}
 .eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#555;font-weight:700}
 h1{font-size:24px;margin:2px 0;text-transform:uppercase;letter-spacing:.02em}.subt{color:#444}.printed{font-size:10px;color:#555;white-space:nowrap}
