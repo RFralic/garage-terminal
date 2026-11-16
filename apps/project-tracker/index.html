@@ -127,6 +127,26 @@ dl.kv dt{color:var(--muted)}dl.kv dd{margin:0;overflow-wrap:anywhere}
 .ico.vid{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 .empty{padding:28px 16px;border:1px dashed var(--line);border-radius:8px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:12px;align-items:center}
 .note{font-size:12px;color:var(--muted)}
+.toast a{color:var(--accent);margin-left:6px;white-space:nowrap}
+/* "Add to maintenance log": the prompt on the project and the preview sheet */
+.lsbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lshint{border-color:var(--ok)}.lshint b{font-size:16px}
+body.sheet-open{overflow:hidden}
+.sheetwrap{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:min(560px,100%);max-height:92vh;overflow:auto;background:var(--surface);border-top:1px solid var(--line);border-radius:14px 14px 0 0;
+  padding:18px max(16px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px}
+@media (min-width:640px){.sheetwrap{align-items:center}.sheet{border-radius:14px;border:1px solid var(--line)}}
+.sheethead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.sheethead h2{font-size:22px;color:var(--ink);margin-top:2px}
+.sheetx{width:44px;height:44px;flex:none;border:1px solid var(--line);color:var(--ink);font-size:18px}
+.lsset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+.lsset legend{padding:0;margin-bottom:6px;font-family:var(--f-display);font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.lscheck{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);overflow-wrap:anywhere}
+.lscheck input,.lschip input{width:20px;height:20px;flex:none;accent-color:var(--accent)}
+.lscheck.sent{color:var(--muted);background:transparent;border-style:dashed}
+.lschips{display:flex;flex-wrap:wrap;gap:6px}
+.lschip{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 10px;border:1px solid var(--line);border-radius:999px;font-size:14px;background:var(--surface-2)}
+.lschip:has(input:checked){border-color:var(--accent)}
+.lsmsg{margin:0;color:var(--danger)}.lsmsg:empty{display:none}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:#151a17;padding:10px 16px;border-radius:8px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
 .confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px}
 .saving{font-size:12px;color:var(--muted);min-height:16px}
@@ -140,7 +160,7 @@ a.btn{text-decoration:none}
 .gbtn{gap:10px}.gbtn svg{width:20px;height:20px;background:#fff;border-radius:50%;padding:2px}
 #print{display:none}
 @media print{
-  body.printing #app,body.printing .toast{display:none!important}
+  body.printing #app,body.printing .toast,body.printing .sheetwrap{display:none!important}
   body.printing #print{display:block}
   html,body{background:#fff!important}
 }
@@ -302,6 +322,139 @@ function logbookSelect(p){p=p||{};const id=p.logbookId||'';const linked=id&&mach
   return `<label class="f">Logbook entry${p.title===undefined?' (optional)':''}<select name="logbookSel">${keep}<option value="" ${!id&&!keep?'selected':''}>(none)</option>${machines.map(m=>`<option value="${esc(m.id)}" ${m.id===id?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label>
   ${machines.length?'':'<span class="note">Your Logbook engines and vehicles show up here.</span>'}`}
 function applyLogbook(p,v){if(v==='__keep')return;if(!v){p.logbookId='';p.logbook='';return}const m=machines.find(x=>x.id===v);if(!m)return;p.logbookId=v;p.logbook=m.name}
+/* ---------- "Add to maintenance log" (My equipment only) ----------
+   Sends a project's completed tasks to the linked Logbook machine as one service-log entry,
+   shaped exactly like the Logbook's own "Log a service" form (index.html, renderLog's submit):
+     {id, date, hours, cost, tasks[], notes} + source:{app:"tracker",projectId}
+   and, like that form, a higher reading also raises the machine's meter (hours, hoursAt).
+   tasks[] uses the Logbook's task names so its Maintenance due tab sees the work.
+   What was sent is remembered on the project: p.loggedTasks = {taskId: {date, entryId}}. */
+const LOGBOOK_HREF="/apps/logbook"; // the Logbook's address (Garage Terminal's import script points it at /apps/logbook)
+/* Same lists as the Logbook (index.html TASKS / VTASKS) */
+const LB_TASKS=["Oil change","Spark plug","Air filter","Fuel filter","Fuel stabilizer","Blade sharpened","Carb cleaned","Belt","Grease / lube","Winterized","Other"];
+const LB_VTASKS=["Oil & filter","Tire rotation","Tires replaced","Brakes","Air filter","Cabin filter","Spark plugs","Coolant","Transmission fluid","Brake fluid","Battery","Wipers","Alignment","Inspection","Other"];
+let machineRecs={}; /* full Logbook engine/vehicle records by id (log, meter, schedule) */
+/** The task names an entry can count as on this machine: the Logbook's list plus its custom tracked services. */
+function lbTaskNames(r){const base=kindOf(r)==='vehicle'?LB_VTASKS:LB_TASKS;
+  const custom=(Array.isArray(r&&r.schedule)?r.schedule:[]).map(s=>String((s&&s.task)||'').trim()).filter(t=>t&&!base.includes(t));
+  return [...base,...new Set(custom)]}
+/* Matching a task title to Logbook names: word match after a light stem ("plugs" = "plug", "rotated" = "rotate").
+   ALIAS lists the words that mean each standard name (any one set must all be present), and words that rule it out. */
+const stem=w=>{w=w.toLowerCase();if(w.length>4&&/ies$/.test(w))return w.slice(0,-3)+'y';if(w.length>5&&/ing$/.test(w))w=w.slice(0,-3);else if(w.length>4&&/ed$/.test(w))w=w.slice(0,-2);else if(w.length>3&&/s$/.test(w)&&!/ss$/.test(w))w=w.slice(0,-1);return w.length>3&&/e$/.test(w)?w.slice(0,-1):w};
+const words=s=>String(s||'').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(stem);
+const ALIAS={
+  'Oil change':{any:[['oil']]},'Oil & filter':{any:[['oil']]},
+  'Spark plug':{any:[['plug'],['spark']]},'Spark plugs':{any:[['plug'],['spark']]},
+  'Air filter':{any:[['air','filter'],['air','cleaner']],not:['cabin']},'Fuel filter':{any:[['fuel','filter']]},
+  'Fuel stabilizer':{any:[['stabilizer'],['stabil']]},'Blade sharpened':{any:[['blade']]},'Carb cleaned':{any:[['carb'],['carburetor']]},
+  'Belt':{any:[['belt']]},'Grease / lube':{any:[['grease'],['lube'],['lubricate']]},'Winterized':{any:[['winterize'],['winterized']]},
+  'Tire rotation':{any:[['rotate'],['rotation']]},'Tires replaced':{any:[['new','tire'],['replace','tire'],['mount','tire']]},
+  'Brakes':{any:[['brake'],['pad'],['rotor']],not:['fluid','bleed']},'Cabin filter':{any:[['cabin']]},
+  'Coolant':{any:[['coolant'],['antifreeze'],['radiator','flush']]},'Transmission fluid':{any:[['transmission'],['atf']]},
+  'Brake fluid':{any:[['brake','fluid'],['bleed','brake']]},'Battery':{any:[['battery']]},'Wipers':{any:[['wiper']]},
+  'Alignment':{any:[['align'],['alignment']]},'Inspection':{any:[['inspect'],['inspection']]},'Other':{any:[]}};
+const STOP=new Set(['the','a','an','and','or','of','on','to','for','with','new'].map(stem));
+/** The Logbook names a task title matches on this machine, e.g. "Change the oil" -> ["Oil change"]. */
+function matchNames(title,names){const tw=new Set(words(title));
+  return names.filter(n=>{const al=ALIAS[n];
+    if(al){if((al.not||[]).some(w=>tw.has(stem(w))))return false;return al.any.some(set=>set.every(w=>tw.has(stem(w))))}
+    const nw=words(n).filter(w=>!STOP.has(w));return nw.length>0&&nw.every(w=>tw.has(w))})}
+const meterLabel=r=>kindOf(r)==='vehicle'?'Mileage':'Engine hours';
+const loggedOf=p=>(p&&p.loggedTasks&&typeof p.loggedTasks==='object')?p.loggedTasks:{};
+/** Completed tasks not yet sent to the Logbook. */
+const unsentDone=p=>(p.tasks||[]).filter(t=>t.done&&!loggedOf(p)[t.id]);
+const partLine=x=>[[x.brand,x.num].filter(Boolean).join(' ')||x.name,isFluid(x)?`${numStr(x.qty)} ${x.unit}`:(Number(x.qty)>1?`× ${numStr(x.qty)}`:'')].filter(Boolean).join(' ');
+
+let lsheet=null; /* the open preview sheet: {pid, mid, picked:Set(taskIds), counts:Set(names), countsEdited, notesEdited, hoursEdited, back} */
+function openLogSheet(pid){const p=projects[pid];if(!p||p.kind!=='mine')return; // never customer jobs
+  lsheet={pid,mid:p.logbookId&&machineRecs[p.logbookId]?p.logbookId:'',picked:new Set(unsentDone(p).map(t=>t.id)),counts:new Set(),countsEdited:false,notesEdited:false,hoursEdited:false,back:document.activeElement};
+  if(lsheet.mid)prefill();drawLogSheet()}
+function closeLogSheet(){const back=lsheet&&lsheet.back;lsheet=null;const w=document.getElementById('lsWrap');if(w)w.remove();document.body.classList.remove('sheet-open');if(back&&back.isConnected)back.focus()}
+/** Fills in what the person hasn't changed: Counts as, Notes, the reading. */
+function prefill(){const p=projects[lsheet.pid],r=machineRecs[lsheet.mid];if(!p||!r)return;
+  const picked=(p.tasks||[]).filter(t=>lsheet.picked.has(t.id)),names=lbTaskNames(r);
+  if(!lsheet.countsEdited)lsheet.counts=new Set(picked.flatMap(t=>matchNames(t.title,names)));
+  if(!lsheet.hoursEdited)lsheet.hours=String(r.hours||'');
+  if(!lsheet.notesEdited){const parts=picked.flatMap(t=>t.parts||[]).map(partLine).filter(Boolean);
+    lsheet.notes=[...picked.map(t=>t.title),...(parts.length?['Parts: '+parts.join(', ')]:[]),'From Project Tracker: '+(p.title||'Untitled project')].join('\n')}}
+function drawLogSheet(){const old=document.getElementById('lsWrap');if(old)old.remove();if(!lsheet)return;
+  const p=projects[lsheet.pid];if(!p){closeLogSheet();return}
+  const w=document.createElement('div');w.id='lsWrap';w.className='sheetwrap';
+  const ms=Object.values(machineRecs).sort((a,b)=>dname(a).localeCompare(dname(b)));
+  if(!lsheet.mid){ // no linked machine yet: pick one first
+    w.innerHTML=`<form class="sheet" id="lsPick" role="dialog" aria-modal="true" aria-labelledby="lsTitle">
+      <div class="sheethead"><div><span class="eyebrow">${esc(p.title||'Untitled project')}</span><h2 id="lsTitle">Which Logbook machine is this for?</h2></div>
+        <button type="button" class="btn ghost sheetx" data-ls="close" aria-label="Close">✕</button></div>
+      ${ms.length?`<label class="f">Engine or vehicle<select id="ls-pick">${ms.map(r=>`<option value="${esc(r.id)}">${esc(dname(r))}</option>`).join('')}</select></label>
+        <span class="note">The project will be linked to it, so next time this step is skipped.</span>
+        <div class="grid2"><button type="button" class="btn" data-ls="close">Cancel</button><button type="submit" class="btn primary">Continue</button></div>`
+      :`<p class="muted" style="margin:0">Your Logbook has no engines or vehicles yet. Add one there first.</p><a class="btn" href="${esc(LOGBOOK_HREF)}">Open the Logbook</a>`}
+    </form>`;
+  } else {
+    const r=machineRecs[lsheet.mid],names=lbTaskNames(r),logged=loggedOf(p);
+    const done=(p.tasks||[]).filter(t=>t.done&&!logged[t.id]),sent=(p.tasks||[]).filter(t=>logged[t.id]);
+    w.innerHTML=`<form class="sheet" id="lsForm" role="dialog" aria-modal="true" aria-labelledby="lsTitle">
+      <div class="sheethead"><div><span class="eyebrow">${esc(p.title||'Untitled project')}</span><h2 id="lsTitle">Add to maintenance log</h2></div>
+        <button type="button" class="btn ghost sheetx" data-ls="close" aria-label="Close">✕</button></div>
+      <label class="f">Machine<select id="ls-machine">${ms.map(x=>`<option value="${esc(x.id)}" ${x.id===lsheet.mid?'selected':''}>${esc(dname(x))}</option>`).join('')}</select></label>
+      <div class="grid2"><label class="f">Date<input type="date" id="ls-date" value="${esc(lsheet.date||today())}" required></label>
+        <label class="f">${meterLabel(r)}<input type="text" id="ls-hours" class="mono" inputmode="decimal" value="${esc(lsheet.hours||'')}" placeholder="Optional"></label></div>
+      <label class="f">Cost<input type="text" id="ls-cost" class="mono" inputmode="decimal" value="${esc(lsheet.cost||'')}" placeholder="$ optional"></label>
+      <fieldset class="lsset"><legend>Work done</legend>
+        ${done.length?done.map(t=>`<label class="lscheck"><input type="checkbox" data-lswork="${esc(t.id)}" ${lsheet.picked.has(t.id)?'checked':''}><span>${esc(t.title)}</span></label>`).join(''):`<p class="note" style="margin:0">No finished tasks waiting. Tick tasks done on the checklist, or just add notes below.</p>`}
+        ${sent.map(t=>`<div class="lscheck sent"><span aria-hidden="true">✓</span><span>${esc(t.title)} <span class="note">Sent ${esc(fmtDate(logged[t.id].date))}</span></span></div>`).join('')}</fieldset>
+      <fieldset class="lsset"><legend>Counts as</legend><span class="note">The Logbook's names for this work, so its Maintenance due list updates.</span>
+        <div class="lschips">${names.map(n=>`<label class="lschip"><input type="checkbox" data-lscount="${esc(n)}" ${lsheet.counts.has(n)?'checked':''}>${esc(n)}</label>`).join('')}</div></fieldset>
+      <label class="f">Notes<textarea id="ls-notes" maxlength="4000" style="min-height:110px">${esc(lsheet.notes||'')}</textarea></label>
+      <p class="lsmsg" id="ls-msg" role="alert"></p>
+      <div class="grid2"><button type="button" class="btn" data-ls="close">Cancel</button><button type="submit" class="btn primary">Add to log</button></div>
+    </form>`;
+  }
+  document.body.appendChild(w);document.body.classList.add('sheet-open');
+  w.addEventListener('click',ev=>{if(ev.target===w||ev.target.closest('[data-ls="close"]'))closeLogSheet()});
+  w.addEventListener('keydown',ev=>{if(ev.key==='Escape'){ev.preventDefault();closeLogSheet()}});
+  const keep=()=>{if(!lsheet)return;const g=id=>document.getElementById(id);if(g('ls-date'))lsheet.date=g('ls-date').value;if(g('ls-cost'))lsheet.cost=g('ls-cost').value};
+  w.addEventListener('input',ev=>{const el=ev.target;if(!lsheet)return;
+    if(el.id==='ls-hours'){lsheet.hours=el.value;lsheet.hoursEdited=true}
+    else if(el.id==='ls-notes'){lsheet.notes=el.value;lsheet.notesEdited=true}
+    else if(el.id==='ls-date'||el.id==='ls-cost')keep()});
+  w.addEventListener('change',ev=>{const el=ev.target;if(!lsheet)return;keep();
+    if(el.id==='ls-machine'){lsheet.mid=el.value;lsheet.countsEdited=false;lsheet.hoursEdited=false;prefill();drawLogSheet();const m=document.getElementById('ls-machine');if(m)m.focus()}
+    else if(el.dataset.lswork){if(el.checked)lsheet.picked.add(el.dataset.lswork);else lsheet.picked.delete(el.dataset.lswork);prefill();
+      document.querySelectorAll('[data-lscount]').forEach(c=>{c.checked=lsheet.counts.has(c.dataset.lscount)});const n=document.getElementById('ls-notes');if(n&&!lsheet.notesEdited)n.value=lsheet.notes}
+    else if(el.dataset.lscount){lsheet.countsEdited=true;if(el.checked)lsheet.counts.add(el.dataset.lscount);else lsheet.counts.delete(el.dataset.lscount)}});
+  const pick=document.getElementById('lsPick');
+  if(pick)pick.onsubmit=ev=>{ev.preventDefault();const v=document.getElementById('ls-pick').value;if(!machineRecs[v])return;
+    applyLogbook(p,v);save(lsheet.pid);lsheet.mid=v;prefill();drawLogSheet();render()};
+  const form=document.getElementById('lsForm');if(form)form.onsubmit=ev=>{ev.preventDefault();sendToLogbook()};
+  const first=w.querySelector('#ls-pick,#ls-hours');if(first)first.focus({preventScroll:true});
+}
+function sendToLogbook(){const p=projects[lsheet.pid],r=machineRecs[lsheet.mid],msg=document.getElementById('ls-msg');
+  if(!p||p.kind!=='mine'||!r||!db)return;
+  const names=lbTaskNames(r),picked=(p.tasks||[]).filter(t=>lsheet.picked.has(t.id)&&t.done&&!loggedOf(p)[t.id]);
+  /* tasks: the ticked "Counts as" names, plus the title of any ticked work item that matched none */
+  const tasks=[...names.filter(n=>lsheet.counts.has(n)),...picked.filter(t=>!matchNames(t.title,names).length).map(t=>t.title.trim()).filter(Boolean)];
+  const uniq=[...new Set(tasks)];const notes=(document.getElementById('ls-notes').value||'').trim();
+  if(!uniq.length&&!notes){msg.textContent='Tick some work or a "Counts as" name, or add a note.';return}
+  const date=document.getElementById('ls-date').value||today();
+  const hours=document.getElementById('ls-hours').value.trim();
+  if(hours&&!isFinite(parseFloat(hours.replace(/,/g,'')))){msg.textContent=`${meterLabel(r)} should be a number.`;return}
+  const entry={id:uid_lb(),date,hours,cost:document.getElementById('ls-cost').value.replace(/^\$/,'').trim(),tasks:uniq,notes,source:{app:'tracker',projectId:lsheet.pid}};
+  /* same as the Logbook's form: a higher (or first) reading raises the machine's meter; logging a service wakes its snooze */
+  const num=v=>parseFloat(String(v||'').replace(/,/g,''));
+  const out={log:[...(Array.isArray(r.log)?r.log:[]),entry],updatedAt:new Date().toISOString()};
+  if(entry.hours&&(!r.hours||num(entry.hours)>=num(r.hours))){out.hours=entry.hours;out.hoursAt=entry.date}
+  if(Array.isArray(r.schedule))out.schedule=r.schedule.map(x=>{if(!uniq.includes(x.task)||!x.snooze)return x;const {snooze,...y}=x;return y});
+  const mid=lsheet.mid,mname=dname(r);
+  /* queued by Firestore's offline cache when there's no signal, like the app's other writes */
+  db.records.merge(mid,out).catch(()=>toast("Couldn't add it to the Logbook. Check your connection."));
+  machineRecs[mid]={...r,...out};
+  const lt={...loggedOf(p)};picked.forEach(t=>{lt[t.id]={date,entryId:entry.id}});p.loggedTasks=lt;save(lsheet.pid);
+  closeLogSheet();render();
+  toastLink(`Added to ${mname}'s maintenance log`,`${LOGBOOK_HREF}?m=${encodeURIComponent(mid)}`,'Open in Logbook');
+}
+/** A toast with a link, shown a little longer so it can be tapped. */
+function toastLink(msg,href,label){const t=document.getElementById('toast');t.innerHTML=`<span>${esc(msg)}</span> <a href="${esc(href)}">${esc(label)}</a>`;t.hidden=false;clearTimeout(timers.toast);timers.toast=setTimeout(()=>{t.hidden=true},8000)}
 /* "Add to inventory" (My equipment, parts marked Received) */
 function invAddUI(pid,tid,x){
   if(!inv||!x||!(x.name||x.num))return '';const key='inv:'+pid+':'+x.id;
@@ -462,6 +615,10 @@ function renderProject(){
       <div class="row"><div class="bar big"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n} done</span></div>
     </div>
   </div>`;
+  if(p.kind==='mine'){const n=unsentDone(p).length;const btn=`<button class="btn primary" data-act="logexport">Add to maintenance log</button>`;
+    h+=p.status==='Done'&&n&&view.lsHintOff!==id
+      ?`<div class="panel lshint"><b>Log this work in your Logbook?</b><span class="small muted">${n} finished task${n>1?'s':''} not in ${lbName(p)?esc(lbName(p))+"'s":'a'} maintenance log yet.</span><div class="row">${btn}<button class="btn" data-act="lshintoff">Not now</button></div></div>`
+      :`<div class="lsbar">${btn.replace('btn primary','btn')}<span class="note">${n?`${n} finished task${n>1?'s':''} not logged yet`:'Send finished work to the Logbook'}</span></div>`}
   if(p.kind==='customer')h+=renderClock(id,p);
   if(p.kind==='customer'){
     const hasInfo=(c.name||'').trim()||(c.phone||'').trim();
@@ -497,7 +654,7 @@ function renderProject(){
     </form>`;
   }
   h+=`<section><div class="between"><h2>Checklist</h2><span class="note">tap a task for notes, parts and links</span></div>
-  ${(p.tasks||[]).length?`<div class="list">${p.tasks.map(t=>{const tp=t.parts||[];const meta=[tp.length?`${tp.length} part${tp.length>1?'s':''}`:'',(t.links||[]).length?`${t.links.length} link${t.links.length>1?'s':''}`:'',t.notes&&t.notes.trim()?'notes':''].filter(Boolean).join(' · ');
+  ${(p.tasks||[]).length?`<div class="list">${p.tasks.map(t=>{const tp=t.parts||[];const lg=p.kind==='mine'&&loggedOf(p)[t.id];const meta=[lg?`In Logbook · ${esc(fmtDate(lg.date))}`:'',tp.length?`${tp.length} part${tp.length>1?'s':''}`:'',(t.links||[]).length?`${t.links.length} link${t.links.length>1?'s':''}`:'',t.notes&&t.notes.trim()?'notes':''].filter(Boolean).join(' · ');
     return `<div class="item"><button class="check" data-act="toggle" data-tid="${t.id}" aria-label="${t.done?'Mark not done':'Mark done'}: ${esc(t.title)}"><span class="box ${t.done?'on':''}">✓</span></button>
     <button class="main" data-act="task" data-tid="${t.id}"><span class="t ${t.done?'done':''}">${esc(t.title)}</span>${meta?`<span class="small muted">${meta}</span>`:''}</button><span class="chev" aria-hidden="true">›</span></div>`}).join('')}</div>`:''}
   <form class="row" data-form="addtask"><label for="newtask" style="position:absolute;left:-9999px">New task</label><input id="newtask" type="text" name="title" maxlength="160" placeholder="+ Add a task" required><button class="btn sm" type="submit">Add</button></form>
@@ -777,6 +934,8 @@ app.addEventListener('click',async e=>{
   else if(a==='cancelc'){view.editing=null;render()}
   else if(a==='invadd'){view.confirm=b.dataset.key;render()}
   else if(a==='print'){printDoc(p,b.dataset.kind)}
+  else if(a==='logexport'){openLogSheet(view.pid)}
+  else if(a==='lshintoff'){view.lsHintOff=view.pid;render()}
   else if(a==='signin'){signIn()}
   else if(a==='signout'){if(FB)FB.signOut()}
   else if(a==='clockin'){clockIn(b.dataset.pid)}
@@ -869,7 +1028,7 @@ render();
 function stopAll(){unsubs.forEach(u=>{try{u()}catch(e){}});unsubs=[]}
 function connect(u){
   stopAll();user=u;signedOut=false;db=FB.forUser(u.uid);
-  projects={};ready=false;inv=null;machines=[];counterLast=0;counterLoaded=false;projectsLoaded=false;backfilled=false;render();
+  projects={};ready=false;inv=null;machines=[];machineRecs={};counterLast=0;counterLoaded=false;projectsLoaded=false;backfilled=false;render();
   unsubs.push(db.doc('settings/shop').onSnapshot(s=>{if(s.exists){const v=s.data()||{};shop={name:v.name||'',phone:v.phone||'',email:v.email||'',address:v.address||'',footer:v.footer||'',rate:v.rate||''};if(view.editing!=='shop'&&view.name!=='shopinfo')render()}},()=>{}));
   unsubs.push(db.doc('settings/counter').onSnapshot(s=>{const v=s.exists?Number((s.data()||{}).lastJobNo)||0:0;counterLast=Math.max(counterLast,v);counterLoaded=true;backfillJobNos()},()=>{counterLoaded=true;backfillJobNos()}));
   /* The Logbook's records: parts for the inventory check, engines/vehicles for "Logbook entry" */
@@ -877,6 +1036,7 @@ function connect(u){
     const live=rs.filter(r=>r&&!r.example);
     inv={parts:live.filter(r=>r.kind==='part').map(r=>({id:r.id,name:String(r.name||''),brand:String(r.brand||''),number:String(r.number||''),qty:r.qty??'',location:String(r.location||'')}))};
     machines=live.filter(r=>kindOf(r)!=='part').map(r=>({id:r.id,name:dname(r)})).sort((a,b)=>a.name.localeCompare(b.name));
+    machineRecs=Object.fromEntries(live.filter(r=>kindOf(r)!=='part').map(r=>[r.id,r]));
     const ae=document.activeElement;const editing=ae&&(ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||(ae.tagName==='INPUT'&&ae.type!=='search'));if(!editing&&ready)render()},()=>{}));
   unsubs.push(db.collection('projects').onSnapshot(snap=>{
     const editing=document.activeElement&&(document.activeElement.tagName==='TEXTAREA'||(document.activeElement.tagName==='INPUT'&&document.activeElement.type!=='search'));
