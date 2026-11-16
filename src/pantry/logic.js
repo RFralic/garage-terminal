@@ -228,6 +228,42 @@ export function shoppingText(low, extra) {
   return lines.length ? lines.join('\n') : 'Nothing on the list.';
 }
 
+// ---------- size or count ("8 oz", "1.5 lb", "12 pieces") ----------------------------
+
+/** Units offered for an item's size, grouped. Counts are for bags or boxes of things. */
+export const SIZE_UNITS = [
+  ['Count', ['count', 'pieces', 'servings']],
+  ['Weight', ['oz', 'lb', 'g', 'kg']],
+  ['Volume', ['fl oz', 'cup', 'pt', 'qt', 'gal', 'ml', 'L']],
+];
+const ALL_UNITS = SIZE_UNITS.flatMap(([, u]) => u);
+const UNIT_ALIASES = {
+  ct: 'count', cnt: 'count', pcs: 'pieces', pc: 'pieces', piece: 'pieces', serving: 'servings',
+  ounce: 'oz', ounces: 'oz', lbs: 'lb', pound: 'lb', pounds: 'lb', gram: 'g', grams: 'g',
+  'fl. oz': 'fl oz', 'fl.oz': 'fl oz', floz: 'fl oz', cups: 'cup', pint: 'pt', pints: 'pt', quart: 'qt', quarts: 'qt',
+  gallon: 'gal', gallons: 'gal', l: 'L', liter: 'L', liters: 'L', litre: 'L', mL: 'ml',
+};
+
+/** "8 oz" → { num: "8", unit: "oz" }; "12 ct" → { num: "12", unit: "count" }; anything else → { other: text }. */
+export function parseSize(text) {
+  const s = String(text || '').trim();
+  if (!s) return { num: '', unit: '' };
+  const m = /^(\d+(?:\.\d+)?)\s*([A-Za-z][A-Za-z. ]*?)\.?$/.exec(s);
+  if (m) {
+    const raw = m[2].trim();
+    const unit = ALL_UNITS.find((u) => u === raw) || ALL_UNITS.find((u) => u.toLowerCase() === raw.toLowerCase()) || UNIT_ALIASES[raw] || UNIT_ALIASES[raw.toLowerCase()];
+    if (unit) return { num: m[1], unit };
+  }
+  return { other: s };
+}
+
+/** ("12", "pieces") → "12 pieces"; no number → "". */
+export function formatSize(num, unit) {
+  const n = String(num || '').trim();
+  if (!n) return '';
+  return unit ? `${n} ${unit}` : n;
+}
+
 // ---------- invites ----------------------------------------------------------------
 
 // No 0/O, 1/I/L: easy to read out loud and type.

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   codeKey, findByCode, batchCode, batchFromCode, spacedCode, addMonths, daysBetween, fmtMDY, fmtMY, fmtShort,
   useByFor, sortLots, totalQty, useFromLots, addToLots, nextExpiry, expiryStatus, shortBy, lowItems,
-  expiringItems, shoppingText, makeInviteCode, normalizeInvite, spacedInvite,
+  expiringItems, shoppingText, makeInviteCode, normalizeInvite, spacedInvite, parseSize, formatSize, SIZE_UNITS,
 } from '../src/pantry/logic.js';
 import { code128cValues, code128cModules, code128cWidth, decodeModules, QUIET, _PATTERNS } from '../src/pantry/code128.js';
 
@@ -123,6 +123,32 @@ describe('Pantry: counts and lots', () => {
     assert.deepEqual(expiringItems([beans, milk, gone], today).map((i) => i.name), ['Milk']);
     assert.equal(shoppingText([towels], [{ name: 'Bananas', done: false }, { name: 'Done', done: true }]),
       '- Paper towels (6 pk): buy 4\n- Bananas');
+  });
+});
+
+describe('Pantry: size or count', () => {
+  test('reads sizes and counts back into number + unit', () => {
+    assert.deepEqual(parseSize('8 oz'), { num: '8', unit: 'oz' });
+    assert.deepEqual(parseSize('1.5 lb'), { num: '1.5', unit: 'lb' });
+    assert.deepEqual(parseSize('12 pieces'), { num: '12', unit: 'pieces' });
+    assert.deepEqual(parseSize('24 ct'), { num: '24', unit: 'count' });
+    assert.deepEqual(parseSize('2 Quarts'), { num: '2', unit: 'qt' });
+    assert.deepEqual(parseSize('16 fl oz'), { num: '16', unit: 'fl oz' });
+    assert.deepEqual(parseSize('1 L'), { num: '1', unit: 'L' });
+    assert.deepEqual(parseSize(''), { num: '', unit: '' });
+  });
+
+  test('anything else stays as typed', () => {
+    assert.deepEqual(parseSize('8 oz (half-pint)'), { other: '8 oz (half-pint)' });
+    assert.deepEqual(parseSize('family size'), { other: 'family size' });
+    assert.deepEqual(parseSize('12 cookies'), { other: '12 cookies' });
+  });
+
+  test('writes them out', () => {
+    assert.equal(formatSize('12', 'pieces'), '12 pieces');
+    assert.equal(formatSize('8', 'oz'), '8 oz');
+    assert.equal(formatSize('', 'oz'), '');
+    for (const [, units] of SIZE_UNITS) for (const u of units) assert.deepEqual(parseSize(formatSize('3', u)), { num: '3', unit: u });
   });
 });
 
