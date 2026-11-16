@@ -9,10 +9,13 @@
 // The maintenance and low-stock rules are the Logbook's own
 // (apps/logbook/index.html), so the brief agrees with the app:
 //   - parts: low when a reorder level is set and on hand <= it
-//   - vehicles: next oil change = last "Oil & filter" mileage + interval
-//     (default 5,000); "soon" within 500 miles, "overdue" past it
-//   - the watched services (oil, plugs, filters, tires, brakes): flagged when
-//     last logged more than 12 months ago
+//   - maintenance: each machine's tracked services (its Schedule & log tab).
+//     Due = the last log entry with that service + its interval (miles or
+//     engine hours, and/or months, whichever comes first); "soon" within the
+//     service's warning distance. The rules are an exact copy of the Logbook's
+//     "due rules" block (below); tests/brief.maintenance.test.js checks that
+//     the two copies match. Services that are snoozed, never logged, or have
+//     "Include in the Morning Brief email" unticked are left out.
 //
 // Home Projects upkeep reminders (homeprojects/{uid}/projects, kind "upkeep")
 // follow Home Projects' own rules (apps/home-projects/index.html):
@@ -47,34 +50,90 @@ function addDaysKey(key, n) {
 
 // ---------- the Logbook's own rules ---------------------------------------------------
 
-const WATCH = {
-  engine: ['Oil change', 'Spark plug', 'Air filter', 'Fuel filter'],
-  vehicle: ['Oil & filter', 'Tire rotation', 'Air filter', 'Brakes'],
-};
 const kindOf = (e) => (e && e.kind === 'vehicle' ? 'vehicle' : e && e.kind === 'part' ? 'part' : 'engine');
 const milesN = (v) => { const n = parseFloat(String(v ?? '').replace(/[^0-9.]/g, '')); return Number.isNaN(n) ? null : n; };
 const fmtMi = (n) => `${Math.round(n).toLocaleString('en-US')} mi`;
 const qtyN = (p) => { const n = parseInt(p.qty, 10); return Number.isNaN(n) ? 0 : n; };
 const isLow = (p) => p.reorderAt !== '' && p.reorderAt != null && !Number.isNaN(parseInt(p.reorderAt, 10)) && qtyN(p) <= parseInt(p.reorderAt, 10);
 const sortedLog = (e) => [...(Array.isArray(e.log) ? e.log : [])].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-const lastFor = (e, task) => sortedLog(e).find((l) => (l.tasks || []).includes(task));
+
+// Copied word for word from the Logbook (vehicle_logbook/public/index.html).
+// Don't edit here: change the Logbook, re-run scripts/import-logbook.mjs, then
+// paste the new block (tests/brief.maintenance.test.js fails until they match).
+/* ---- due rules: start ----
+   Maintenance due. Garage Terminal's Morning Brief (garage-terminal/src/brief/brief.js) keeps an
+   exact copy of this block so the email and the app always agree: change both together (a test
+   there checks they match). Uses milesN, sortedLog and fmtMi from the page.
+   A machine's schedule is e.schedule = [{id, task, every, months, warnMeter, warnDays, part, brief, snooze}]:
+     every: miles (vehicles) or engine hours (small engines) · months: calendar months · either may be blank
+     warnMeter / warnDays: "due soon" this close · brief: false leaves it out of the Morning Brief
+     snooze: "YYYY-MM-DD", hidden from Overdue / Due soon until that day
+   No saved schedule -> DUE_DEFAULTS. A vehicle's "Oil & filter" mileage is its oilInterval spec (default 5,000).
+   Due = the last log entry with that task + the interval, whichever of meter or months comes first.
+   Never logged -> state "none" (not tracked yet). */
+const DUE_DEFAULTS={
+  engine:[["Oil change",50,12],["Spark plug",100,12],["Air filter",25,12],["Fuel filter",100,12]],
+  vehicle:[["Oil & filter",5000,12],["Tire rotation",7500,12],["Air filter",15000,12],["Brakes",10000,12]]};
+const DUE_WARN={engine:[[5,14],[10,30],[2,7]],vehicle:[[500,14],[1000,30],[250,7]]}; // [meter, days]; the first is the default
+const DUE_MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const dueKind=e=>e&&e.kind==="vehicle"?"vehicle":"engine";
+const dueSlug=t=>String(t||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")||"service";
+const dueYmd=k=>String(k||"").slice(0,10).split("-").map(Number);
+const dueDays=(a,b)=>{const [y1,m1,d1]=dueYmd(a),[y2,m2,d2]=dueYmd(b);return Math.round((Date.UTC(y2,m2-1,d2)-Date.UTC(y1,m1-1,d1))/864e5)};
+const dueAddDays=(k,n)=>{const [y,m,d]=dueYmd(k);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10)};
+function dueAddMonths(k,n){const [y,m,d]=dueYmd(k);const f=new Date(Date.UTC(y,m-1+n,1));
+  const last=new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+1,0)).getUTCDate();
+  return new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth(),Math.min(d,last))).toISOString().slice(0,10)}
+const dueDay=k=>{const [y,m,d]=dueYmd(k);return `${DUE_MON[m-1]} ${d}, ${y}`};
+const dueMonth=k=>{const [y,m]=dueYmd(k);return `${DUE_MON[m-1]} ${y}`};
+const dueSpan=n=>n<14?`${n} day${n===1?"":"s"}`:n<60?`${Math.round(n/7)} weeks`:`${Math.round(n/30.4)} months`;
+const dueMeter=(kd,n)=>kd==="vehicle"?fmtMi(n):`${(Math.round(n*10)/10).toLocaleString("en-US")} h`;
+/** The services tracked on a machine (its saved schedule, or the defaults). */
+function schedOf(e){const kd=dueKind(e),w=DUE_WARN[kd][0];
+  const list=Array.isArray(e&&e.schedule)?e.schedule:DUE_DEFAULTS[kd].map(([task,every,months])=>
+    ({id:dueSlug(task),task,every:String(every),months:String(months),warnMeter:String(w[0]),warnDays:String(w[1]),part:"",brief:true}));
+  return list.filter(s=>s&&String(s.task||"").trim())}
+/** One service's status on `today` ("YYYY-MM-DD"). */
+function dueOf(e,s,today){const kd=dueKind(e),w=DUE_WARN[kd][0];
+  const every=kd==="vehicle"&&s.task==="Oil & filter"?(milesN(e.oilInterval)||5000):milesN(s.every);
+  const months=milesN(s.months);
+  const warnM=milesN(s.warnMeter)??w[0],warnD=milesN(s.warnDays)??w[1];
+  const log=sortedLog(e).filter(l=>(l.tasks||[]).includes(s.task)&&/^\d{4}-\d{2}-\d{2}/.test(String(l.date||"")));
+  const r={s,task:s.task,kd,every:every||null,months:months||null,last:log[0]||null,lastMeter:null,m:null,t:null,
+    state:"none",by:null,pct:0,upcoming:false,snoozed:!!(s.snooze&&String(s.snooze)>=today),brief:s.brief!==false,text:"",short:""};
+  if(!r.last)return r;
+  const lm=log.find(l=>milesN(l.hours)!=null),cur=milesN(e.hours);
+  if(lm)r.lastMeter=milesN(lm.hours);
+  if(every&&lm){const at=r.lastMeter+every,left=cur==null?null:at-cur;
+    r.m={at,left,used:cur==null?null:cur-r.lastMeter,state:left==null?"ok":left<0?"over":left<=warnM?"soon":"ok",pct:left==null?0:(every-left)/every}}
+  if(months){const from=String(r.last.date).slice(0,10),due=dueAddMonths(from,months),left=dueDays(today,due),total=Math.max(1,dueDays(from,due));
+    r.t={due,left,used:total-left,total,state:left<0?"over":left<=warnD?"soon":"ok",pct:(total-left)/total}}
+  const rank={over:0,soon:1,ok:2},sides=[r.m,r.t].filter(Boolean);
+  if(!sides.length)return r;
+  const d=[...sides].sort((a,b)=>rank[a.state]-rank[b.state]||b.pct-a.pct)[0]; // the worse side decides
+  r.state=d.state;r.by=d===r.m?"meter":"time";r.pct=Math.max(0,Math.min(1,d.pct));
+  r.upcoming=r.state==="ok"&&(!!(r.t&&r.t.left<=92)||!!(r.m&&r.m.pct>=2/3)); // "Coming up": within 3 months, or 2/3 of the miles / hours used
+  const M=n=>dueMeter(kd,n);
+  if(r.by==="meter"){const m=r.m;
+    if(m.left==null){r.text=`Due at ${M(m.at)} · update the ${kd==="vehicle"?"mileage":"engine hours"} to check`;r.short=`at ${M(m.at)}`}
+    else if(m.state==="over"){r.text=`${M(-m.left)} overdue · was due at ${M(m.at)}`;r.short=`${M(-m.left)} overdue`}
+    else if(m.state==="soon"){r.text=`Due in ${M(m.left)} · at ${M(m.at)}`;r.short=`in ${M(m.left)}`}
+    else{r.text=`Due at ${M(m.at)} · in ${M(m.left)}`;r.short=`at ${M(m.at)}`}}
+  else{const t=r.t;
+    if(t.state==="over"){r.text=`${dueSpan(-t.left)} overdue · was due ${dueDay(t.due)}`;r.short=`${dueSpan(-t.left)} overdue`}
+    else if(t.state==="soon"){r.text=t.left===0?"Due today":`Due ${dueDay(t.due)} · in ${dueSpan(t.left)}`;r.short=t.left===0?"today":`in ${dueSpan(t.left)}`}
+    else{r.text=`Due ${dueMonth(t.due)} · in ${dueSpan(t.left)}`;r.short=dueMonth(t.due)}}
+  return r}
+/** Every tracked service on a machine, with its status. */
+const dueList=(e,today)=>schedOf(e).map(s=>dueOf(e,s,today));
+/* ---- due rules: end ---- */
+export { dueList, schedOf };
 
 function machineName(e) {
   if (String(e.name || '').trim()) return e.name.trim();
   const mm = (kindOf(e) === 'vehicle' ? [e.year, e.make, e.model] : [e.make, e.model])
     .map((x) => String(x || '').trim()).filter(Boolean).join(' ');
   return mm || (kindOf(e) !== 'vehicle' && e.equipment) || `Unnamed ${kindOf(e)}`;
-}
-
-function nextOil(e) {
-  if (kindOf(e) !== 'vehicle') return null;
-  const oil = sortedLog(e).find((l) => (l.tasks || []).includes('Oil & filter') && milesN(l.hours) != null);
-  if (!oil) return null;
-  const every = milesN(e.oilInterval) || 5000;
-  const at = milesN(oil.hours) + every;
-  const cur = milesN(e.hours);
-  const left = cur == null ? null : at - cur;
-  return { at, cur, left, every, state: left == null ? 'ok' : left < 0 ? 'over' : left <= 500 ? 'soon' : 'ok' };
 }
 
 // ---------- Home Projects' own rules -----------------------------------------------
@@ -177,27 +236,9 @@ export function buildBrief({ records = [], projects = [], upkeep = [], events = 
   if (on.maintenance) {
     const items = [];
     for (const e of records.filter((r) => kindOf(r) !== 'part')) {
-      const name = machineName(e);
-      const oil = nextOil(e);
-      if (oil && oil.state !== 'ok') {
-        items.push({
-          machine: name,
-          item: 'Oil & filter change',
-          detail: oil.left < 0
-            ? `${fmtMi(-oil.left)} overdue · due at ${fmtMi(oil.at)}`
-            : `${fmtMi(oil.left)} to go · due at ${fmtMi(oil.at)}`,
-          state: oil.state,
-          rank: oil.state === 'over' ? 0 : 1,
-        });
-      }
-      for (const task of WATCH[kindOf(e)]) {
-        if (task === 'Oil & filter' && oil) continue; // covered by the mileage check
-        const last = lastFor(e, task);
-        if (!last || !last.date) continue;
-        const ago = daysBetween(String(last.date).slice(0, 10), today);
-        if (ago > 365) {
-          items.push({ machine: name, item: task, detail: `last logged ${Math.floor(ago / 30.4)} months ago`, state: 'old', rank: 2 });
-        }
+      for (const d of dueList(e, today)) {
+        if ((d.state !== 'over' && d.state !== 'soon') || d.snoozed || !d.brief) continue;
+        items.push({ machine: machineName(e), item: d.task, detail: d.text, state: d.state, rank: d.state === 'over' ? 0 : 1 });
       }
     }
     for (const r of upkeep.filter((x) => x && x.kind === 'upkeep')) {
@@ -322,7 +363,7 @@ export function renderBrief(brief, { siteUrl = 'https://garageterminal.com' } = 
   }
   if (s.maintenance) {
     parts.push(section(brief.alert ? 'Coming due' : SECTIONS.maintenance, s.maintenance.length ? rows(s.maintenance, (m) => row('', `${m.machine}: ${m.item}`, m.detail,
-      pill(m.state === 'over' ? 'Overdue' : m.state === 'soon' ? 'Due soon' : 'Check', m.state === 'over' ? 'over' : 'soon'))) : '', 'Everything is on schedule.'));
+      pill(m.state === 'over' ? 'Overdue' : 'Due soon', m.state === 'over' ? 'over' : 'soon'))) : '', 'Everything is on schedule.'));
   }
   if (s.projects) {
     parts.push(section(SECTIONS.projects, s.projects.length ? rows(s.projects, (p) => row('', p.title, p.detail, p.urgent ? pill('Due', 'over') : '')) : '', 'No open projects.'));
