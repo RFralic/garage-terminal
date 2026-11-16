@@ -107,6 +107,8 @@ body.pt-sheet-open{overflow:hidden}
 .pt-sheet{width:100%;max-width:560px;max-height:92vh;overflow:auto;background:var(--panel);border:1px solid var(--line-2);border-bottom:0;
   border-radius:16px 16px 0 0;padding:16px 18px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
 @media (min-width:700px){.pt-sheetwrap{align-items:center}.pt-sheet{border-radius:16px;border-bottom:1px solid var(--line-2)}}
+/* the sheet scrolls; its parts keep their full height instead of squeezing */
+.pt-sheet>*{flex-shrink:0}
 .pt-sheethead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .pt-sheethead h2{margin:0;font-size:19px;line-height:1.3;overflow-wrap:anywhere}
 .pt-sheethead small{display:block;font:12px var(--mono);color:var(--muted);letter-spacing:.04em}

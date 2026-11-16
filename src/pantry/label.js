@@ -203,24 +203,35 @@ export function labelFileName(d, sizeKey) {
 }
 
 /**
- * Hands the image to the phone's share sheet (pick Katasymbol, or Save image),
- * or downloads it where sharing files isn't possible. Returns "shared",
- * "downloaded" or "cancelled".
+ * Saves the image to the device: on Android it lands in Downloads (and shows in
+ * the Gallery's Download album), on a computer in the downloads folder.
+ *
+ * This is the reliable path for the Katasymbol app: sharing an image straight
+ * into it opens it as a full-page picture print, not a label. Starting a label
+ * in Katasymbol and adding the saved image to it prints at the label's size.
  */
-export async function shareOrSave(blob, fileName) {
-  const file = new File([blob], fileName, { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: fileName });
-      return 'shared';
-    } catch (e) {
-      if (e && e.name === 'AbortError') return 'cancelled';
-    }
-  }
+export function saveToPhone(blob, fileName) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = fileName;
   document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-  return 'downloaded';
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+/** True where the phone's share sheet can take an image file. */
+export function canShareImages() {
+  try {
+    return !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(1)], 'x.png', { type: 'image/png' })] }));
+  } catch { return false; }
+}
+
+/** Opens the phone's share sheet with the image. Returns "shared" or "cancelled". */
+export async function shareImage(blob, fileName) {
+  try {
+    await navigator.share({ files: [new File([blob], fileName, { type: 'image/png' })], title: fileName });
+    return 'shared';
+  } catch (e) {
+    if (e && e.name === 'AbortError') return 'cancelled';
+    throw e;
+  }
 }
