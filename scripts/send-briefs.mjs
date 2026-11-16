@@ -26,7 +26,7 @@
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { alertKey, buildAlert, buildBrief, renderBrief } from '../src/brief/brief.js';
+import { alertKey, buildAlert, buildBrief, calendarDaysFor, renderBrief } from '../src/brief/brief.js';
 import { eventsInWindow, normalizeCalendarUrl } from '../src/brief/ics.js';
 import { dateKey, daysBetween, isValidTimeZone, zonedParts, zonedToMs } from '../src/brief/time.js';
 import { sendMail } from './lib/resend.mjs';
@@ -135,7 +135,7 @@ for (const [uid, snap] of docs) {
     if (icsUrl) {
       try {
         const startOfDay = zonedToMs(local.y, local.m, local.d, 0, 0, 0, tz);
-        events = eventsInWindow(await fetchCalendar(icsUrl), { fromMs: startOfDay, toMs: startOfDay + 15 * 86400000, tz });
+        events = eventsInWindow(await fetchCalendar(icsUrl), { fromMs: startOfDay, toMs: startOfDay + (calendarDaysFor(weekly ? 'weekly' : 'daily', b.aheadDays) + 1) * 86400000, tz });
         calendar = 'ok';
       } catch (err) {
         calendar = 'error';
@@ -143,7 +143,7 @@ for (const [uid, snap] of docs) {
       }
     }
 
-    const brief = buildBrief({ records, projects, upkeep, events, nowMs, tz, sections: b.sections, calendar, frequency: weekly ? 'weekly' : 'daily' });
+    const brief = buildBrief({ records, projects, upkeep, events, nowMs, tz, sections: b.sections, calendar, frequency: weekly ? 'weekly' : 'daily', aheadDays: b.aheadDays });
     const mail = renderBrief(brief, { siteUrl: SITE });
     await sendMail({
       apiKey, from: FROM, to: account.email, replyTo: REPLY_TO,

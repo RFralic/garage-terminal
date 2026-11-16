@@ -35,10 +35,25 @@ export const SECTIONS = {
 export const DEFAULT_SECTIONS = Object.fromEntries(Object.keys(SECTIONS).map((k) => [k, true]));
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+/** Choices for how far "Coming up" looks ahead, in days. */
+export const AHEAD_CHOICES = [3, 7, 14, 21, 30, 60];
+/** "Coming up" length when the member hasn't picked one: 14 days daily, the week after weekly. */
+export function aheadDaysFor(frequency, aheadDays) {
+  return AHEAD_CHOICES.includes(aheadDays) ? aheadDays : frequency === 'weekly' ? 7 : 14;
+}
+/** How many days of calendar the sender needs to read for a brief. */
+export function calendarDaysFor(frequency, aheadDays) {
+  return (frequency === 'weekly' ? 7 : 1) + aheadDaysFor(frequency, aheadDays);
+}
+
 /** Section headings in the email, which depend on daily or weekly. */
 function heading(brief, key) {
   if (key === 'today') return brief.weekly ? 'This week' : "Today's schedule";
-  if (key === 'upcoming') return brief.weekly ? 'Coming up (the week after)' : 'Coming up (next 14 days)';
+  if (key === 'upcoming') {
+    const n = brief.aheadDays;
+    if (brief.weekly) return n === 7 ? 'Coming up (the week after)' : `Coming up (the ${n} days after this week)`;
+    return `Coming up (next ${n} days)`;
+  }
   return SECTIONS[key];
 }
 
@@ -175,14 +190,17 @@ export function upkeepStatus(r, today) {
  * calendar: 'none' | 'ok' | 'error'
  * frequency: 'daily' (today, then the next 14 days) or 'weekly' (the 7 days
  *   from today, then the week after)
+ * aheadDays: how many days "Coming up" covers after today (daily) or after
+ *   this week (weekly); one of AHEAD_CHOICES, else the defaults above
  */
-export function buildBrief({ records = [], projects = [], upkeep = [], events = null, nowMs = Date.now(), tz = 'UTC', sections = DEFAULT_SECTIONS, calendar = 'none', frequency = 'daily' }) {
+export function buildBrief({ records = [], projects = [], upkeep = [], events = null, nowMs = Date.now(), tz = 'UTC', sections = DEFAULT_SECTIONS, calendar = 'none', frequency = 'daily', aheadDays }) {
   const on = { ...DEFAULT_SECTIONS, ...(sections || {}) };
   const today = dateKey(nowMs, tz);
   const weekly = frequency === 'weekly';
   const lastDay = addDaysKey(today, weekly ? 6 : 0); // end of "today" / "this week"
-  const upTo = addDaysKey(today, weekly ? 13 : 14); // end of "coming up"
-  const brief = { today, dateLabel: weekly ? `Week of ${fmtLongDate(today)}` : fmtLongDate(today), tz, on, calendar, weekly, title: weekly ? 'Weekly Brief' : 'Morning Brief', sections: {} };
+  const ahead = aheadDaysFor(frequency, aheadDays);
+  const upTo = addDaysKey(lastDay, ahead); // end of "coming up"
+  const brief = { today, dateLabel: weekly ? `Week of ${fmtLongDate(today)}` : fmtLongDate(today), tz, on, calendar, weekly, title: weekly ? 'Weekly Brief' : 'Morning Brief', aheadDays: ahead, sections: {} };
   const endKey = (e) => (e.allDay ? dateKey(e.endMs - 1, tz) : dateKey(Math.max(e.endMs - 1, e.startMs), tz));
 
   if (on.today || on.upcoming) {
@@ -206,7 +224,7 @@ export function buildBrief({ records = [], projects = [], upkeep = [], events = 
     if (on.upcoming) {
       brief.sections.upcoming = evs
         .filter((e) => dateKey(e.startMs, tz) > lastDay && dateKey(e.startMs, tz) <= upTo)
-        .slice(0, 10)
+        .slice(0, ahead > 14 ? 20 : 10)
         .map((e) => {
           const key = dateKey(e.startMs, tz);
           const n = daysBetween(today, key);
@@ -354,7 +372,7 @@ export function renderBrief(brief, { siteUrl = 'https://garageterminal.com' } = 
     parts.push(section(heading(brief, 'today'), s.today.length ? rows(s.today, (e) => row(e.when, e.title, e.detail)) : '', calNote || (brief.weekly ? 'Nothing on the calendar this week.' : 'Nothing on the calendar today.')));
   }
   if (s.upcoming) {
-    parts.push(section(heading(brief, 'upcoming'), s.upcoming.length ? rows(s.upcoming, (e) => row('', e.title, `${e.when} · ${e.detail}`)) : '', calNote || (brief.weekly ? 'Nothing the week after.' : 'Nothing in the next two weeks.')));
+    parts.push(section(heading(brief, 'upcoming'), s.upcoming.length ? rows(s.upcoming, (e) => row('', e.title, `${e.when} · ${e.detail}`)) : '', calNote || `Nothing ${brief.weekly ? `in the ${brief.aheadDays} days after this week` : `in the next ${brief.aheadDays} days`}.`));
   }
   if (s.lowStock) {
     parts.push(section(SECTIONS.lowStock, s.lowStock.length ? rows(s.lowStock, (p) => row('', p.name,
@@ -395,7 +413,7 @@ ${brief.alert ? 'From your Garage Terminal Logbook and Home Projects. You get th
     lines.push('');
   };
   if (s.today) add(heading(brief, 'today'), s.today, (e) => `${e.when}  ${e.title}${e.detail ? ` (${e.detail})` : ''}`, calNote || (brief.weekly ? 'Nothing on the calendar this week.' : 'Nothing on the calendar today.'));
-  if (s.upcoming) add(heading(brief, 'upcoming'), s.upcoming, (e) => `${e.title}: ${e.when}, ${e.detail}`, calNote || (brief.weekly ? 'Nothing the week after.' : 'Nothing in the next two weeks.'));
+  if (s.upcoming) add(heading(brief, 'upcoming'), s.upcoming, (e) => `${e.title}: ${e.when}, ${e.detail}`, calNote || `Nothing ${brief.weekly ? `in the ${brief.aheadDays} days after this week` : `in the next ${brief.aheadDays} days`}.`);
   if (s.lowStock) add(SECTIONS.lowStock, s.lowStock, (p) => `${p.name}${p.number ? ` #${p.number}` : ''}: ${p.qty} on hand (reorder at ${p.reorderAt})`, 'Nothing below its reorder level.');
   if (s.maintenance) add(SECTIONS.maintenance, s.maintenance, (m) => `${m.machine}: ${m.item}, ${m.detail}`, 'Everything is on schedule.');
   if (s.projects) add(SECTIONS.projects, s.projects, (p) => `${p.title}: ${p.detail}`, 'No open projects.');

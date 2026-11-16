@@ -84,6 +84,13 @@ describe('Morning Brief settings', () => {
     await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { mode: 'everything' })));
   });
 
+  test('coming up: one of the listed day counts', async () => {
+    const db = as('bob');
+    for (const n of [3, 7, 14, 21, 30, 60]) await assertSucceeds(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { aheadDays: n })));
+    await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { aheadDays: 365 })));
+    await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { aheadDays: '14' })));
+  });
+
   test('members cannot write the send status', async () => {
     await assertFails(setDoc(doc(as('bob'), 'briefStatus', 'bob'), { lastResult: 'sent' }));
   });
