@@ -11,7 +11,7 @@ import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where
 import { db } from '../lib/firebase.js';
 import { mountHeader } from '../lib/header.js';
 import { watchSession } from '../lib/session.js';
-import { DEFAULT_SECTIONS, SECTIONS, WEEKDAYS, buildAlert, buildBrief, renderBrief, upkeepStatus } from '../brief/brief.js';
+import { AHEAD_CHOICES, DEFAULT_SECTIONS, SECTIONS, WEEKDAYS, aheadDaysFor, buildAlert, buildBrief, renderBrief, upkeepStatus } from '../brief/brief.js';
 import { normalizeCalendarUrl } from '../brief/ics.js';
 import { isValidTimeZone } from '../brief/time.js';
 
@@ -31,6 +31,13 @@ const setStatus = (text, kind = 'wait') => { const s = $('mb-status'); s.textCon
 const hourLabel = (h) => `${((h + 11) % 12) + 1}:00 ${h < 12 ? 'AM' : 'PM'}`;
 for (let h = 0; h < 24; h++) $('mb-hour').append(new Option(hourLabel(h), String(h)));
 WEEKDAYS.forEach((d, i) => $('mb-weekday').append(new Option(d, String(i))));
+for (const n of AHEAD_CHOICES) $('mb-ahead').append(new Option(`${n} days`, String(n)));
+// Weekly briefs count "Coming up" from the end of the week, daily from today.
+const aheadLabel = () => {
+  $('mb-ahead-label').firstChild.textContent = $('mb-frequency').value === 'weekly'
+    ? '"Coming up" covers, after this week ' : '"Coming up" looks ahead ';
+};
+$('mb-frequency').addEventListener('change', aheadLabel);
 const showDay = () => { $('mb-weekday-wrap').hidden = $('mb-frequency').value !== 'weekly'; };
 $('mb-frequency').addEventListener('change', showDay);
 const showMode = () => {
@@ -61,6 +68,8 @@ function fill(b) {
   $('mb-hour').value = String(Number.isInteger(b.hour) ? b.hour : 6);
   $('mb-frequency').value = b.frequency === 'weekly' ? 'weekly' : 'daily';
   $('mb-weekday').value = String(Number.isInteger(b.weekday) ? b.weekday : 0);
+  $('mb-ahead').value = String(aheadDaysFor(b.frequency, b.aheadDays));
+  aheadLabel();
   showDay();
   $('mb-mode').value = b.mode === 'maintenance' ? 'maintenance' : 'brief';
   showMode();
@@ -77,6 +86,7 @@ function read() {
     hour: parseInt($('mb-hour').value, 10),
     frequency: $('mb-frequency').value === 'weekly' ? 'weekly' : 'daily',
     weekday: parseInt($('mb-weekday').value, 10),
+    aheadDays: parseInt($('mb-ahead').value, 10),
     tz: $('mb-tz').value,
     icsUrl: normalizeCalendarUrl($('mb-ics').value),
     sections: Object.fromEntries(sectionBoxes().map((b) => [b.dataset.section, b.checked])),
@@ -90,7 +100,7 @@ function drawPreview() {
   const s = read();
   const brief = s.mode === 'maintenance'
     ? buildAlert({ records: data.records, upkeep: data.upkeep, tz: s.tz })
-    : buildBrief({ ...data, events: null, tz: s.tz, sections: s.sections, calendar: s.icsUrl ? 'ok' : 'none', frequency: s.frequency });
+    : buildBrief({ ...data, events: null, tz: s.tz, sections: s.sections, calendar: s.icsUrl ? 'ok' : 'none', frequency: s.frequency, aheadDays: s.aheadDays });
   $('mb-preview').srcdoc = renderBrief(brief, { siteUrl: location.origin }).html;
   upkeepNote(brief.today);
 }
