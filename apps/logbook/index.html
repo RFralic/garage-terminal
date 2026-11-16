@@ -260,7 +260,12 @@ a.doc::after{content:"↗";font-weight:400}
 .sccard b{font-size:1.1rem}.sccard .mono{color:var(--muted);font-size:.9rem}
 .sccount{font:500 1.05rem var(--f-mono);margin-top:2px}.sccount.out{color:var(--accent)}
 .scacts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}.scacts button{min-height:48px;justify-content:center}
-.scnote{margin:0;font-size:.92rem;background:var(--surface-2);border-radius:6px;padding:10px 12px}
+/* pop-up sheets: keep the app's colors (the print preview's .sheet style was turning them white) */
+.sheetwrap>.sheet{background:var(--surface);color:var(--ink);max-width:none;margin:0;font-size:15px;border:0;border-top:1px solid var(--line);border-radius:14px 14px 0 0;
+  padding:18px max(16px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+@media (min-width:640px){.sheetwrap>.sheet{border:1px solid var(--line);border-radius:14px}}
+.scnote{margin:0;display:flex;gap:10px;align-items:flex-start;font-size:.92rem;line-height:1.5;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.scnote svg{flex:none;margin-top:2px;color:var(--steel)}
 .scstack{display:grid;gap:8px}.scstack button{min-height:48px;justify-content:center}
 .scrow{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .sclist{display:grid;gap:6px;max-height:46vh;overflow:auto}
@@ -1056,7 +1061,7 @@ function renderScanSheet(focusSel){const old=$("#scanWrap");if(old)old.remove();
   }else if(r.step==="link"){
     const q=r.linkQ.trim().toLowerCase();
     const list=partsOf().filter(p=>!q||[p.name,p.brand,p.number,p.location].join(" ").toLowerCase().includes(q)).sort(byName);
-    html=head("Link this barcode")+`<p class="scnote">Pick the part this barcode is on. Next time you scan it, that part comes up.</p>
+    html=head("Link this barcode")+`<p class="scnote"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Pick the part this barcode is on. Next time you scan it, that part comes up.</span></p>
       <label>Find the part<input type="search" id="sc-linkq" value="${esc(r.linkQ)}" placeholder="Name or part #"></label>
       <div class="sclist">${list.length?list.map(p=>`<button type="button" class="scpick" data-link="${esc(p.id)}"><b>${esc(p.name||"Unnamed part")}</b><span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span><small>${esc(invLine(p))}</small></button>`).join(""):`<p class="muted" style="margin:0">${partsOf().length?"No parts match.":"No parts in your inventory yet."}</p>`}</div>
       <div class="sbtns"><button type="button" id="sc-back">Back</button><button type="button" id="sc-addnew">+ Add as a new part</button></div>`;
@@ -1069,7 +1074,7 @@ function renderScanSheet(focusSel){const old=$("#scanWrap");if(old)old.remove();
       <div class="sbtns"><button type="button" id="sc-done">Done</button><button type="button" class="primary" id="sc-again">Scan another</button></div>`;
   }else{
     const retail=window.GTScan&&GTScan.util.isRetail(r.text);
-    html=head("Not in inventory")+`<p class="scnote">${retail?"Packaging often has a store barcode (UPC) instead of the part #. If this is a part you already have, link it once and it will be found next time.":"No part has this part # or barcode. Link it to a part you have, or add it as a new part."}</p>
+    html=head("Not in inventory")+`<p class="scnote"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>${retail?"Packaging often has a store barcode (UPC) instead of the part #. If this is a part you already have, link it once and it will be found next time.":"No part has this part # or barcode. Link it to a part you have, or add it as a new part."}</span></p>
       <div class="scstack"><button type="button" class="primary" id="sc-link">Link to a part I have</button><button type="button" id="sc-addnew">+ Add as a new part</button></div>
       <p class="smsg" id="sc-msg" role="alert"></p>
       <div class="scrow"><button type="button" class="ghost" id="sc-again">Scan again</button><button type="button" class="ghost" id="sc-edit">Edit the code</button><button type="button" class="ghost" id="sc-done">Done</button></div>`;
