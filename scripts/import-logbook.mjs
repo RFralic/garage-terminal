@@ -13,6 +13,8 @@
 //      Google sign-in and Firestore, with the offline cache switched on
 //   4. links between the two apps point at their new addresses
 //   5. offline: the old /sw.js is replaced by /apps/sw.js (public/apps/sw.js)
+//   6. the barcode scanner both pages share: the Logbook's public/scanner.js is
+//      copied unchanged to public/apps/scanner.js and loaded from /apps/scanner.js
 // The Logbook's maintenance "due rules" block is also copied, word for word,
 // into src/brief/brief.js (tests/brief.maintenance.test.js checks they match).
 // The script stops with an error if a page changed in a way these edits no
@@ -59,6 +61,9 @@ const BACKEND = [
   '<script type="module" src="/src/apps/logbook-backend.js"></script>',
 ].join('\n');
 
+const SCANNER_FROM = '<script src="/scanner.js"></script>';
+const SCANNER_TO = '<script src="/apps/scanner.js"></script>';
+
 const SW = '<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/apps/sw.js",{scope:"/apps/"}).catch(()=>{}));</script>';
 
 const barStyle = (maxWidth) => `<style>
@@ -97,6 +102,8 @@ lb = swap(lb, '<div class="wrap">\n  <header class="top">', `<div class="wrap">\
 lb = swapFirebaseModule(lb, BACKEND, 'index.html');
 // 4. links
 lb = swap(lb, 'href="/tracker"', 'href="/apps/project-tracker"', 'Project Tracker link');
+// 6. scanner
+lb = swap(lb, SCANNER_FROM, SCANNER_TO, 'barcode scanner script');
 // 5. offline
 lb = swap(lb, 'if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));\n</script>', '</script>\n' + SW, 'service worker');
 
@@ -115,6 +122,8 @@ pt = swapFirebaseModule(pt, BACKEND, 'tracker.html');
 // 4. links
 pt = swap(pt, 'href="/"', 'href="/apps/logbook"', 'Logbook links', 2);
 pt = swap(pt, 'const LOGBOOK_HREF="/";', 'const LOGBOOK_HREF="/apps/logbook";', '"Open in Logbook" address');
+// 6. scanner
+pt = swap(pt, SCANNER_FROM, SCANNER_TO, 'barcode scanner script');
 // 5. offline
 pt = swap(pt, '<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));</script>', SW, 'service worker');
 
@@ -124,3 +133,11 @@ for (const [dir, html] of [['apps/logbook', lb], ['apps/project-tracker', pt]]) 
   writeFileSync(`${dir}/index.html`, html);
   console.log(`Wrote ${dir}/index.html (${html.length.toLocaleString()} characters).`);
 }
+
+// ---------- the shared barcode scanner ------------------------------------------------
+const scanner = readFileSync(join(srcDir, 'scanner.js'), 'utf8');
+if (!scanner.includes('window.GTScan')) throw new Error("scanner.js doesn't look like the Logbook's barcode scanner; update this script.");
+writeFileSync('public/apps/scanner.js',
+  '// Served at /apps/scanner.js. Copied unchanged from the Logbook repo (public/scanner.js)\n'
+  + "// by scripts/import-logbook.mjs. Don't edit by hand: re-run the script instead.\n" + scanner);
+console.log(`Wrote public/apps/scanner.js (${scanner.length.toLocaleString()} characters).`);
