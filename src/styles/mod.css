@@ -63,3 +63,9 @@ button.stat:hover{border-color:var(--amber)}
 .radios{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
 .radio{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
 .radio input{width:20px;height:20px;accent-color:var(--violet)}
+
+/* BBS tab (src/pages/mod-bbs.js) */
+.tab-count{margin-left:6px;padding:0 6px;border-radius:999px;background:var(--amber);color:var(--on-green);font-weight:700;font-size:12px}
+.bbs-subs{margin-bottom:14px}
+.bbs-subs .chip[aria-current="true"]{border-color:var(--amber);color:var(--amber)}
+.bbs-sub{display:flex;flex-direction:column;gap:12px}

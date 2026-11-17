@@ -68,6 +68,20 @@ footer .wrap{display:flex;flex-wrap:wrap;align-items:center;justify-content:spac
 footer .footer-mail{color:var(--green);text-decoration:none;display:inline-flex;align-items:center;min-height:44px;margin-block:-12px}
 footer .footer-mail:hover{text-decoration:underline}
 footer .footer-mail:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:4px}
+/* The BBS door (src/lib/door.js): a dim ">_" at the end of the footer, the "_" blinking
+   like an idle cursor. Barely brighter than the footer on purpose; a 44px tap target. */
+footer .door{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;margin-block:-12px;margin-left:auto;
+  padding:0;border:0;background:none;font:600 14px var(--mono);color:#4A5463;cursor:pointer}
+footer .door:hover{color:var(--muted)}
+footer .door:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:4px;color:var(--muted)}
+footer .door-cur{animation:door-blink 1.1s steps(1) infinite}
+@keyframes door-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){footer .door-cur{animation:none}}
+footer .door-prompt{flex-basis:100%;margin:0;background:var(--bar);border:1px solid var(--line-2);border-radius:6px;padding:6px 12px}
+footer .door-line{display:flex;align-items:center;min-height:44px;color:var(--green);font:15px var(--mono)}
+footer .door-line input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--green);font:16px var(--mono);caret-color:var(--green);padding:0}
+footer .door-out{margin:0 0 6px;color:var(--muted);font:13px var(--mono)}
+footer .door-out:empty{display:none}
 
 /* Current page in the top menu */
 .links a[aria-current="page"]{color:var(--green)}

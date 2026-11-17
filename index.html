@@ -3,8 +3,8 @@
 <!--
   Home page. Ported from the original garage-terminal.html (see PLAN.md).
   Shared look: src/styles/base.css · Home-only styles: src/styles/home.css
-  The BBS link, card and section, and the hero buttons, are switched off with `hidden`
-  until the BBS is built. Keep them hidden.
+  The hero buttons are switched off with `hidden`. The BBS isn't linked from here on
+  purpose: its only way in is the blinking >_ in the footer (src/lib/door.js).
 -->
 <head>
 <meta charset="utf-8">
@@ -35,6 +35,7 @@
 <link rel="stylesheet" href="/src/styles/home.css">
 <script type="module" src="/src/pages/common.js"></script>
 <script type="module" src="/src/pages/app-filter.js"></script>
+<script type="module" src="/src/lib/door.js"></script>
 </head>
 <body>
 <header>
@@ -44,7 +45,6 @@
       <a href="#apps">/apps</a>
       <a href="/forum">/forum</a>
       <a href="/wiki">/wiki</a>
-      <a href="#bbs" hidden>/bbs</a>
     </div>
   </nav>
   <div class="wrap session" id="session" aria-live="polite"></div>
@@ -57,9 +57,6 @@
     <p class="lede">Handy tools for the garage, the gym and the workbench, built one project at a time. Grab an app, dig through the library, or pull up a stool on the board.</p>
     <div class="ctas" hidden>
       <a class="btn primary" href="#apps">Browse apps</a>
-      <a class="btn ghost" href="#bbs" hidden>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
-        About the BBS</a>
     </div>
   </section>
 
@@ -78,11 +75,6 @@
       <p class="key" style="color:var(--blue)">[W] WIKI &amp; LIBRARY</p>
       <h2>Docs, ebooks, files</h2>
       <p>Guides, manuals and downloads, organized and searchable.</p>
-    </a>
-    <a class="area" href="#bbs" hidden>
-      <p class="key" style="color:var(--amber)">[B] BBS · MEMBERS ONLY</p>
-      <h2>The private board</h2>
-      <p>Passcode required. For members only.</p>
     </a>
   </div>
 
@@ -205,19 +197,6 @@
     </div>
   </section>
 
-  <section class="wrap block" id="bbs" hidden>
-    <div class="shead"><h2>&gt; cd /bbs</h2><span>members only</span></div>
-    <div class="term">
-      <div class="tbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span>bbs.txt</span></div>
-      <div class="tbody">
-        <span class="badge">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
-          MEMBERS ONLY</span>
-        <p class="mutedt">A private board for members. Entry requires the access code from the sysop.</p>
-        <p class="soon">&gt; Board opening soon. Check back.</p>
-      </div>
-    </div>
-  </section>
 </main>
 
 <footer>

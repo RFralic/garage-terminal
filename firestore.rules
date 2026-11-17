@@ -10,7 +10,7 @@ rules_version = '2';
 // threads, posts) · moderation (reports, modlog) · library · RepClock (per-member workouts) · Home Projects (per-member projects) ·
 // Logbook + Project Tracker (per-member records, projects, tracker settings) ·
 // Pantry (shared by a household: pantries, items, activity, shopping, invites) ·
-// Morning Brief (per-member email settings).
+// Morning Brief (per-member email settings) · BBS (members-only board, chat and files).
 //
 // Cloud Functions use the Admin SDK, which bypasses these rules. That's how:
 //   - counters (replyCount, lastReplyAt, postCount) are kept up to date, and
@@ -661,6 +661,100 @@ service cloud.firestore {
     // Written only by the sender.
     match /briefStatus/{uid} {
       allow read: if isSelf(uid);
+    }
+
+    // =========================================================================
+    // BBS (/bbs): the private, members-only board, reached through the >_ door
+    // =========================================================================
+    //
+    // Who gets in: the sysop (admins/), and anyone with a bbsMembers/{uid} doc.
+    // Every BBS read checks that doc, so removing a member cuts them off at once.
+    // The member list, denials, removals and BBS settings are changed only by the
+    // `bbs` Cloud Function (functions/bbs.js), which checks sysop / co-sysop
+    // powers and writes the mod log. From the page a person can only ask to join
+    // (create their own request) or take the request back.
+    //
+    //   bbsConfig/main        { doorWord, requirePasscode, notice }  everyone reads
+    //   bbsRequests/{uid}     { handle, createdAt }                  one per account
+    //   bbsMembers/{uid}      { handle, role: member|cosysop|sysop, since, addedBy, lastSeen, mutedUntil? }
+    //   bbsDenied/{uid}       { handle, at, until, by }              30-day wait
+    //   bbsRemoved/{uid}      { handle, at, by }
+    //   bbsKnocks/{uid}       passcode tries (Cloud Function only)
+    // No BBS doc ever holds an email address.
+
+    function bbsMember() {
+      return signedIn() && exists(/databases/$(database)/documents/bbsMembers/$(request.auth.uid));
+    }
+    function bbsMe() {
+      return get(/databases/$(database)/documents/bbsMembers/$(request.auth.uid)).data;
+    }
+    // Inside the BBS: the sysop, or an approved member.
+    function bbsIn() {
+      return isAdmin() || bbsMember();
+    }
+    // Sysop or co-sysop (approve people, moderate posts and chat).
+    function bbsMod() {
+      return isAdmin() || (bbsMember() && bbsMe().role == 'cosysop');
+    }
+    function bbsConfig() {
+      return get(/databases/$(database)/documents/bbsConfig/main).data;
+    }
+    function bbsPasscodeOn() {
+      return exists(/databases/$(database)/documents/bbsConfig/main)
+        && bbsConfig().get('requirePasscode', false) == true;
+    }
+
+    // The door word and the sysop notice. Readable signed out too, so the door works.
+    match /bbsConfig/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // A request to join. The doc ID is the person's uid, so there is only ever one.
+    // Not allowed for members, while a denial's 30-day wait is running, or when the
+    // passcode is switched on (then the bbsKnock Cloud Function files the request
+    // after a correct code).
+    match /bbsRequests/{uid} {
+      allow get: if isSelf(uid) || bbsMod();
+      allow list: if bbsMod();
+      allow create: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(['handle', 'createdAt'])
+        && exists(/databases/$(database)/documents/users/$(uid))
+        && request.resource.data.handle == me().handle
+        && request.resource.data.createdAt == request.time
+        && !exists(/databases/$(database)/documents/bbsMembers/$(uid))
+        && (!exists(/databases/$(database)/documents/bbsDenied/$(uid))
+            || get(/databases/$(database)/documents/bbsDenied/$(uid)).data.until < request.time)
+        && !bbsPasscodeOn();
+      allow delete: if isSelf(uid);
+      allow update: if false;
+    }
+
+    // Members: the Crew list inside the BBS. A member may only stamp their own
+    // "last seen" (presence), and only with the server time.
+    match /bbsMembers/{uid} {
+      allow get: if isSelf(uid) || bbsIn();
+      allow list: if bbsIn();
+      allow update: if isSelf(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeen'])
+        && request.resource.data.lastSeen == request.time;
+      allow create, delete: if false;
+    }
+
+    // Denied: the person can see their own (so the page can say when they may ask again).
+    match /bbsDenied/{uid} {
+      allow get: if isSelf(uid) || bbsMod();
+      allow list: if bbsMod();
+      allow write: if false;
+    }
+
+    match /bbsRemoved/{uid} {
+      allow read: if bbsMod();
+      allow write: if false;
+    }
+
+    match /bbsKnocks/{uid} {
+      allow read, write: if false;
     }
   }
 }

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BBS home, shop floor style, dark</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&amp;family=Barlow:wght@400;500;600&amp;family=Space+Mono:wght@400;700&amp;display=swap">
+<style>
+body{margin:0;background:#1A1916}
+a{color:#F59A4E}a:hover{color:#FFB877}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 980px; box-sizing: border-box; background: #1A1916; color: #EFEAE0; font-family: Barlow, system-ui, sans-serif; font-size: 16px; line-height: 1.4; display: flex; flex-direction: column">
+
+<header style="background: #0F0E0C; color: #F4F1EA; padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 12px">
+<img src="/_blob/4c4d92d0d8f2a55fcc100ea507098b9b" alt="Garage Terminal logo" style="width: 48px; height: 48px; flex: none">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<span style="font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #F2A65A">MEMBERS ONLY · BAY 01</span>
+<h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 28px; line-height: 1; text-transform: uppercase; letter-spacing: 0.01em">The Garage_Terminal BBS</h1>
+</div>
+</div>
+<div aria-hidden="true" style="height: 8px; background: repeating-linear-gradient(135deg, #F2A65A 0 10px, #0F0E0C 10px 20px)"></div>
+</header>
+
+<nav aria-label="BBS sections" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 2px solid #4A463F; background: #23211D">
+<a href="#" aria-current="page" style="min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px; background: #F07A2A; color: #140F0A; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; text-transform: uppercase">Boards <span style="background: #140F0A; color: #F07A2A; border-radius: 4px; padding: 0 6px; font-size: 14px">7</span></a>
+<a href="#" style="min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px; color: #EFEAE0; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; text-transform: uppercase; border-left: 2px solid #4A463F">Files <span style="background: #EFEAE0; color: #140F0A; border-radius: 4px; padding: 0 6px; font-size: 14px">2</span></a>
+<a href="Chat.dc.html" style="min-height: 48px; display: flex; align-items: center; justify-content: center; color: #EFEAE0; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; text-transform: uppercase; border-left: 2px solid #4A463F">Chat</a>
+<a href="#" style="min-height: 48px; display: flex; align-items: center; justify-content: center; color: #EFEAE0; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; text-transform: uppercase; border-left: 2px solid #4A463F">Crew</a>
+</nav>
+
+<div style="padding: 16px; display: flex; flex-direction: column; gap: 18px">
+
+<div style="background: #F2A65A; color: #140F0A; border: 2px solid #F2A65A; border-radius: 4px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px">
+<span style="font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.1em">FROM THE SYSOP</span>
+<span style="font-weight: 500">[Your notice here]</span>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 24px; text-transform: uppercase">Boards</h2>
+<button type="button" style="min-height: 40px; padding: 0 14px; border: 2px solid #EFEAE0; border-radius: 4px; background: #EFEAE0; color: #140F0A; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; text-transform: uppercase; cursor: pointer">+ New post</button>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<sc-for list="{{boards}}" as="b" hint-placeholder-count="4">
+<a href="#" style="{{b.cardStyle}}">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px">
+<span style="font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: #A9A196">#{{b.n}}</span>
+<sc-if value="{{b.has}}" hint-placeholder-val="{{true}}"><span style="background: #F07A2A; color: #140F0A; border-radius: 4px; padding: 1px 7px; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700">{{b.unread}} NEW</span></sc-if>
+</div>
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; line-height: 1.05; text-transform: uppercase">{{b.name}}</span>
+<span style="font-size: 13px; color: #BDB5A8; line-height: 1.3">{{b.last}}</span>
+</a>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 24px; text-transform: uppercase">New in the file cabinet</h2>
+<div style="background: #23211D; border: 2px solid #4A463F; border-radius: 4px">
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px dashed #4A463F">
+<span aria-hidden="true" style="flex: none; width: 40px; height: 40px; border: 2px solid #4A463F; border-radius: 4px; background: #1A1916; color: #F2A65A; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">PDF</span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-weight: 600">8N wiring diagram</span><span style="font-size: 13px; color: #BDB5A8">1.2 MB · [handle] · Sat</span></span>
+<button type="button" aria-label="Download 8N wiring diagram" style="flex: none; width: 44px; height: 44px; border: 2px solid #F07A2A; border-radius: 4px; background: #F07A2A; color: #140F0A; cursor: pointer; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></svg></button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px">
+<span aria-hidden="true" style="flex: none; width: 40px; height: 40px; border: 2px solid #4A463F; border-radius: 4px; background: #1A1916; color: #F2A65A; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">ZIP</span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-weight: 600">Shop photos</span><span style="font-size: 13px; color: #BDB5A8">18 MB · [handle] · Fri</span></span>
+<button type="button" aria-label="Download Shop photos" style="flex: none; width: 44px; height: 44px; border: 2px solid #F07A2A; border-radius: 4px; background: #F07A2A; color: #140F0A; cursor: pointer; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></svg></button>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 24px; text-transform: uppercase">In the shop now</h2>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<span style="padding: 6px 10px; border: 2px solid #4A463F; border-radius: 4px; background: #23211D; font-family: 'Space Mono', monospace; font-size: 13px"><span style="color: #F07A2A">●</span> [handle]</span>
+<span style="padding: 6px 10px; border: 2px solid #4A463F; border-radius: 4px; background: #23211D; font-family: 'Space Mono', monospace; font-size: 13px"><span style="color: #F07A2A">●</span> [handle]</span>
+<span style="padding: 6px 10px; border: 2px solid #4A463F; border-radius: 4px; background: #23211D; font-family: 'Space Mono', monospace; font-size: 13px"><span style="color: #F07A2A">●</span> [handle]</span>
+</div>
+</section>
+</div>
+
+<footer style="margin-top: auto; padding: 14px 16px; background: #0F0E0C; color: #EFEAE0; display: flex; justify-content: space-between; align-items: center; font-family: 'Space Mono', monospace; font-size: 12px"><a href="#" style="color: #F2A65A">← garage_terminal</a><span>LOG OFF</span></footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const b=[
+      {n:'01',name:'General',last:'[handle]: Anyone running a 2-stroke on E10?',unread:3},
+      {n:'02',name:'Shop Notes',last:'Saved from Shop Talk: 8N float height is 1/4 in',unread:4},
+      {n:'03',name:'Builds',last:'[handle]: Tiller rebuild, part 3',unread:0}
+    ];
+    return {boards:b.map(x=>({...x,has:x.unread>0,
+      cardStyle:'display: flex; flex-direction: column; gap: 6px; min-height: 132px; padding: 10px; border: 2px solid '+(x.unread?'#F07A2A':'#4A463F')+'; border-radius: 4px; text-decoration: none; color: #EFEAE0; background: '+(x.unread?'#2A2722':'#23211D')+'; box-sizing: border-box'}))};
+  }
+}
+</script>
+</body>
+</html>

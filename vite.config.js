@@ -14,7 +14,7 @@ const cleanUrls = {
     server.middlewares.use((req, _res, next) => {
       const [path, query = ''] = req.url.split('?');
       const q = query ? '?' + query : '';
-      if (/^\/(forum|wiki|join|mod)$/.test(path)) req.url = `${path}/${q}`;
+      if (/^\/(forum|wiki|join|mod|bbs)$/.test(path)) req.url = `${path}/${q}`;
       else if (path === '/forum/new') req.url = `/forum/new.html${q}`;
       else if (path.startsWith('/forum/t/')) req.url = `/forum/thread.html${q}`; // same as firebase.json rewrite
       else if (['/apps/tap-drill-chart', '/apps/repclock', '/apps/home-projects', '/apps/logbook', '/apps/project-tracker', '/apps/morning-brief', '/apps/pantry'].includes(path)) req.url = `${path}/${q}`;
@@ -44,6 +44,7 @@ export default defineConfig({
         wikiAdd: page('wiki/add.html'),
         join: page('join/index.html'),
         mod: page('mod/index.html'),
+        bbs: page('bbs/index.html'),
         tapDrillChart: page('apps/tap-drill-chart/index.html'),
         repclock: page('apps/repclock/index.html'),
         homeProjects: page('apps/home-projects/index.html'),

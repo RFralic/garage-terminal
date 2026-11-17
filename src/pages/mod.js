@@ -7,6 +7,8 @@
 //   members    search by handle; a member's details, email, posts and actions
 //   settings   sysop notice, forum switch, banned words
 //   log        the mod log
+//   bbs        the BBS: requests, members, add, denied, removed, settings (src/pages/mod-bbs.js)
+//              Co-sysops (bbsMembers role "cosysop") see /mod with only this tab.
 //
 // Every change goes through moderate() → the `moderate` Cloud Function, which
 // re-checks that you're sysop and writes the mod log. Reads are allowed only
@@ -19,20 +21,26 @@ import {
   moderate, askReason, loadCounts, loadOpenReports, loadHeld, searchMembers, loadRecentMembers, loadMember, loadModLog,
 } from '../lib/mod.js';
 import { el, setMarkdown, timeEl } from '../lib/ui.js';
+import { getMember, watchRequests } from '../lib/bbs.js';
+import { renderBbs, setRequestCount } from './mod-bbs.js';
 
 mountHeader();
 
 const $ = (id) => document.getElementById(id);
 const body = $('m-body');
 
-const TABS = [
+const ALL_TABS = [
   ['overview', 'Overview'],
   ['reports', 'Reports'],
   ['held', 'Held'],
   ['members', 'Members'],
   ['settings', 'Settings'],
+  ['bbs', 'BBS'],
   ['log', 'Mod log'],
 ];
+let TABS = ALL_TABS;
+let who = { isSysop: false }; // co-sysops get only the BBS tab
+let bbsRequests = 0; // live count for the BBS tab's badge
 let tab = 'overview';
 let started = false;
 
@@ -65,12 +73,15 @@ async function act(action, params, { confirmText } = {}) {
 
 // ---------- access gate & tabs -----------------------------------------------------
 
-watchSession((s) => {
+watchSession(async (s) => {
   if (s.state === 'loading') return;
   const sysop = s.state === 'member' && s.isSysop;
-  $('m-gate').hidden = sysop;
-  $('m-app').hidden = !sysop;
-  if (!sysop) {
+  const cosysop = !sysop && s.state === 'member' && (await getMember(s.user.uid).catch(() => null))?.role === 'cosysop';
+  who = { isSysop: sysop };
+  TABS = sysop ? ALL_TABS : ALL_TABS.filter(([id]) => id === 'bbs');
+  $('m-gate').hidden = sysop || cosysop;
+  $('m-app').hidden = !(sysop || cosysop);
+  if (!sysop && !cosysop) {
     // Non-sysops get a plain "not found". (The rules block the data anyway.)
     document.title = 'Not found · Garage Terminal';
     $('m-title').textContent = '> 404';
@@ -80,7 +91,9 @@ watchSession((s) => {
   if (!started) {
     started = true;
     const fromHash = location.hash.slice(1);
-    show(TABS.some(([id]) => id === fromHash) ? fromHash : 'overview');
+    show(TABS.some(([id]) => id === fromHash) ? fromHash : TABS[0][0]);
+    // The BBS tab shows how many people are waiting.
+    watchRequests((list) => { bbsRequests = list.length; renderTabs(); setRequestCount(bbsRequests); }, () => {});
   }
 });
 
@@ -94,7 +107,7 @@ function renderTabs() {
     el('a', {
       class: 'chip', href: `#${id}`, 'aria-current': id === tab ? 'true' : false,
       onclick: (e) => { e.preventDefault(); show(id); },
-    }, label)));
+    }, label, id === 'bbs' && bbsRequests ? el('span', { class: 'tab-count' }, String(bbsRequests)) : null)));
 }
 
 async function show(id, arg) {
@@ -326,6 +339,15 @@ const ACTION_LABELS = {
   'member.hideAll': 'hide all posts',
   'member.rename': 'rename member',
   'settings.update': 'site settings',
+  'bbs.request.approve': 'BBS: approve',
+  'bbs.request.deny': 'BBS: deny',
+  'bbs.member.add': 'BBS: add member',
+  'bbs.member.remove': 'BBS: remove member',
+  'bbs.member.role': 'BBS: co-sysop',
+  'bbs.denied.letIn': 'BBS: let in (was denied)',
+  'bbs.denied.clear': 'BBS: clear the wait',
+  'bbs.removed.restore': 'BBS: let back in',
+  'bbs.settings.update': 'BBS settings',
 };
 
 /** Plain-text summary of an entry's details, e.g. "locked: yes · from: Bob". */
@@ -342,6 +364,7 @@ function targetEl(path = '') {
   if (kind === 'reports') return el('span', {}, 'report');
   if (kind === 'users') return btn('member', () => show('members', a));
   if (kind === 'settings') return btn('settings', () => show('settings'));
+  if (kind.startsWith('bbs')) return btn('BBS', () => show('bbs'));
   return el('span', {}, path);
 }
 
@@ -369,4 +392,5 @@ const RENDER = {
   members: renderMembers,
   settings: renderSettings,
   log: renderLog,
+  bbs: () => renderBbs(body, who, bbsRequests),
 };
