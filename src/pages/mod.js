@@ -348,6 +348,8 @@ const ACTION_LABELS = {
   'bbs.denied.clear': 'BBS: clear the wait',
   'bbs.removed.restore': 'BBS: let back in',
   'bbs.settings.update': 'BBS settings',
+  'bbs.board.save': 'BBS: board',
+  'bbs.board.archive': 'BBS: archive/restore board',
 };
 
 /** Plain-text summary of an entry's details, e.g. "locked: yes · from: Bob". */

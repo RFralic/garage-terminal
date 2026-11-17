@@ -3,6 +3,7 @@
 //   onPostCreated / onPostDeleted: keep the forum counters up to date (below)
 //   moderate: every sysop moderation action, always logged (see moderate.js)
 //   bbs, bbsKnock, bbsRequestEmail, bbsWelcomeEmail: the BBS (see bbs.js)
+//   bbsPostCreated, bbsPostDeleted, bbsThreadDeleted, bbsFileDeleted: BBS boards and files (bbs-content.js)
 //
 // These run on Google's servers (not in the browser) with full access, so they
 // can update numbers that members are never allowed to touch directly:
@@ -24,6 +25,7 @@ import { onCall } from 'firebase-functions/v2/https';
 import { setGlobalOptions, logger } from 'firebase-functions/v2';
 import { moderateHandler } from './moderate.js';
 import { bbsHandler, knockHandler, requestEmail, welcomeEmail } from './bbs.js';
+import { postCreated, postDeleted, threadDeleted, fileDeleted } from './bbs-content.js';
 
 initializeApp();
 const db = getFirestore();
@@ -91,3 +93,8 @@ export const bbsRequestEmail = onDocumentCreated({ document: 'bbsRequests/{uid}'
   (event) => requestEmail(event, RESEND_API_KEY.value()));
 export const bbsWelcomeEmail = onDocumentCreated({ document: 'bbsMembers/{uid}', secrets: [RESEND_API_KEY] },
   (event) => welcomeEmail(event, RESEND_API_KEY.value()));
+
+export const bbsPostCreated = onDocumentCreated('bbsThreads/{threadId}/posts/{postId}', postCreated);
+export const bbsPostDeleted = onDocumentDeleted('bbsThreads/{threadId}/posts/{postId}', postDeleted);
+export const bbsThreadDeleted = onDocumentDeleted('bbsThreads/{threadId}', threadDeleted);
+export const bbsFileDeleted = onDocumentDeleted('bbsFiles/{fileId}', fileDeleted);

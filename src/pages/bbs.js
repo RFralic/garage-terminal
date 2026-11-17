@@ -8,7 +8,16 @@
 //        asked                -> "Hang tight" until the sysop lets them in
 //        denied (30 days)     -> when they can knock again
 //   2. Inside (members and the sysop): tabs Boards · Files · Chat · Crew, chosen by
-//      the address (#boards, #files, #chat, #crew). Each section lives in src/bbs/.
+//      the address. Each section lives in src/bbs/:
+//        #boards            home: notice, board tiles, latest files, who's here   home.js
+//        #boards/<id>       one board's threads                                   board.js
+//        #t/<id>            a thread                                              thread.js
+//        #new[/<board>]     a new post                                            compose.js
+//        #files             the file cabinet                                      files.js
+//        #chat              Shop Talk                                             (part 3)
+//        #crew              the member list                                       crew.js
+//      Boards, threads, files, the crew and settings are kept live in `ctx`; the open
+//      view sets ctx.refresh to redraw when they change.
 //
 // Nothing here is security: firestore.rules decide what a person can read or write.
 
@@ -19,19 +28,28 @@ import {
 } from '../lib/bbs.js';
 import { el } from '../lib/ui.js';
 import { renderHome } from '../bbs/home.js';
+import { renderBoard } from '../bbs/board.js';
+import { renderThread } from '../bbs/thread.js';
+import { renderNew } from '../bbs/compose.js';
+import { renderFiles } from '../bbs/files.js';
 import { renderCrew } from '../bbs/crew.js';
 import { renderSoon } from '../bbs/soon.js';
+import { getReads, isNewThread, watchBoards, watchFiles, watchRecentThreads } from '../bbs/data.js';
 
 const $ = (id) => document.getElementById(id);
 const main = $('b-main');
 
-/** Sections inside the BBS: [address, tab label, render(ctx)]. */
-const SECTIONS = [
-  ['boards', 'Boards', renderHome],
-  ['files', 'Files', (ctx) => renderSoon(ctx, 'The file cabinet')],
-  ['chat', 'Chat', (ctx) => renderSoon(ctx, 'Shop Talk')],
-  ['crew', 'Crew', renderCrew],
-];
+/** The tabs: [address, label]. */
+const SECTIONS = [['boards', 'Boards'], ['files', 'Files'], ['chat', 'Chat'], ['crew', 'Crew']];
+/** Addresses: first part of the hash -> [tab, render(ctx, rest)]. */
+const ROUTES = {
+  boards: ['boards', (ctx, rest) => (rest[0] ? renderBoard(ctx, rest) : renderHome(ctx))],
+  t: ['boards', renderThread],
+  new: ['boards', renderNew],
+  files: ['files', renderFiles],
+  chat: ['chat', (ctx) => renderSoon(ctx, 'Shop Talk')],
+  crew: ['crew', renderCrew],
+};
 
 let session = { state: 'loading' };
 let phase = ''; // what's on screen: 'login:<step>' or 'in'
@@ -202,7 +220,10 @@ async function knockOrWait(s) {
 
 const ctx = {
   main, uid: '', handle: '', me: null, isSysop: false, isMod: false, config: { notice: '' }, crew: [],
-  counts: {},
+  boards: [], threads: [], files: [], reads: {}, counts: {},
+  refresh: null, cleanup: null, draft: null,
+  /** Re-count the NEW marks on the tabs (after a visit is recorded). */
+  recount() { countNew(); },
   /** Re-draw the tab bar (counts change). */
   tabs() { drawTabs(); },
   /** Go to a place inside the BBS, e.g. ctx.go('crew'). */
@@ -218,23 +239,39 @@ function drawTabs() {
     return el('a', { href: `#${id}`, 'aria-current': id === here ? 'page' : false }, label, n ? el('span', { class: 'cnt' }, String(n)) : null);
   }));
 }
-const sectionOf = (hash) => {
-  const id = hash.replace(/^#/, '').split('/')[0];
-  return SECTIONS.some(([s]) => s === id) ? id : 'boards';
+const routeOf = (hash) => {
+  const [first, ...rest] = hash.replace(/^#/, '').split('/').map(decodeURIComponent);
+  return ROUTES[first] ? { tab: ROUTES[first][0], render: ROUTES[first][1], rest } : { tab: 'boards', render: ROUTES.boards[1], rest: [] };
 };
+const sectionOf = (hash) => routeOf(hash).tab;
+
+/** Tab counts: NEW threads (since my last visit to their board) and new files. */
+function countNew() {
+  ctx.counts.boards = ctx.threads.filter((t) => ctx.boards.some((b) => b.id === t.boardId && !b.archived) && isNewThread(t, ctx.reads, ctx.handle)).length;
+  const seenFiles = ctx.reads.files?.toMillis?.() ?? 0;
+  ctx.counts.files = ctx.files.filter((f) => (f.createdAt?.toMillis?.() ?? Date.now()) > seenFiles && f.byUid !== ctx.uid).length;
+  drawTabs();
+}
+/** Live data changed: recount and let the open view redraw. */
+function changed() {
+  countNew();
+  const ae = document.activeElement;
+  const typing = ae && ae.closest && ae.closest('#b-main') && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.type !== 'search';
+  if (ctx.refresh && !typing) ctx.refresh();
+}
 
 async function show() {
   if (phase !== 'in') return;
-  const id = sectionOf(location.hash);
+  const route = routeOf(location.hash);
   current = location.hash;
   drawTabs();
-  const [, , render] = SECTIONS.find(([s]) => s === id);
   $('b-title').textContent = 'The Garage_Terminal BBS';
   $('b-here').hidden = true;
   if (ctx.cleanup) { try { ctx.cleanup(); } catch { /* ignore */ } ctx.cleanup = null; }
+  ctx.refresh = null;
   main.replaceChildren(el('p', { class: 'modem' }, 'loading…'));
   try {
-    await render(ctx, location.hash.replace(/^#/, '').split('/').slice(1));
+    await route.render(ctx, route.rest);
   } catch (err) {
     console.error(err);
     main.replaceChildren(el('p', { class: 'err' }, 'Couldn’t load this. Check your connection and try again.'));
@@ -266,13 +303,12 @@ async function enter(s) {
     ctx.me = m;
     ctx.isMod = ctx.isSysop || m?.role === 'cosysop';
   }));
-  stops.push(watchConfig((c) => { ctx.config = c; if (sectionOf(location.hash) === 'boards' && ctx.onConfig) ctx.onConfig(); }));
-  stops.push(watchCrew((list) => {
-    ctx.crew = list.sort(byRank);
-    ctx.counts.crew = list.length;
-    drawTabs();
-    if (ctx.onCrew) ctx.onCrew();
-  }, () => {}));
+  ctx.reads = await getReads(ctx.uid);
+  stops.push(watchConfig((c) => { ctx.config = c; changed(); }));
+  stops.push(watchCrew((list) => { ctx.crew = list.sort(byRank); changed(); }, () => {}));
+  stops.push(watchBoards((list) => { ctx.boards = list; changed(); }, () => {}));
+  stops.push(watchRecentThreads((list) => { ctx.threads = list; changed(); }, () => {}));
+  stops.push(watchFiles((list) => { ctx.files = list; changed(); }, () => {}));
   // Presence: "last seen" now and every minute while the page is open and visible.
   touch(ctx.uid);
   const beat = setInterval(() => { if (document.visibilityState === 'visible') touch(ctx.uid); }, 60000);
@@ -302,6 +338,7 @@ watchSession(async (s) => {
   stopAll();
   phase = '';
   ctx.cleanup?.();
+  ctx.refresh = null;
   if (s.state === 'guest') return showSignIn((await getConfig()).requirePasscode);
   if (s.state === 'needs-handle') return showPickHandle((await getConfig()).requirePasscode);
   try {
