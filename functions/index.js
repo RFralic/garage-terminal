@@ -102,4 +102,5 @@ export const bbsThreadDeleted = onDocumentDeleted('bbsThreads/{threadId}', threa
 export const bbsFileDeleted = onDocumentDeleted('bbsFiles/{fileId}', fileDeleted);
 export const bbsChatDeleted = onDocumentDeleted('bbsChat/{msgId}', chatDeleted);
 // Every day at 3:30 a.m. Eastern. (Needs the Cloud Scheduler API, which the deploy turns on.)
-export const bbsChatCleanup = onSchedule({ schedule: 'every day 03:30', timeZone: 'America/New_York' }, () => cleanupChat());
+// If a night's run fails, Cloud Scheduler tries once more.
+export const bbsChatCleanup = onSchedule({ schedule: 'every day 03:30', timeZone: 'America/New_York', retryCount: 1 }, () => cleanupChat());
