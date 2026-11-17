@@ -22,8 +22,16 @@
 //   - next due = last done + every × unit (days, weeks, months, years)
 //   - "soon" within 20% of the interval (at least 3, at most 14 days),
 //     "overdue" past the due date; never-logged reminders aren't included
+//
+// Pantry (pantries the member is in, apps/pantry) uses the Pantry's own rules
+// (src/pantry/logic.js), so the email and the app agree:
+//   - expiring soon: something left that expires within 7 days, or already has
+//   - shopping list: items below their "keep at least" number (buy the
+//     difference) plus things added to the list by hand and not ticked off
+//   Members who aren't in any pantry don't get these sections at all.
 
 import { dateKey, daysBetween, fmtLongDate, fmtShortDate, fmtTime } from './time.js';
+import { SOON_DAYS, expiringItems, lowItems, shortBy, sortLots, totalQty } from '../pantry/logic.js';
 
 export const SECTIONS = {
   today: 'Calendar: today (weekly: this week)',
@@ -31,7 +39,17 @@ export const SECTIONS = {
   lowStock: 'Garage: running low',
   maintenance: 'Maintenance',
   projects: 'Open projects and jobs',
+  pantryExpiring: 'Pantry: expiring soon',
+  pantryShopping: 'Pantry: shopping list',
 };
+/** Labels for the settings page, where a line of explanation helps. */
+export const SECTION_HINTS = {
+  maintenance: 'Maintenance: Logbook services and Home Projects upkeep',
+  pantryExpiring: `Pantry: expiring soon (within ${SOON_DAYS} days, or already expired)`,
+  pantryShopping: 'Pantry: shopping list (running low, plus things added by hand)',
+};
+/** Most rows a pantry section lists before "and N more". */
+const PANTRY_MAX = 25;
 export const DEFAULT_SECTIONS = Object.fromEntries(Object.keys(SECTIONS).map((k) => [k, true]));
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -192,8 +210,10 @@ export function upkeepStatus(r, today) {
  *   from today, then the week after)
  * aheadDays: how many days "Coming up" covers after today (daily) or after
  *   this week (weekly); one of AHEAD_CHOICES, else the defaults above
+ * pantries: the pantries the member is in, each { name, items, shopping }
+ *   (items and hand-added shopping entries as stored); none = no Pantry sections
  */
-export function buildBrief({ records = [], projects = [], upkeep = [], events = null, nowMs = Date.now(), tz = 'UTC', sections = DEFAULT_SECTIONS, calendar = 'none', frequency = 'daily', aheadDays }) {
+export function buildBrief({ records = [], projects = [], upkeep = [], pantries = [], events = null, nowMs = Date.now(), tz = 'UTC', sections = DEFAULT_SECTIONS, calendar = 'none', frequency = 'daily', aheadDays }) {
   const on = { ...DEFAULT_SECTIONS, ...(sections || {}) };
   const today = dateKey(nowMs, tz);
   const weekly = frequency === 'weekly';
@@ -298,12 +318,60 @@ export function buildBrief({ records = [], projects = [], upkeep = [], events = 
       .sort((a, b) => (b.urgent - a.urgent) || (a.promised || '9').localeCompare(b.promised || '9') || a.title.localeCompare(b.title));
   }
 
+  const inPantry = (pantries || []).filter((p) => p && Array.isArray(p.items));
+  if (inPantry.length) {
+    const many = inPantry.length > 1;
+    const where = (p, extra) => [many ? p.name : '', extra].map((x) => String(x || '').trim()).filter(Boolean).join(' · ');
+    if (on.pantryExpiring) {
+      const rows = [];
+      for (const p of inPantry) {
+        for (const it of expiringItems(p.items, today)) {
+          const lots = sortLots(it.lots).filter((l) => l.expires && daysBetween(today, l.expires) <= SOON_DAYS);
+          const first = lots[0].expires;
+          const n = daysBetween(today, first);
+          const qty = lots.reduce((t, l) => t + l.qty, 0);
+          const when = n < 0 ? `expired ${fmtShortDate(first)}` : n === 0 ? 'expires today' : n === 1 ? 'expires tomorrow' : `expires ${fmtShortDate(first)}`;
+          rows.push({
+            name: String(it.name || '').trim() || 'Unnamed item',
+            detail: where(p, [`${qty}${qty === totalQty(it) ? '' : ` of ${totalQty(it)}`}`, it.location, when].filter(Boolean).join(' · ')),
+            expired: n < 0,
+            first,
+          });
+        }
+      }
+      rows.sort((a, b) => a.first.localeCompare(b.first) || a.name.localeCompare(b.name));
+      brief.sections.pantryExpiring = rows.slice(0, PANTRY_MAX);
+      brief.pantryExpiringMore = Math.max(0, rows.length - PANTRY_MAX);
+      brief.pantryExpiringCount = rows.length;
+    }
+    if (on.pantryShopping) {
+      const rows = [];
+      for (const p of inPantry) {
+        for (const it of lowItems(p.items)) {
+          rows.push({
+            name: String(it.name || '').trim() || 'Unnamed item',
+            detail: where(p, `have ${totalQty(it)} · keep ${it.keepAtLeast}${it.size ? ` · ${it.size}` : ''}`),
+            buy: shortBy(it),
+          });
+        }
+        for (const x of (Array.isArray(p.shopping) ? p.shopping : []).filter((x) => x && !x.done && String(x.name || '').trim())) {
+          rows.push({ name: String(x.name).trim(), detail: where(p, `added by ${String(x.who || '').trim() || 'someone'}`), buy: 0 });
+        }
+      }
+      brief.sections.pantryShopping = rows.slice(0, PANTRY_MAX);
+      brief.pantryShoppingMore = Math.max(0, rows.length - PANTRY_MAX);
+      brief.pantryShoppingCount = rows.length;
+    }
+  }
+
   const s = brief.sections;
   const bits = [];
   if (s.today) bits.push(`${s.today.length} event${s.today.length === 1 ? '' : 's'} ${weekly ? 'this week' : 'today'}`);
   if (s.lowStock && s.lowStock.length) bits.push(`${s.lowStock.length} running low`);
   if (s.maintenance && s.maintenance.length) bits.push(`${s.maintenance.length} service${s.maintenance.length === 1 ? '' : 's'} due`);
   if (s.projects && s.projects.length) bits.push(`${s.projects.length} open project${s.projects.length === 1 ? '' : 's'}`);
+  if (brief.pantryExpiringCount) bits.push(`${brief.pantryExpiringCount} expiring`);
+  if (brief.pantryShoppingCount) bits.push(`${brief.pantryShoppingCount} to buy`);
   brief.summary = bits.join(' · ');
   return brief;
 }
@@ -316,7 +384,7 @@ export function buildBrief({ records = [], projects = [], upkeep = [], events = 
  * while something is still due.
  */
 export function buildAlert({ records = [], upkeep = [], nowMs = Date.now(), tz = 'UTC' }) {
-  const brief = buildBrief({ records, upkeep, nowMs, tz, sections: { today: false, upcoming: false, lowStock: false, maintenance: true, projects: false } });
+  const brief = buildBrief({ records, upkeep, nowMs, tz, sections: { today: false, upcoming: false, lowStock: false, maintenance: true, projects: false, pantryExpiring: false, pantryShopping: false } });
   const items = brief.sections.maintenance;
   brief.alert = true;
   brief.title = 'Maintenance Alert';
@@ -387,6 +455,16 @@ export function renderBrief(brief, { siteUrl = 'https://garageterminal.com' } = 
     parts.push(section(SECTIONS.projects, s.projects.length ? rows(s.projects, (p) => row('', p.title, p.detail, p.urgent ? pill('Due', 'over') : '')) : '', 'No open projects.'));
   }
 
+  const more = (n) => (n ? `<p style="margin:8px 0 0;${FONT}font-size:13px;color:${C.muted}">and ${n} more in the Pantry</p>` : '');
+  if (s.pantryExpiring) {
+    parts.push(section(SECTIONS.pantryExpiring, s.pantryExpiring.length ? rows(s.pantryExpiring, (x) => row('', x.name, x.detail,
+      pill(x.expired ? 'Expired' : 'Soon', x.expired ? 'over' : 'soon'))) + more(brief.pantryExpiringMore) : '', `Nothing expiring in the next ${SOON_DAYS} days.`));
+  }
+  if (s.pantryShopping) {
+    parts.push(section(SECTIONS.pantryShopping, s.pantryShopping.length ? rows(s.pantryShopping, (x) => row('', x.name, x.detail,
+      x.buy ? `<span style="${FONT}font-size:14px;font-weight:700;color:${C.soon}">buy ${x.buy}</span>` : '')) + more(brief.pantryShoppingMore) : '', 'Nothing to buy.'));
+  }
+
   const subject = brief.alert
     ? `Maintenance due · ${brief.summary}`
     : `${brief.title || 'Morning Brief'} · ${brief.weekly ? 'week of ' : ''}${fmtShortDate(brief.today)}${brief.summary ? ` · ${brief.summary}` : ''}`;
@@ -401,8 +479,8 @@ ${brief.summary ? `<div style="margin-top:8px;font-size:15px;color:#d6dce5">${es
 </td></tr>
 ${parts.join('\n')}
 <tr><td style="padding:24px 28px 28px;${FONT}font-size:12px;color:${C.muted};line-height:1.6">
-${brief.alert ? 'From your Garage Terminal Logbook and Home Projects. You get this when maintenance comes due, and once a week while it stays due.' : 'From your Garage Terminal Logbook, Project Tracker, Home Projects and calendar.'}<br>
-<a href="${esc(siteUrl)}/apps/logbook" style="color:${C.accent}">Open the Logbook</a> · ${(s.maintenance || []).some((m) => m.home) ? `<a href="${esc(siteUrl)}/apps/home-projects" style="color:${C.accent}">Open Home Projects</a> · ` : ''}<a href="${esc(siteUrl)}/apps/morning-brief" style="color:${C.accent}">Change or stop this email</a>
+${brief.alert ? 'From your Garage Terminal Logbook and Home Projects. You get this when maintenance comes due, and once a week while it stays due.' : `From your Garage Terminal Logbook, Project Tracker, Home Projects, ${s.pantryExpiring || s.pantryShopping ? 'Pantry ' : ''}and calendar.`}<br>
+<a href="${esc(siteUrl)}/apps/logbook" style="color:${C.accent}">Open the Logbook</a> · ${(s.maintenance || []).some((m) => m.home) ? `<a href="${esc(siteUrl)}/apps/home-projects" style="color:${C.accent}">Open Home Projects</a> · ` : ''}${s.pantryExpiring || s.pantryShopping ? `<a href="${esc(siteUrl)}/apps/pantry" style="color:${C.accent}">Open the Pantry</a> · ` : ''}<a href="${esc(siteUrl)}/apps/morning-brief" style="color:${C.accent}">Change or stop this email</a>
 </td></tr>
 </table></td></tr></table></body></html>`;
 
@@ -417,6 +495,9 @@ ${brief.alert ? 'From your Garage Terminal Logbook and Home Projects. You get th
   if (s.lowStock) add(SECTIONS.lowStock, s.lowStock, (p) => `${p.name}${p.number ? ` #${p.number}` : ''}: ${p.qty} on hand (reorder at ${p.reorderAt})`, 'Nothing below its reorder level.');
   if (s.maintenance) add(SECTIONS.maintenance, s.maintenance, (m) => `${m.machine}: ${m.item}, ${m.detail}`, 'Everything is on schedule.');
   if (s.projects) add(SECTIONS.projects, s.projects, (p) => `${p.title}: ${p.detail}`, 'No open projects.');
+  const andMore = (n) => (n ? [{ more: n }] : []);
+  if (s.pantryExpiring) add(SECTIONS.pantryExpiring, [...s.pantryExpiring, ...andMore(brief.pantryExpiringMore)], (x) => (x.more ? `and ${x.more} more in the Pantry` : `${x.name}: ${x.detail}${x.expired ? ' (EXPIRED)' : ''}`), `Nothing expiring in the next ${SOON_DAYS} days.`);
+  if (s.pantryShopping) add(SECTIONS.pantryShopping, [...s.pantryShopping, ...andMore(brief.pantryShoppingMore)], (x) => (x.more ? `and ${x.more} more in the Pantry` : `${x.name}${x.buy ? `: buy ${x.buy}` : ''} (${x.detail})`), 'Nothing to buy.');
   lines.push(`Change or stop this email: ${siteUrl}/apps/morning-brief`);
   return { subject, html, text: lines.join('\n') };
 }

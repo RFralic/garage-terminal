@@ -10,7 +10,8 @@
 //     out today, and it's no more than 4 hours late (so turning it on in the
 //     evening doesn't send one right away); "Send a test now" sends at once
 //   - reads their own Logbook records, Project Tracker projects and Home
-//     Projects upkeep reminders, and their calendar's secret iCal address if
+//     Projects upkeep reminders, the items and shopping list of any pantry
+//     they're in (apps/pantry), and their calendar's secret iCal address if
 //     they gave one
 //   - builds the email with src/brief/brief.js (same as the page's preview)
 //     and sends it from brief@garageterminal.com through Resend
@@ -26,7 +27,7 @@
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { alertKey, buildAlert, buildBrief, calendarDaysFor, renderBrief } from '../src/brief/brief.js';
+import { DEFAULT_SECTIONS, alertKey, buildAlert, buildBrief, calendarDaysFor, renderBrief } from '../src/brief/brief.js';
 import { eventsInWindow, normalizeCalendarUrl } from '../src/brief/ics.js';
 import { dateKey, daysBetween, isValidTimeZone, zonedParts, zonedToMs } from '../src/brief/time.js';
 import { sendMail } from './lib/resend.mjs';
@@ -58,6 +59,22 @@ async function fetchCalendar(url) {
 async function readUpkeep(uid) {
   const snap = await db.collection(`homeprojects/${uid}/projects`).where('kind', '==', 'upkeep').get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** The pantries the member is in, each { name, items, shopping } (shopping: not ticked off yet). */
+async function readPantries(uid) {
+  const snap = await db.collection('pantries').where('memberIds', 'array-contains', uid).get();
+  return Promise.all(snap.docs.map(async (p) => {
+    const [items, shopping] = await Promise.all([
+      p.ref.collection('items').get(),
+      p.ref.collection('shopping').where('done', '==', false).get(),
+    ]);
+    return {
+      name: String(p.get('name') || 'Pantry'),
+      items: items.docs.map((d) => ({ id: d.id, ...d.data() })),
+      shopping: shopping.docs.map((d) => ({ id: d.id, ...d.data() })),
+    };
+  }));
 }
 
 const docs = new Map();
@@ -123,10 +140,12 @@ for (const [uid, snap] of docs) {
       continue;
     }
 
-    const [[records, projects], upkeep] = await Promise.all([
+    const on = { ...DEFAULT_SECTIONS, ...(b.sections || {}) };
+    const [[records, projects], upkeep, pantries] = await Promise.all([
       Promise.all(['records', 'projects'].map(async (name) =>
         (await db.collection(`logbook/${uid}/${name}`).get()).docs.map((d) => ({ id: d.id, ...d.data() })))),
       readUpkeep(uid),
+      on.pantryExpiring || on.pantryShopping ? readPantries(uid) : [],
     ]);
 
     let events = null;
@@ -143,7 +162,7 @@ for (const [uid, snap] of docs) {
       }
     }
 
-    const brief = buildBrief({ records, projects, upkeep, events, nowMs, tz, sections: b.sections, calendar, frequency: weekly ? 'weekly' : 'daily', aheadDays: b.aheadDays });
+    const brief = buildBrief({ records, projects, upkeep, pantries, events, nowMs, tz, sections: b.sections, calendar, frequency: weekly ? 'weekly' : 'daily', aheadDays: b.aheadDays });
     const mail = renderBrief(brief, { siteUrl: SITE });
     await sendMail({
       apiKey, from: FROM, to: account.email, replyTo: REPLY_TO,
