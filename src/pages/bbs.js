@@ -15,7 +15,8 @@
 //        #new[/<board>]     a new post                                            compose.js
 //        #files             the file cabinet                                      files.js
 //        #chat              Shop Talk (live chat)                                 chat.js
-//        #crew              the member list                                       crew.js
+//        #crew              private messages + the member list                    crew.js
+//        #dm/<uid>          a private conversation (only the two can read it)     dm.js
 //      Boards, threads, files, the crew and settings are kept live in `ctx`; the open
 //      view sets ctx.refresh to redraw when they change.
 //
@@ -27,14 +28,16 @@ import {
   touch, watchCrew, byRank,
 } from '../lib/bbs.js';
 import { el } from '../lib/ui.js';
+import { Timestamp } from 'firebase/firestore';
 import { renderHome } from '../bbs/home.js';
 import { renderBoard } from '../bbs/board.js';
 import { renderThread } from '../bbs/thread.js';
 import { renderNew } from '../bbs/compose.js';
 import { renderFiles } from '../bbs/files.js';
 import { renderCrew } from '../bbs/crew.js';
+import { renderDm, watchConvs, isUnread, isHidden } from '../bbs/dm.js';
 import { renderChat } from '../bbs/chat.js';
-import { getReads, isNewThread, watchBoards, watchFiles, watchRecentThreads } from '../bbs/data.js';
+import { getReads, isNewThread, markRead, watchBoards, watchChat, watchFiles, watchRecentThreads } from '../bbs/data.js';
 
 const $ = (id) => document.getElementById(id);
 const main = $('b-main');
@@ -49,6 +52,7 @@ const ROUTES = {
   files: ['files', renderFiles],
   chat: ['chat', renderChat],
   crew: ['crew', renderCrew],
+  dm: ['crew', renderDm],
 };
 
 let session = { state: 'loading' };
@@ -220,7 +224,7 @@ async function knockOrWait(s) {
 
 const ctx = {
   main, uid: '', handle: '', me: null, isSysop: false, isMod: false, config: { notice: '' }, crew: [],
-  boards: [], threads: [], files: [], reads: {}, counts: {},
+  boards: [], threads: [], files: [], reads: {}, convs: [], chatRecent: [], counts: {},
   refresh: null, cleanup: null, draft: null,
   /** Re-count the NEW marks on the tabs (after a visit is recorded). */
   recount() { countNew(); },
@@ -236,7 +240,9 @@ function drawTabs() {
   const here = sectionOf(location.hash);
   nav.replaceChildren(...SECTIONS.map(([id, label]) => {
     const n = ctx.counts[id];
-    return el('a', { href: `#${id}`, 'aria-current': id === here ? 'page' : false }, label, n ? el('span', { class: 'cnt' }, String(n)) : null);
+    const shown = n > 99 ? '99+' : String(n);
+    return el('a', { href: `#${id}`, 'aria-current': id === here ? 'page' : false, 'aria-label': n ? `${label}, ${shown} new` : null },
+      label, n ? el('span', { class: 'cnt', 'aria-hidden': 'true' }, shown) : null);
   }));
 }
 const routeOf = (hash) => {
@@ -250,7 +256,33 @@ function countNew() {
   ctx.counts.boards = ctx.threads.filter((t) => ctx.boards.some((b) => b.id === t.boardId && !b.archived) && isNewThread(t, ctx.reads, ctx.handle)).length;
   const seenFiles = ctx.reads.files?.toMillis?.() ?? 0;
   ctx.counts.files = ctx.files.filter((f) => (f.createdAt?.toMillis?.() ?? Date.now()) > seenFiles && f.byUid !== ctx.uid).length;
+  ctx.counts.crew = ctx.convs.filter((c) => isUnread(c, ctx.uid) && !isHidden(c, ctx.uid)).length; // unread private messages
+  // Shop Talk: other people's messages since I last had it open (never opened: the last 24 hours).
+  // While Shop Talk is open, everything counts as seen.
+  if (sectionOf(location.hash) === 'chat') {
+    ctx.counts.chat = 0;
+    if (ctx.chatRecent.some((m) => chatIsNew(m))) markChatSeen();
+  } else {
+    ctx.counts.chat = ctx.chatRecent.filter((m) => chatIsNew(m)).length;
+  }
   drawTabs();
+}
+function chatIsNew(m) {
+  const seen = ctx.reads.chat?.toMillis?.() ?? Date.now() - 24 * 3600000;
+  const at = m.createdAt?.toMillis?.() ?? Date.now(); // a message still being sent counts as now
+  return m.kind === 'msg' && m.uid !== ctx.uid && at > seen;
+}
+let chatMarkTimer = 0;
+/** Remember "I've seen Shop Talk now": at most every few seconds while it's open, and right
+ *  away (`now`) when leaving it. The local mark is never earlier than the newest message, so a
+ *  computer clock that runs a little slow can't make a seen message look new. */
+function markChatSeen(now = false) {
+  if (chatMarkTimer && !now) return;
+  clearTimeout(chatMarkTimer);
+  const newest = Math.max(0, ...ctx.chatRecent.map((m) => m.createdAt?.toMillis?.() ?? Date.now()));
+  markRead(ctx.uid, 'chat');
+  ctx.reads.chat = Timestamp.fromMillis(Math.max(Date.now(), newest));
+  chatMarkTimer = now ? 0 : setTimeout(() => { chatMarkTimer = 0; if (sectionOf(location.hash) === 'chat') countNew(); }, 3000);
 }
 /** Live data changed: recount and let the open view redraw. */
 function changed() {
@@ -263,8 +295,9 @@ function changed() {
 async function show() {
   if (phase !== 'in') return;
   const route = routeOf(location.hash);
+  if (sectionOf(current) === 'chat' && route.tab !== 'chat') markChatSeen(true); // leaving Shop Talk
   current = location.hash;
-  drawTabs();
+  countNew(); // also clears the Chat number when Shop Talk opens
   $('b-title').textContent = 'The Garage_Terminal BBS';
   $('b-here').hidden = true;
   if (ctx.cleanup) { try { ctx.cleanup(); } catch { /* ignore */ } ctx.cleanup = null; }
@@ -311,6 +344,9 @@ async function enter(s) {
   stops.push(watchBoards((list) => { ctx.boards = list; changed(); }, () => {}));
   stops.push(watchRecentThreads((list) => { ctx.threads = list; changed(); }, () => {}));
   stops.push(watchFiles((list) => { ctx.files = list; changed(); }, () => {}));
+  stops.push(watchConvs(ctx.uid, (list) => { ctx.convs = list; changed(); }, () => {}));
+  // The latest Shop Talk messages, for the number on the Chat tab.
+  stops.push(watchChat(100, (list) => { ctx.chatRecent = list; changed(); }, () => {}));
   // Presence: "last seen" now and every minute while the page is open and visible.
   touch(ctx.uid);
   const beat = setInterval(() => { if (document.visibilityState === 'visible') touch(ctx.uid); }, 60000);

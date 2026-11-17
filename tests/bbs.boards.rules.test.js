@@ -173,3 +173,11 @@ describe('uploads (Storage)', { skip: !process.env.FIREBASE_STORAGE_EMULATOR_HOS
     await assertSucceeds(st('carl').ref('bbs/files/mia/f1/w.pdf').delete());
   });
 });
+
+describe('Shop Talk "last seen" mark', () => {
+  test('you can save when you last had Shop Talk open (a time), for yourself only', async () => {
+    await assertSucceeds(setDoc(doc(as('mia'), 'bbsReads', 'mia'), { chat: serverTimestamp() }, { merge: true }));
+    await assertFails(setDoc(doc(as('mia'), 'bbsReads', 'mia'), { chat: 'yesterday' }, { merge: true }));
+    await assertFails(setDoc(doc(as('mia'), 'bbsReads', 'carl'), { chat: serverTimestamp() }));
+  });
+});

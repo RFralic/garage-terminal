@@ -90,6 +90,18 @@ service firebase.storage {
       allow delete: if bbsIn() && (request.auth.uid == uid || bbsMod());
     }
 
+    // bbs/dm/{uid}/{convId}/{name}: photos in private messages. Only the two members of that
+    // conversation can see them (checked against bbsDms/{convId} on every read).
+    match /bbs/dm/{uid}/{convId}/{name} {
+      allow read: if bbsIn()
+        && request.auth.uid in firestore.get(/databases/(default)/documents/bbsDms/$(convId)).data.members;
+      allow create: if bbsIn() && request.auth.uid == uid
+        && request.auth.uid in firestore.get(/databases/(default)/documents/bbsDms/$(convId)).data.members
+        && request.resource.size <= 10 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
+      allow update: if false;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
     match /{everythingElse=**} {
       allow read, write: if false;
     }
