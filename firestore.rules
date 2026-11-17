@@ -917,6 +917,82 @@ service cloud.firestore {
       allow delete: if isSelf(uid);
     }
 
+    // ---------- private messages (direct messages between two members) ---------------------
+    //   bbsDms/{convId}   convId = the two uids, sorted, joined by "_"
+    //     { members: [uidA, uidB], handles: { uid: handle }, lastAt, lastText, lastBy, lastId,
+    //       readAt: { uid: when }, hidden: { uid: when } }
+    //   bbsDms/{convId}/messages/{id}  { uid, handle, text, photo?, createdAt }
+    // Only the two members can read or write, not even the sysop. Both must still be in the
+    // BBS (removed members lose access at once; nobody can message them). Muted members can't
+    // send. You may delete your own messages; nobody edits them. Kept until deleted.
+
+    function dmMember(uid) {
+      return exists(/databases/$(database)/documents/admins/$(uid))
+        || exists(/databases/$(database)/documents/bbsMembers/$(uid));
+    }
+    function dmIn(convId) {
+      return bbsIn() && request.auth.uid in get(/databases/$(database)/documents/bbsDms/$(convId)).data.members;
+    }
+    function dmOther(members) {
+      return members[0] == request.auth.uid ? members[1] : members[0];
+    }
+    // A map change that only touches my own key.
+    function onlyMyKey(after, before) {
+      return after is map && after.diff(before).affectedKeys().hasOnly([request.auth.uid]);
+    }
+
+    match /bbsDms/{convId} {
+      // List queries must use where('members', 'array-contains', <my uid>).
+      allow read: if bbsIn() && request.auth.uid in resource.data.members;
+
+      allow create: if bbsIn() && bbsCanTalk()
+        && request.resource.data.keys().hasOnly(['members', 'handles', 'lastAt', 'lastText', 'lastBy', 'lastId', 'readAt', 'hidden'])
+        && request.resource.data.members is list && request.resource.data.members.size() == 2
+        && request.auth.uid in request.resource.data.members
+        && request.resource.data.members[0] < request.resource.data.members[1]
+        && convId == request.resource.data.members[0] + '_' + request.resource.data.members[1]
+        && dmMember(dmOther(request.resource.data.members))
+        && request.resource.data.handles is map
+        && request.resource.data.handles.keys().hasOnly(request.resource.data.members)
+        && request.resource.data.handles[request.auth.uid] == me().handle
+        && request.resource.data.lastBy == request.auth.uid
+        && request.resource.data.lastAt == request.time
+        && bbsText(request.resource.data.lastText, 0, 100)
+        && request.resource.data.readAt is map && request.resource.data.readAt.keys().hasOnly([request.auth.uid])
+        && request.resource.data.hidden is map && request.resource.data.hidden.size() == 0;
+
+      // Either member: a new last message (as themselves, now), their own read mark, or
+      // hiding the conversation from their own list.
+      allow update: if bbsIn() && request.auth.uid in resource.data.members
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastAt', 'lastText', 'lastBy', 'lastId', 'readAt', 'hidden'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastAt', 'lastBy'])
+            || (request.resource.data.lastBy == request.auth.uid && request.resource.data.lastAt == request.time
+                && bbsCanTalk() && dmMember(dmOther(resource.data.members))))
+        && bbsText(request.resource.data.lastText, 0, 100)
+        && onlyMyKey(request.resource.data.readAt, resource.data.readAt)
+        && onlyMyKey(request.resource.data.hidden, resource.data.hidden);
+
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow read: if dmIn(convId);
+        allow create: if dmIn(convId) && bbsCanTalk()
+          && dmMember(dmOther(get(/databases/$(database)/documents/bbsDms/$(convId)).data.members))
+          && request.resource.data.keys().hasOnly(['uid', 'handle', 'text', 'photo', 'createdAt'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.handle == me().handle
+          && request.resource.data.createdAt == request.time
+          && bbsText(request.resource.data.text, 0, 2000)
+          && (request.resource.data.text.matches('(?s).*\\S.*') || 'photo' in request.resource.data)
+          && (!('photo' in request.resource.data) || (request.resource.data.photo is map
+               && request.resource.data.photo.keys().hasOnly(['path', 'w', 'h'])
+               && request.resource.data.photo.path.matches('^bbs/dm/' + request.auth.uid + '/' + convId + '/[A-Za-z0-9_.-]{1,100}$')
+               && request.resource.data.photo.w is int && request.resource.data.photo.h is int));
+        allow update: if false;
+        allow delete: if dmIn(convId) && resource.data.uid == request.auth.uid;
+      }
+    }
+
     match /bbsReads/{uid} {
       allow read, delete: if isSelf(uid);
       allow create, update: if isSelf(uid) && bbsIn()

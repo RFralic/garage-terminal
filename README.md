@@ -207,6 +207,12 @@ designs in `reference/bbs-design/`, not deployed). It isn't linked from any menu
   outlives the clean-up), Quote in a new post and Reply; the sysop and co-sysops can also delete it and mute
   the person (1 hour, 1 day or until unmuted; `bbsMembers.mutedUntil`). Muted members can read but not send.
   Tests: `tests/bbs.chat.rules.test.js`.
+- **Private messages** (`#dm/<uid>`, `src/bbs/dm.js`): one-to-one conversations, started from the **Message**
+  button on the Crew tab (which also lists your conversations and shows an unread count). Stored in
+  `bbsDms/{uidA_uidB}/messages`; photos in Storage `bbs/dm/`. **Only the two members can read a conversation,
+  not even the sysop.** Kept until deleted: you can delete your own messages and hide a conversation from your
+  own list (a new message brings it back). Removed members lose access and can't be messaged; muted members
+  can't send. No emails. Tests: `tests/bbs.dm.rules.test.js`.
 - **Emails** go out from Cloud Functions the moment something happens, from `brief@garageterminal.com`
   through Resend: "New BBS request" to the sysop, "You're in" to people who are approved or added. Nothing is
   sent to people who are denied or removed.

@@ -15,7 +15,8 @@
 //        #new[/<board>]     a new post                                            compose.js
 //        #files             the file cabinet                                      files.js
 //        #chat              Shop Talk (live chat)                                 chat.js
-//        #crew              the member list                                       crew.js
+//        #crew              private messages + the member list                    crew.js
+//        #dm/<uid>          a private conversation (only the two can read it)     dm.js
 //      Boards, threads, files, the crew and settings are kept live in `ctx`; the open
 //      view sets ctx.refresh to redraw when they change.
 //
@@ -33,6 +34,7 @@ import { renderThread } from '../bbs/thread.js';
 import { renderNew } from '../bbs/compose.js';
 import { renderFiles } from '../bbs/files.js';
 import { renderCrew } from '../bbs/crew.js';
+import { renderDm, watchConvs, isUnread, isHidden } from '../bbs/dm.js';
 import { renderChat } from '../bbs/chat.js';
 import { getReads, isNewThread, watchBoards, watchFiles, watchRecentThreads } from '../bbs/data.js';
 
@@ -49,6 +51,7 @@ const ROUTES = {
   files: ['files', renderFiles],
   chat: ['chat', renderChat],
   crew: ['crew', renderCrew],
+  dm: ['crew', renderDm],
 };
 
 let session = { state: 'loading' };
@@ -220,7 +223,7 @@ async function knockOrWait(s) {
 
 const ctx = {
   main, uid: '', handle: '', me: null, isSysop: false, isMod: false, config: { notice: '' }, crew: [],
-  boards: [], threads: [], files: [], reads: {}, counts: {},
+  boards: [], threads: [], files: [], reads: {}, convs: [], counts: {},
   refresh: null, cleanup: null, draft: null,
   /** Re-count the NEW marks on the tabs (after a visit is recorded). */
   recount() { countNew(); },
@@ -250,6 +253,7 @@ function countNew() {
   ctx.counts.boards = ctx.threads.filter((t) => ctx.boards.some((b) => b.id === t.boardId && !b.archived) && isNewThread(t, ctx.reads, ctx.handle)).length;
   const seenFiles = ctx.reads.files?.toMillis?.() ?? 0;
   ctx.counts.files = ctx.files.filter((f) => (f.createdAt?.toMillis?.() ?? Date.now()) > seenFiles && f.byUid !== ctx.uid).length;
+  ctx.counts.crew = ctx.convs.filter((c) => isUnread(c, ctx.uid) && !isHidden(c, ctx.uid)).length; // unread private messages
   drawTabs();
 }
 /** Live data changed: recount and let the open view redraw. */
@@ -311,6 +315,7 @@ async function enter(s) {
   stops.push(watchBoards((list) => { ctx.boards = list; changed(); }, () => {}));
   stops.push(watchRecentThreads((list) => { ctx.threads = list; changed(); }, () => {}));
   stops.push(watchFiles((list) => { ctx.files = list; changed(); }, () => {}));
+  stops.push(watchConvs(ctx.uid, (list) => { ctx.convs = list; changed(); }, () => {}));
   // Presence: "last seen" now and every minute while the page is open and visible.
   touch(ctx.uid);
   const beat = setInterval(() => { if (document.visibilityState === 'visible') touch(ctx.uid); }, 60000);
