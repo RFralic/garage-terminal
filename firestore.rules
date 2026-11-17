@@ -859,10 +859,62 @@ service cloud.firestore {
       }
     }
 
-    // Opening posts saved from Shop Talk carry who said it (part 3 checks it against the
-    // chat message); until then, nothing may claim to be saved.
+    // Threads saved from Shop Talk are written only by the `bbs` Cloud Function (chat.save),
+    // which copies the message and its photo and credits whoever said it. From the page,
+    // nothing may claim to be saved.
     function bbsSavedOk(d, threadSaved) {
       return !('saved' in d) && threadSaved == false;
+    }
+
+    // ---------- Shop Talk (part 3) ---------------------------------------------------------
+    //   bbsChat/{id}     { uid, handle, kind: 'msg'|'join', text, photo?, link?, reply?, createdAt,
+    //                      savedTo? }  deleted after 7 days by the bbsChatCleanup Cloud Function
+    //   bbsTyping/{uid}  { handle, at }  "[handle] is typing"
+    // Muted members (bbsMembers mutedUntil in the future) can read but not send. savedTo is
+    // set by the `bbs` Cloud Function when a message is saved to a board.
+
+    function bbsCanTalk() {
+      return isAdmin()
+        || bbsMe().get('mutedUntil', null) == null
+        || bbsMe().mutedUntil < request.time;
+    }
+    function chatPhotoOk(d) {
+      return !('photo' in d) || (d.photo is map
+        && d.photo.keys().hasOnly(['path', 'w', 'h'])
+        && d.photo.path is string && d.photo.path.matches('^bbs/chat/' + request.auth.uid + '/[A-Za-z0-9_.-]{1,100}$')
+        && d.photo.w is int && d.photo.h is int);
+    }
+
+    match /bbsChat/{msgId} {
+      allow read: if bbsIn();
+      allow create: if bbsIn() && bbsCanTalk()
+        && request.resource.data.keys().hasOnly(['uid', 'handle', 'kind', 'text', 'photo', 'link', 'reply', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.handle == me().handle
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.kind in ['msg', 'join']
+        && bbsText(request.resource.data.text, 0, 2000)
+        && (request.resource.data.kind == 'join'
+              ? request.resource.data.text == '' && request.resource.data.keys().hasOnly(['uid', 'handle', 'kind', 'text', 'createdAt'])
+              : (request.resource.data.text.matches('(?s).*\\S.*') || 'photo' in request.resource.data)
+                && chatPhotoOk(request.resource.data)
+                && (!('link' in request.resource.data) || bbsText(request.resource.data.link, 1, 500))
+                && (!('reply' in request.resource.data)
+                    || (request.resource.data.reply is map
+                        && request.resource.data.reply.keys().hasOnly(['who', 'text'])
+                        && bbsText(request.resource.data.reply.who, 1, 20)
+                        && bbsText(request.resource.data.reply.text, 0, 140))));
+      allow update: if false;
+      allow delete: if bbsMod();
+    }
+
+    match /bbsTyping/{uid} {
+      allow read: if bbsIn();
+      allow create, update: if isSelf(uid) && bbsIn() && bbsCanTalk()
+        && request.resource.data.keys().hasOnly(['handle', 'at'])
+        && request.resource.data.handle == me().handle
+        && request.resource.data.at == request.time;
+      allow delete: if isSelf(uid);
     }
 
     match /bbsReads/{uid} {

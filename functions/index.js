@@ -3,7 +3,8 @@
 //   onPostCreated / onPostDeleted: keep the forum counters up to date (below)
 //   moderate: every sysop moderation action, always logged (see moderate.js)
 //   bbs, bbsKnock, bbsRequestEmail, bbsWelcomeEmail: the BBS (see bbs.js)
-//   bbsPostCreated, bbsPostDeleted, bbsThreadDeleted, bbsFileDeleted: BBS boards and files (bbs-content.js)
+//   bbsPostCreated, bbsPostDeleted, bbsThreadDeleted, bbsFileDeleted, bbsChatDeleted: BBS clean-up (bbs-content.js)
+//   bbsChatCleanup: every night, Shop Talk messages older than 7 days are deleted (bbs.js)
 //
 // These run on Google's servers (not in the browser) with full access, so they
 // can update numbers that members are never allowed to touch directly:
@@ -24,8 +25,9 @@ import { defineSecret } from 'firebase-functions/params';
 import { onCall } from 'firebase-functions/v2/https';
 import { setGlobalOptions, logger } from 'firebase-functions/v2';
 import { moderateHandler } from './moderate.js';
-import { bbsHandler, knockHandler, requestEmail, welcomeEmail } from './bbs.js';
-import { postCreated, postDeleted, threadDeleted, fileDeleted } from './bbs-content.js';
+import { bbsHandler, knockHandler, requestEmail, welcomeEmail, cleanupChat } from './bbs.js';
+import { postCreated, postDeleted, threadDeleted, fileDeleted, chatDeleted } from './bbs-content.js';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 initializeApp();
 const db = getFirestore();
@@ -98,3 +100,6 @@ export const bbsPostCreated = onDocumentCreated('bbsThreads/{threadId}/posts/{po
 export const bbsPostDeleted = onDocumentDeleted('bbsThreads/{threadId}/posts/{postId}', postDeleted);
 export const bbsThreadDeleted = onDocumentDeleted('bbsThreads/{threadId}', threadDeleted);
 export const bbsFileDeleted = onDocumentDeleted('bbsFiles/{fileId}', fileDeleted);
+export const bbsChatDeleted = onDocumentDeleted('bbsChat/{msgId}', chatDeleted);
+// Every day at 3:30 a.m. Eastern. (Needs the Cloud Scheduler API, which the deploy turns on.)
+export const bbsChatCleanup = onSchedule({ schedule: 'every day 03:30', timeZone: 'America/New_York' }, () => cleanupChat());

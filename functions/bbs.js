@@ -26,9 +26,14 @@
 //   settings.update  { doorWord?, requirePasscode?, notice? }      sysop only
 //   board.save       { id?, name, description, order }  add (no id) or rename / reorder   sysop only
 //   board.archive    { id, archived }   archived boards leave the home grid, read-only    sysop only
+//   member.mute      { uid, minutes }   60, 1440, null = until unmuted, 0 = unmute    sysop / co-sysop
+//   chat.save        { chatId, boardId, note }  any member: a Shop Talk message becomes a thread on a
+//                    board, credited to whoever said it, with its photo copied out of the chat folder
+//                    (so it outlives the 7-day clean-up). Not a moderation action, so not logged.
 
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { getFirestore, FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions/v2';
 import { sendMail } from './resend.js';
@@ -272,6 +277,66 @@ export async function bbsHandler(request) {
       return { ok: true };
     }
 
+    case 'member.mute': {
+      needMod();
+      const uid = uidArg(data.uid);
+      const m = await guardTarget(uid);
+      if (!m.exists) throw new HttpsError('not-found', 'Not a member');
+      const minutes = data.minutes;
+      let until;
+      if (minutes === 0) until = FieldValue.delete();
+      else if (minutes === null) until = Timestamp.fromMillis(Date.UTC(2100, 0, 1)); // until unmuted
+      else if (minutes === 60 || minutes === 1440) until = Timestamp.fromMillis(Date.now() + minutes * 60000);
+      else throw bad('minutes must be 60, 1440, null (until unmuted) or 0 (unmute)');
+      await m.ref.update({ mutedUntil: until });
+      await log(m.ref.path, { handle: m.get('handle'), muted: minutes === 0 ? 'no' : minutes === null ? 'until unmuted' : `${minutes / 60} h` });
+      return { ok: true };
+    }
+
+    case 'chat.save': {
+      if (!me.isSysop && !me.member.exists) throw new HttpsError('permission-denied', 'Members only');
+      const chatId = typeof data.chatId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(data.chatId) ? data.chatId : null;
+      if (!chatId) throw bad('chatId is not valid');
+      const boardId = boardIdArg(data.boardId);
+      const note = String(data.note ?? '').trim();
+      if (note.length > 500) throw bad('The note is 500 characters at most');
+      const [msg, board] = await Promise.all([db.doc(`bbsChat/${chatId}`).get(), db.doc(`bbsBoards/${boardId}`).get()]);
+      if (!msg.exists || msg.get('kind') !== 'msg') throw new HttpsError('not-found', 'That message is gone');
+      if (!board.exists || board.get('archived')) throw bad('That board isn’t open');
+      const m = msg.data();
+      const threadRef = db.collection('bbsThreads').doc();
+      // Copy the photo out of the chat folder, so it survives the 7-day clean-up.
+      let photo = null;
+      if (m.photo?.path) {
+        const bucket = getStorage().bucket();
+        const dest = `bbs/posts/${m.uid}/${threadRef.id}.jpg`;
+        const [bytes] = await bucket.file(m.photo.path).download();
+        await bucket.file(dest).save(bytes, { contentType: 'image/jpeg', resumable: false });
+        photo = { path: dest, w: m.photo.w ?? 0, h: m.photo.h ?? 0 };
+      }
+      const from = (note || m.text || '').replace(/\s+/g, ' ').trim();
+      // Title: the start of the note or message, cut at a word (60 characters at most).
+      let title = from || 'Photo from Shop Talk';
+      if (title.length > 60) {
+        let cut = title.slice(0, 59);
+        if (cut.lastIndexOf(' ') > 40) cut = cut.slice(0, cut.lastIndexOf(' '));
+        title = `${cut.trimEnd()}…`;
+      }
+      const now = FieldValue.serverTimestamp();
+      const batch = db.batch();
+      batch.set(threadRef, {
+        boardId, title, authorUid: m.uid, authorHandle: m.handle, createdAt: now, lastAt: now, lastBy: m.handle,
+        replyCount: 0, pinned: false, locked: false, saved: true, savedBy: me.handle,
+      });
+      batch.set(threadRef.collection('posts').doc('op'), {
+        authorUid: m.uid, authorHandle: m.handle, body: '', createdAt: now, ...(photo ? { photo } : {}),
+        saved: { who: m.handle, at: m.createdAt, text: m.text ?? '', link: m.link ?? '', note, by: me.handle },
+      });
+      batch.update(msg.ref, { savedTo: { boardId, threadId: threadRef.id, by: me.handle } });
+      await batch.commit();
+      return { threadId: threadRef.id, boardName: board.get('name') };
+    }
+
     default:
       throw bad('Unknown action');
   }
@@ -395,4 +460,31 @@ async function send({ apiKey, to, subject, html, text }) {
   } catch (err) {
     logger.error('BBS email failed', { subject, error: err.message });
   }
+}
+
+// ---------- Shop Talk clean-up -----------------------------------------------------------
+
+export const CHAT_DAYS = 7;
+
+/** Delete chat messages older than 7 days (with their photos) and stale "typing" marks. */
+export async function cleanupChat(nowMs = Date.now()) {
+  const db = getFirestore();
+  const cutoff = Timestamp.fromMillis(nowMs - CHAT_DAYS * DAY);
+  let deleted = 0;
+  for (;;) {
+    const old = await db.collection('bbsChat').where('createdAt', '<', cutoff).limit(300).get();
+    if (old.empty) break;
+    for (const d of old.docs) {
+      const path = d.get('photo')?.path;
+      if (path) await getStorage().bucket().file(path).delete({ ignoreNotFound: true }).catch((err) => logger.warn('chat photo', { path, error: err.message }));
+    }
+    const batch = db.batch();
+    old.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    deleted += old.size;
+  }
+  const typing = await db.collection('bbsTyping').where('at', '<', Timestamp.fromMillis(nowMs - DAY)).get();
+  await Promise.all(typing.docs.map((d) => d.ref.delete()));
+  logger.info('Shop Talk clean-up', { deleted });
+  return deleted;
 }

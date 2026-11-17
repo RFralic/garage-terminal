@@ -14,7 +14,7 @@
 //        #t/<id>            a thread                                              thread.js
 //        #new[/<board>]     a new post                                            compose.js
 //        #files             the file cabinet                                      files.js
-//        #chat              Shop Talk                                             (part 3)
+//        #chat              Shop Talk (live chat)                                 chat.js
 //        #crew              the member list                                       crew.js
 //      Boards, threads, files, the crew and settings are kept live in `ctx`; the open
 //      view sets ctx.refresh to redraw when they change.
@@ -33,7 +33,7 @@ import { renderThread } from '../bbs/thread.js';
 import { renderNew } from '../bbs/compose.js';
 import { renderFiles } from '../bbs/files.js';
 import { renderCrew } from '../bbs/crew.js';
-import { renderSoon } from '../bbs/soon.js';
+import { renderChat } from '../bbs/chat.js';
 import { getReads, isNewThread, watchBoards, watchFiles, watchRecentThreads } from '../bbs/data.js';
 
 const $ = (id) => document.getElementById(id);
@@ -47,7 +47,7 @@ const ROUTES = {
   t: ['boards', renderThread],
   new: ['boards', renderNew],
   files: ['files', renderFiles],
-  chat: ['chat', (ctx) => renderSoon(ctx, 'Shop Talk')],
+  chat: ['chat', renderChat],
   crew: ['crew', renderCrew],
 };
 
@@ -257,7 +257,7 @@ function changed() {
   countNew();
   const ae = document.activeElement;
   const typing = ae && ae.closest && ae.closest('#b-main') && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.type !== 'search';
-  if (ctx.refresh && !typing) ctx.refresh();
+  if (ctx.refresh && (!typing || ctx.refreshKeepsInputs)) ctx.refresh();
 }
 
 async function show() {
@@ -269,6 +269,7 @@ async function show() {
   $('b-here').hidden = true;
   if (ctx.cleanup) { try { ctx.cleanup(); } catch { /* ignore */ } ctx.cleanup = null; }
   ctx.refresh = null;
+  ctx.refreshKeepsInputs = false; // a view whose redraw never touches what you're typing sets this
   main.replaceChildren(el('p', { class: 'modem' }, 'loading…'));
   try {
     await route.render(ctx, route.rest);
@@ -302,6 +303,7 @@ async function enter(s) {
     }
     ctx.me = m;
     ctx.isMod = ctx.isSysop || m?.role === 'cosysop';
+    if (phase === 'in') changed(); // e.g. muted / unmuted
   }));
   ctx.reads = await getReads(ctx.uid);
   stops.push(watchConfig((c) => { ctx.config = c; changed(); }));

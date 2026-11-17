@@ -8,9 +8,11 @@ import { createRequire } from 'node:module';
 
 process.env.GCLOUD_PROJECT = 'demo-garage-terminal';
 process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
+// Cloud Storage for the Admin SDK (the chat photo copy and clean-up): the emulator's bucket.
+process.env.FIREBASE_CONFIG ??= JSON.stringify({ projectId: 'demo-garage-terminal', storageBucket: 'demo-garage-terminal.appspot.com' });
 
 const { bbs } = await import('../functions/index.js');
-const { knockHandler, requestEmail, welcomeEmail, setMailer } = await import('../functions/bbs.js');
+const { knockHandler, requestEmail, welcomeEmail, setMailer, cleanupChat } = await import('../functions/bbs.js');
 const content = await import('../functions/bbs-content.js');
 const requireFromFunctions = createRequire(new URL('../functions/index.js', import.meta.url));
 const { getFirestore, Timestamp } = requireFromFunctions('firebase-admin/firestore');
@@ -26,7 +28,7 @@ async function rejects(promise, code) {
 }
 
 beforeEach(async () => {
-  for (const c of ['users', 'handles', 'private', 'admins', 'modlog', 'bbsConfig', 'bbsRequests', 'bbsMembers', 'bbsDenied', 'bbsRemoved', 'bbsKnocks']) {
+  for (const c of ['users', 'handles', 'private', 'admins', 'modlog', 'bbsConfig', 'bbsRequests', 'bbsMembers', 'bbsDenied', 'bbsRemoved', 'bbsKnocks', 'bbsChat', 'bbsBoards', 'bbsThreads']) {
     await db.recursiveDelete(db.collection(c));
   }
   const person = async (uid, handle) => {
@@ -206,5 +208,64 @@ describe('boards (sysop only) and their upkeep', () => {
     assert.equal((await read('bbsThreads/t1')).replyCount, 0);
     await content.threadDeleted({ params: { threadId: 't1' }, data: { data: () => ({}) } });
     assert.equal((await db.collection('bbsThreads/t1/posts').get()).size, 0);
+  });
+});
+
+describe('Shop Talk', () => {
+  const storage = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+  const { getStorage } = requireFromFunctions('firebase-admin/storage');
+  const bucket = () => getStorage().bucket();
+  test('mute: co-sysop mutes a member for 1 hour / 1 day / until unmuted, and unmutes; logged', async () => {
+    await rejects(call('mia', { action: 'member.mute', uid: 'carl', minutes: 60 }), 'permission-denied');
+    await call('carl', { action: 'member.mute', uid: 'mia', minutes: 60 });
+    let until = (await read('bbsMembers/mia')).mutedUntil.toMillis() - Date.now();
+    assert.ok(until > 59 * 60000 && until <= 60 * 60000);
+    await call('carl', { action: 'member.mute', uid: 'mia', minutes: 1440 });
+    until = (await read('bbsMembers/mia')).mutedUntil.toMillis() - Date.now();
+    assert.ok(until > 23.9 * 3600000);
+    await call('carl', { action: 'member.mute', uid: 'mia', minutes: null });
+    assert.equal(new Date((await read('bbsMembers/mia')).mutedUntil.toMillis()).getUTCFullYear(), 2100);
+    await call('carl', { action: 'member.mute', uid: 'mia', minutes: 0 });
+    assert.equal('mutedUntil' in (await read('bbsMembers/mia')), false);
+    assert.equal((await lastLog()).action, 'bbs.member.mute');
+    await rejects(call('carl', { action: 'member.mute', uid: 'mia', minutes: 5 }), 'invalid-argument');
+    await call('boss', { action: 'enter' });
+    await rejects(call('carl', { action: 'member.mute', uid: 'boss', minutes: 60 }), 'permission-denied');
+  });
+  test('save to a board: a thread credited to whoever said it; the message shows saved', async () => {
+    await db.doc('bbsBoards/shop-notes').set({ name: 'Shop Notes', description: '', order: 2, archived: false });
+    const at = Timestamp.now();
+    await db.doc('bbsChat/m1').set({ uid: 'mia', handle: 'Mia', kind: 'msg', text: 'Float height on the 8N is 1/4 in from the gasket. Wrote it down so I stop forgetting.', link: 'https://youtube.com/watch?v=x', createdAt: at });
+    await rejects(call('petra', { action: 'chat.save', chatId: 'm1', boardId: 'shop-notes', note: '' }), 'permission-denied');
+    const r = await call('carl', { action: 'chat.save', chatId: 'm1', boardId: 'shop-notes', note: 'Keep this one' });
+    assert.equal(r.boardName, 'Shop Notes');
+    const t = await read(`bbsThreads/${r.threadId}`);
+    assert.equal(t.authorHandle, 'Mia');
+    assert.equal(t.savedBy, 'Carl');
+    assert.equal(t.saved, true);
+    assert.equal(t.title, 'Keep this one');
+    const op = await read(`bbsThreads/${r.threadId}/posts/op`);
+    assert.equal(op.saved.who, 'Mia');
+    assert.equal(op.saved.note, 'Keep this one');
+    assert.equal(op.saved.text.startsWith('Float height'), true);
+    assert.equal(op.saved.at.toMillis(), at.toMillis());
+    assert.deepEqual((await read('bbsChat/m1')).savedTo, { boardId: 'shop-notes', threadId: r.threadId, by: 'Carl' });
+    const r2 = await call('mia', { action: 'chat.save', chatId: 'm1', boardId: 'shop-notes', note: '' });
+    assert.equal((await read(`bbsThreads/${r2.threadId}`)).title, 'Float height on the 8N is 1/4 in from the gasket. Wrote it…', 'title from the start of the message');
+  });
+  test('the 7-day clean-up deletes old messages and their photos; a saved photo survives', { skip: !storage && 'Storage emulator not running' }, async () => {
+    await db.doc('bbsBoards/shop-notes').set({ name: 'Shop Notes', description: '', order: 2, archived: false });
+    const old = Timestamp.fromMillis(Date.now() - 8 * 86400000);
+    await bucket().file('bbs/chat/mia/old.jpg').save(Buffer.from([255, 216, 255]), { contentType: 'image/jpeg', resumable: false });
+    await db.doc('bbsChat/old').set({ uid: 'mia', handle: 'Mia', kind: 'msg', text: 'carb bowl', photo: { path: 'bbs/chat/mia/old.jpg', w: 10, h: 10 }, createdAt: old });
+    await db.doc('bbsChat/new').set({ uid: 'mia', handle: 'Mia', kind: 'msg', text: 'today', createdAt: Timestamp.now() });
+    const r = await call('carl', { action: 'chat.save', chatId: 'old', boardId: 'shop-notes', note: '' });
+    const savedPath = (await read(`bbsThreads/${r.threadId}/posts/op`)).photo.path;
+    assert.equal(savedPath, `bbs/posts/mia/${r.threadId}.jpg`);
+    assert.equal(await cleanupChat(), 1);
+    assert.equal(await exists('bbsChat/old'), false);
+    assert.equal(await exists('bbsChat/new'), true);
+    assert.equal((await bucket().file('bbs/chat/mia/old.jpg').exists())[0], false, 'chat photo deleted');
+    assert.equal((await bucket().file(savedPath).exists())[0], true, 'the copy on the board survives');
   });
 });

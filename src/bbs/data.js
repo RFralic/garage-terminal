@@ -137,3 +137,29 @@ export async function addFile({ uid, handle, file, title, note, onProgress }) {
   return id;
 }
 export const deleteFile = (id) => deleteDoc(doc(db, 'bbsFiles', id));
+
+// ---------- Shop Talk ---------------------------------------------------------------------------
+
+export const watchChat = (n, cb, onError) =>
+  onSnapshot(query(collection(db, 'bbsChat'), orderBy('createdAt', 'desc'), limit(n)), (s) => cb(rows(s).reverse(), s.size), onError);
+
+/** Send a message. `photoFile` is shrunk and uploaded to bbs/chat/{uid}/ first. */
+export async function sendChat({ uid, handle, text, photoFile, reply, onProgress }) {
+  const ref = doc(collection(db, 'bbsChat'));
+  let photo = null;
+  if (photoFile) {
+    const { blob, w, h } = await shrinkPhoto(photoFile, 1280);
+    photo = { path: `bbs/chat/${uid}/${ref.id}.jpg`, w, h };
+    await put(photo.path, blob, 'image/jpeg', onProgress);
+  }
+  const link = (text.match(/https?:\/\/[^\s<>"]+/i) || [])[0];
+  await setDoc(ref, {
+    uid, handle, kind: 'msg', text, createdAt: serverTimestamp(),
+    ...(photo ? { photo } : {}), ...(link ? { link: link.slice(0, 500) } : {}), ...(reply ? { reply } : {}),
+  });
+}
+/** "[handle] walked into the shop" */
+export const sayJoined = (uid, handle) => setDoc(doc(collection(db, 'bbsChat')), { uid, handle, kind: 'join', text: '', createdAt: serverTimestamp() });
+export const deleteChat = (id) => deleteDoc(doc(db, 'bbsChat', id));
+export const setTyping = (uid, handle) => setDoc(doc(db, 'bbsTyping', uid), { handle, at: serverTimestamp() }).catch(() => {});
+export const watchTyping = (cb, onError) => onSnapshot(collection(db, 'bbsTyping'), cb, onError);
