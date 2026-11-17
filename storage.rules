@@ -47,6 +47,40 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
+    // ---------- the BBS: members only ----------------------------------------------------
+    // The member list is in Firestore (bbsMembers/{uid}); the sysop is in admins/{uid}.
+    function bbsIn() {
+      return request.auth != null
+        && (isAdmin() || firestore.exists(/databases/(default)/documents/bbsMembers/$(request.auth.uid)));
+    }
+    function bbsMod() {
+      return isAdmin()
+        || (bbsIn() && firestore.get(/databases/(default)/documents/bbsMembers/$(request.auth.uid)).data.role == 'cosysop');
+    }
+    // File cabinet: PDF, images, ZIP, text and common office documents, up to 25 MB.
+    function cabinetType() {
+      return request.resource.contentType.matches(
+        'application/pdf|image/.*|application/zip|application/x-zip-compressed|text/plain|text/csv|text/markdown|application/rtf|application/msword|application/vnd[.]ms-excel|application/vnd[.]ms-powerpoint|application/vnd[.]openxmlformats-officedocument[.].*|application/vnd[.]oasis[.]opendocument[.].*');
+    }
+
+    // bbs/files/{uid}/{fileId}/{name}: the uploader's own folder.
+    match /bbs/files/{uid}/{fileId}/{name} {
+      allow read: if bbsIn();
+      allow create: if bbsIn() && request.auth.uid == uid
+        && request.resource.size <= 25 * 1024 * 1024 && cabinetType();
+      allow update: if false;
+      allow delete: if bbsIn() && (request.auth.uid == uid || bbsMod());
+    }
+
+    // bbs/posts/{uid}/{name}: photos on board posts (shrunk in the browser first).
+    match /bbs/posts/{uid}/{name} {
+      allow read: if bbsIn();
+      allow create: if bbsIn() && request.auth.uid == uid
+        && request.resource.size <= 10 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
+      allow update: if false;
+      allow delete: if bbsIn() && (request.auth.uid == uid || bbsMod());
+    }
+
     match /{everythingElse=**} {
       allow read, write: if false;
     }

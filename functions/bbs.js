@@ -24,6 +24,8 @@
 //   removed.restore  { uid }      member again
 //   accounts.search  { text }     site accounts by handle (for "+ Add a member")
 //   settings.update  { doorWord?, requirePasscode?, notice? }      sysop only
+//   board.save       { id?, name, description, order }  add (no id) or rename / reorder   sysop only
+//   board.archive    { id, archived }   archived boards leave the home grid, read-only    sysop only
 
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { getFirestore, FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
@@ -44,6 +46,11 @@ export const DEFAULT_CONFIG = { doorWord: 'backroom', requirePasscode: false, no
 const bad = (message) => new HttpsError('invalid-argument', message);
 const uidArg = (v) => {
   if (typeof v !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(v)) throw bad('uid is not valid');
+  return v;
+};
+
+const boardIdArg = (v) => {
+  if (typeof v !== 'string' || !/^[a-z0-9-]{1,60}$/.test(v)) throw bad('board id is not valid');
   return v;
 };
 
@@ -226,6 +233,42 @@ export async function bbsHandler(request) {
       await ref.set(next);
       const changed = Object.fromEntries(Object.keys(next).filter((k) => next[k] !== cur[k]).map((k) => [k, next[k]]));
       await log('bbsConfig/main', changed);
+      return { ok: true };
+    }
+
+    case 'board.save': {
+      needSysop();
+      const name = String(data.name ?? '').trim();
+      const description = String(data.description ?? '').trim();
+      const order = Number(data.order);
+      if (name.length < 1 || name.length > 40) throw bad('A board name is 1–40 characters');
+      if (description.length > 200) throw bad('The description is 200 characters at most');
+      if (!Number.isInteger(order) || order < 1 || order > 99) throw bad('Order is a whole number from 1 to 99');
+      if (data.id) {
+        const ref = db.doc(`bbsBoards/${boardIdArg(data.id)}`);
+        const cur = await ref.get();
+        if (!cur.exists) throw new HttpsError('not-found', 'No such board');
+        await ref.update({ name, description, order });
+        await log(ref.path, { name, order, was: cur.get('name') });
+        return { id: ref.id };
+      }
+      // New board: an address made from its name ("Small Engines" -> small-engines).
+      const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'board';
+      let id = base;
+      for (let n = 2; (await db.doc(`bbsBoards/${id}`).get()).exists; n++) id = `${base}-${n}`;
+      await db.doc(`bbsBoards/${id}`).set({ name, description, order, archived: false, createdAt: FieldValue.serverTimestamp() });
+      await log(`bbsBoards/${id}`, { name, order });
+      return { id };
+    }
+
+    case 'board.archive': {
+      needSysop();
+      const ref = db.doc(`bbsBoards/${boardIdArg(data.id)}`);
+      const cur = await ref.get();
+      if (!cur.exists) throw new HttpsError('not-found', 'No such board');
+      if (typeof data.archived !== 'boolean') throw bad('archived must be true or false');
+      await ref.update({ archived: data.archived });
+      await log(ref.path, { name: cur.get('name'), archived: data.archived });
       return { ok: true };
     }
 

@@ -756,5 +756,142 @@ service cloud.firestore {
     match /bbsKnocks/{uid} {
       allow read, write: if false;
     }
+
+    // ---------- boards, threads, posts (part 2) ------------------------------------------
+    //   bbsBoards/{id}         { name, description, order, archived, createdAt }  sysop, via `bbs`
+    //   bbsThreads/{id}        { boardId, title, authorUid, authorHandle, createdAt, lastAt, lastBy,
+    //                            replyCount, pinned, locked }
+    //   bbsThreads/{id}/posts/{postId}  { authorUid, authorHandle, body, photo?, createdAt, editedAt? }
+    //                          the opening post has the id "op", written together with its thread
+    //   bbsReads/{uid}         { boards: { boardId: when }, files: when }  your own "last visit" marks
+    //   bbsFiles/{id}          the file cabinet: { title, titleLower, note, name, type, size,
+    //                            contentType, path, byUid, byHandle, createdAt }
+    // replyCount / lastAt / lastBy are kept by Cloud Functions (functions/bbs-content.js), which
+    // also clean up a deleted thread's posts and photos, and a deleted file's upload.
+
+    function bbsBoardOpen(boardId) {
+      return exists(/databases/$(database)/documents/bbsBoards/$(boardId))
+        && get(/databases/$(database)/documents/bbsBoards/$(boardId)).data.archived == false;
+    }
+    function bbsText(t, min, max) {
+      return t is string && t.size() >= min && t.size() <= max;
+    }
+    // A post's photo, if any, is one the author uploaded to their own folder.
+    function bbsPhotoOk(d) {
+      return !('photo' in d) || (d.photo is map
+        && d.photo.keys().hasOnly(['path', 'w', 'h'])
+        && d.photo.path is string && d.photo.path.matches('^bbs/posts/' + request.auth.uid + '/[A-Za-z0-9_.-]{1,100}$')
+        && d.photo.w is int && d.photo.h is int);
+    }
+
+    match /bbsBoards/{boardId} {
+      allow read: if bbsIn();
+      allow write: if false;
+    }
+
+    match /bbsThreads/{threadId} {
+      allow read: if bbsIn();
+
+      allow create: if bbsIn()
+        && request.resource.data.keys().hasOnly([
+             'boardId', 'title', 'authorUid', 'authorHandle', 'createdAt', 'lastAt', 'lastBy',
+             'replyCount', 'pinned', 'locked', 'saved'])
+        && bbsBoardOpen(request.resource.data.boardId)
+        && bbsText(request.resource.data.title, 1, 120)
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorHandle == me().handle
+        && request.resource.data.lastBy == me().handle
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.lastAt == request.time
+        && request.resource.data.replyCount == 0
+        && request.resource.data.pinned == false
+        && request.resource.data.locked == false
+        && (!('saved' in request.resource.data) || request.resource.data.saved == true)
+        && existsAfter(/databases/$(database)/documents/bbsThreads/$(threadId)/posts/op);
+
+      // The author can retitle; the sysop and co-sysops pin and lock.
+      allow update: if bbsIn() && (
+        (resource.data.authorUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title'])
+          && bbsText(request.resource.data.title, 1, 120))
+        || (bbsMod() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned', 'locked'])
+          && request.resource.data.pinned is bool && request.resource.data.locked is bool));
+
+      // Deleting a thread removes its posts too (Cloud Function).
+      allow delete: if bbsIn() && (resource.data.authorUid == request.auth.uid || bbsMod());
+
+      match /posts/{postId} {
+        function thread() {
+          return get(/databases/$(database)/documents/bbsThreads/$(threadId)).data;
+        }
+        allow read: if bbsIn();
+
+        allow create: if bbsIn()
+          && request.resource.data.keys().hasOnly(['authorUid', 'authorHandle', 'body', 'photo', 'createdAt', 'saved'])
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.authorHandle == me().handle
+          && bbsText(request.resource.data.body, 0, 10000)
+          && (request.resource.data.body.matches('(?s).*\\S.*') || 'photo' in request.resource.data)
+          && bbsPhotoOk(request.resource.data)
+          && request.resource.data.createdAt == request.time
+          && (postId == 'op'
+                // the opening post comes with a brand-new thread by the same person
+                ? !exists(/databases/$(database)/documents/bbsThreads/$(threadId))
+                  && getAfter(/databases/$(database)/documents/bbsThreads/$(threadId)).data.authorUid == request.auth.uid
+                  && bbsSavedOk(request.resource.data,
+                       getAfter(/databases/$(database)/documents/bbsThreads/$(threadId)).data.get('saved', false))
+                // replies go to an open thread on a board that isn't archived
+                : !('saved' in request.resource.data)
+                  && thread().locked == false && bbsBoardOpen(thread().boardId));
+
+        // Authors edit their own text / photo while the thread is open.
+        allow update: if bbsIn()
+          && resource.data.authorUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body', 'photo', 'editedAt'])
+          && bbsText(request.resource.data.body, 0, 10000)
+          && bbsPhotoOk(request.resource.data)
+          && request.resource.data.editedAt == request.time
+          && thread().locked == false;
+
+        // Replies: the author, or the sysop / co-sysops. (The opening post goes with its thread.)
+        allow delete: if bbsIn() && postId != 'op'
+          && (resource.data.authorUid == request.auth.uid || bbsMod());
+      }
+    }
+
+    // Opening posts saved from Shop Talk carry who said it (part 3 checks it against the
+    // chat message); until then, nothing may claim to be saved.
+    function bbsSavedOk(d, threadSaved) {
+      return !('saved' in d) && threadSaved == false;
+    }
+
+    match /bbsReads/{uid} {
+      allow read, delete: if isSelf(uid);
+      allow create, update: if isSelf(uid) && bbsIn()
+        && request.resource.data.keys().hasOnly(['boards', 'files'])
+        && (!('boards' in request.resource.data) || request.resource.data.boards is map)
+        && (!('files' in request.resource.data) || request.resource.data.files is timestamp);
+    }
+
+    // The file cabinet. The upload itself is checked by storage.rules (members, 25 MB).
+    match /bbsFiles/{fileId} {
+      allow read: if bbsIn();
+      allow create: if bbsIn()
+        && request.resource.data.keys().hasOnly(['title', 'titleLower', 'note', 'name', 'type', 'size', 'contentType', 'path', 'byUid', 'byHandle', 'createdAt'])
+        && bbsText(request.resource.data.title, 1, 120)
+        && request.resource.data.titleLower == request.resource.data.title.lower()
+        && bbsText(request.resource.data.note, 0, 500)
+        && bbsText(request.resource.data.name, 1, 200)
+        && bbsText(request.resource.data.type, 1, 8)
+        && request.resource.data.size is int && request.resource.data.size > 0 && request.resource.data.size <= 25 * 1024 * 1024
+        && bbsText(request.resource.data.contentType, 0, 120)
+        && request.resource.data.path.matches('^bbs/files/' + request.auth.uid + '/' + fileId + '/[^/]{1,200}$')
+        && request.resource.data.byUid == request.auth.uid
+        && request.resource.data.byHandle == me().handle
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      // The uploader, or the sysop / co-sysops. The upload is deleted with it (Cloud Function).
+      allow delete: if bbsIn() && (resource.data.byUid == request.auth.uid || bbsMod());
+    }
   }
 }

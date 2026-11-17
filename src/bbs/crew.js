@@ -20,7 +20,6 @@ export function renderCrew(ctx) {
     count.textContent = `${ctx.crew.length} member${ctx.crew.length === 1 ? '' : 's'}`;
   };
   draw();
-  ctx.onCrew = draw;
-  ctx.cleanup = () => { ctx.onCrew = null; };
+  ctx.refresh = draw;
   ctx.main.replaceChildren(el('section', { class: 'b-sec' }, el('div', { class: 'sh-row' }, el('h2', { class: 'sh' }, 'Crew'), count), list));
 }

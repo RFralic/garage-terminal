@@ -193,6 +193,13 @@ designs in `reference/bbs-design/`, not deployed). It isn't linked from any menu
   members (`/mod` shows them only the BBS tab); only the sysop can make co-sysops and change settings.
   `firestore.rules` (BBS section) lets nobody outside the member list read anything, checked on every read,
   so removing someone cuts them off at once. Tests: `tests/bbs.rules.test.js`, `tests/bbs.functions.test.js`.
+- **Boards and files:** boards (`bbsBoards`, starting with #01 General, #02 Shop Notes, #03 Builds from
+  `scripts/seed.mjs`) are added, renamed, reordered and archived by the sysop in `/mod#bbs` → Boards; no code
+  change needed. Threads and posts (`bbsThreads/{id}/posts`) take Markdown (the forum's safe renderer) and a
+  photo shrunk in the browser (`src/lib/photo.js`). "N NEW" counts threads with activity since your last visit
+  to that board (`bbsReads/{uid}`). The file cabinet (`bbsFiles`, Storage `bbs/files/`) takes PDF, photos,
+  ZIP, text and office documents up to 25 MB. Reply counts and clean-up of deleted threads, photos and files
+  are done by Cloud Functions (`functions/bbs-content.js`). Tests: `tests/bbs.boards.rules.test.js`.
 - **Emails** go out from Cloud Functions the moment something happens, from `brief@garageterminal.com`
   through Resend: "New BBS request" to the sysop, "You're in" to people who are approved or added. Nothing is
   sent to people who are denied or removed.

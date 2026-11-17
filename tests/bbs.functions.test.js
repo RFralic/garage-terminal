@@ -11,6 +11,7 @@ process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
 
 const { bbs } = await import('../functions/index.js');
 const { knockHandler, requestEmail, welcomeEmail, setMailer } = await import('../functions/bbs.js');
+const content = await import('../functions/bbs-content.js');
 const requireFromFunctions = createRequire(new URL('../functions/index.js', import.meta.url));
 const { getFirestore, Timestamp } = requireFromFunctions('firebase-admin/firestore');
 const db = getFirestore();
@@ -170,5 +171,40 @@ describe('emails', () => {
     await welcomeEmail({ data: { data: () => ({ handle: 'Boss', role: 'sysop' }) }, params: { uid: 'boss' } }, 'key');
     await welcomeEmail({ data: { data: () => ({ handle: 'Pete', role: 'member' }) }, params: { uid: 'pete' } }, '');
     assert.equal(sent.length, 2, 'no email for the sysop, and none without the key');
+  });
+});
+
+describe('boards (sysop only) and their upkeep', () => {
+  test('add, rename / reorder, archive and restore a board; logged', async () => {
+    await rejects(call('carl', { action: 'board.save', name: 'Tools', description: '', order: 4 }), 'permission-denied');
+    const { id } = await call('boss', { action: 'board.save', name: 'Small Engines!', description: 'Mowers & saws', order: 4 });
+    assert.equal(id, 'small-engines');
+    assert.deepEqual((await read('bbsBoards/small-engines')).archived, false);
+    const again = await call('boss', { action: 'board.save', name: 'Small engines', description: '', order: 5 });
+    assert.equal(again.id, 'small-engines-2', 'a new board never overwrites one');
+    await call('boss', { action: 'board.save', id: 'small-engines', name: 'Engines', description: 'x', order: 2 });
+    assert.equal((await read('bbsBoards/small-engines')).name, 'Engines');
+    await call('boss', { action: 'board.archive', id: 'small-engines', archived: true });
+    assert.equal((await read('bbsBoards/small-engines')).archived, true);
+    assert.equal((await lastLog()).action, 'bbs.board.archive');
+    await rejects(call('boss', { action: 'board.save', name: '', description: '', order: 1 }), 'invalid-argument');
+  });
+  test('a reply bumps its thread; deleting it lowers the count; deleting a thread removes its posts', async () => {
+    await db.recursiveDelete(db.collection('bbsThreads'));
+    await db.doc('bbsThreads/t1').set({ replyCount: 0, lastAt: Timestamp.fromMillis(0), lastBy: 'Mia' });
+    await db.doc('bbsThreads/t1/posts/op').set({ authorUid: 'mia', authorHandle: 'Mia', body: 'x' });
+    const at = Timestamp.now();
+    const ev = (postId, post) => ({ params: { threadId: 't1', postId }, data: { data: () => post } });
+    await content.postCreated(ev('op', { authorHandle: 'Mia', createdAt: at }));
+    assert.equal((await read('bbsThreads/t1')).replyCount, 0, 'the opening post isn’t a reply');
+    await content.postCreated(ev('r1', { authorHandle: 'Carl', createdAt: at }));
+    const t = await read('bbsThreads/t1');
+    assert.equal(t.replyCount, 1);
+    assert.equal(t.lastBy, 'Carl');
+    assert.equal(t.lastAt.toMillis(), at.toMillis());
+    await content.postDeleted(ev('r1', { authorHandle: 'Carl' }));
+    assert.equal((await read('bbsThreads/t1')).replyCount, 0);
+    await content.threadDeleted({ params: { threadId: 't1' }, data: { data: () => ({}) } });
+    assert.equal((await db.collection('bbsThreads/t1/posts').get()).size, 0);
   });
 });

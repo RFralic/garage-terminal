@@ -3,6 +3,9 @@
 //
 //   areas/{id}     [1] General ... [5] Off-Topic
 //   settings/site  sysop notice (empty), forum open, no banned words
+//   bbsConfig/main the BBS door word "backroom", no passcode, no notice
+//   bbsBoards/{id} the BBS's starting boards: #01 General, #02 Shop Notes, #03 Builds
+//                  (more are added, renamed or archived from /mod#bbs; never re-created here)
 
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -37,3 +40,10 @@ async function createIfMissing(path, data) {
 
 for (const { id, ...area } of AREAS) await createIfMissing(`areas/${id}`, area);
 await createIfMissing('settings/site', { sysopNotice: '', forumOpen: true, bannedWords: [] });
+await createIfMissing('bbsConfig/main', { doorWord: 'backroom', requirePasscode: false, notice: '' });
+const BOARDS = [
+  { id: 'general', name: 'General', description: 'Anything shop-related.', order: 1 },
+  { id: 'shop-notes', name: 'Shop Notes', description: 'Specs, settings and tricks worth writing down.', order: 2 },
+  { id: 'builds', name: 'Builds', description: 'Project threads, start to finish.', order: 3 },
+];
+for (const { id, ...board } of BOARDS) await createIfMissing(`bbsBoards/${id}`, { ...board, archived: false, createdAt: new Date() });

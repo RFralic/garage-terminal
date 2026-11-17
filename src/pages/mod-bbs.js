@@ -6,11 +6,14 @@
 //   Denied     denied in the last 30 days: Let them in / Clear the wait
 //   Removed    removed members: Let them back in
 //   Settings   door word, require a passcode, "From the sysop" notice (sysop only)
+//   Boards     add, rename, reorder, archive / restore boards (sysop only)
 //
 // Every change goes through the `bbs` Cloud Function (functions/bbs.js), which
 // re-checks powers and writes the mod log. Emails go out from Cloud Functions.
 
 import { el, timeEl } from '../lib/ui.js';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase.js';
 import {
   bbsAction, getConfig, loadRequests, watchRequests, loadMembers, loadDenied, loadRemoved, byRank, roleLabel,
 } from '../lib/bbs.js';
@@ -40,7 +43,7 @@ export async function renderBbs(body, who, requestCount = 0) {
     ['add', '+ Add a member'],
     ['denied', 'Denied'],
     ['removed', 'Removed'],
-    ...(who.isSysop ? [['settings', 'Settings']] : []),
+    ...(who.isSysop ? [['settings', 'Settings'], ['boards', 'Boards']] : []),
   ];
   if (!subs.some(([id]) => id === sub)) sub = 'requests';
   if (stopLive) { stopLive(); stopLive = null; }
@@ -123,6 +126,27 @@ export async function renderBbs(body, who, requestCount = 0) {
       el('strong', {}, r.handle), el('span', { class: 'mutedt small' }, `removed ${date(r.at)}${r.by ? ` by ${r.by}` : ''}`),
       el('span', { class: 'post-actions' }, btn('Let them back in', () => act('removed.restore', { uid: r.uid }), 'link-btn mod')))),
     '> Nobody removed.'));
+  } else if (sub === 'boards') {
+    const boards = (await getDocs(collection(db, 'bbsBoards'))).docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => a.archived - b.archived || a.order - b.order);
+    const boardForm = (b) => {
+      const name = el('input', { class: 'field', value: b?.name ?? '', maxlength: '40', 'aria-label': 'Board name', placeholder: 'Name' });
+      const desc = el('input', { class: 'field', value: b?.description ?? '', maxlength: '200', 'aria-label': 'Short description', placeholder: 'Short description' });
+      const order = el('input', { class: 'field', type: 'number', min: '1', max: '99', value: String(b?.order ?? (boards.length + 1)), 'aria-label': 'Order (#)', style: 'max-width:90px' });
+      const save = btn(b ? 'Save' : 'Add board', async () => {
+        await act('board.save', { ...(b ? { id: b.id } : {}), name: name.value, description: desc.value, order: Number(order.value) });
+      }, 'btn primary');
+      return el('li', { class: 'mod-item' },
+        b ? el('p', { class: 'mod-meta' }, `#${String(b.order).padStart(2, '0')} · ${b.id}`, b.archived ? el('span', { class: 'tag tag-hidden' }, 'ARCHIVED') : null) : el('p', { class: 'mod-meta' }, 'New board'),
+        el('div', { class: 'board-fields' }, order, name, desc),
+        el('div', { class: 'post-actions' }, save,
+          b ? (b.archived
+            ? btn('Restore', () => act('board.archive', { id: b.id, archived: false }), 'link-btn mod')
+            : btn('Archive', () => act('board.archive', { id: b.id, archived: true }, `Archive ${b.name}? It leaves the BBS home; its posts stay, read only. You can restore it.`), 'link-btn danger')) : null));
+    };
+    box.replaceChildren(
+      line('The number (#01, #02…) sets the order on the BBS home. Archived boards keep their posts, read only.', 'mutedt small'),
+      el('ol', { class: 'mod-list' }, ...boards.map(boardForm), boardForm(null)));
   } else if (sub === 'settings') {
     const c = await getConfig();
     const word = el('input', { class: 'field', id: 'bbs-word', value: c.doorWord, maxlength: '24', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
