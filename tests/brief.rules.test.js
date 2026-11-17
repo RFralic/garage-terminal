@@ -57,6 +57,12 @@ describe('Morning Brief settings', () => {
     await assertFails(setDoc(doc(as('carl', { email: 'carl@example.com', email_verified: false }), 'briefs', 'carl'), settings('carl')));
   });
 
+  test('the Pantry sections can be turned on and off', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), 'briefs', 'bob'), settings('bob', {
+      sections: { today: true, upcoming: true, lowStock: true, maintenance: true, projects: false, pantryExpiring: true, pantryShopping: false },
+    })));
+  });
+
   test('settings must be well-formed', async () => {
     const db = as('bob');
     await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { hour: 24 })));
@@ -64,6 +70,7 @@ describe('Morning Brief settings', () => {
     await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { icsUrl: 'http://example.com/cal.ics' })));
     await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { sections: { today: 'yes' } })));
     await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { sections: { weather: true } })));
+    await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { sections: { pantryExpiring: 'yes' } })));
     await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { lastSentDate: '2026-11-14' })));
     await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { updatedAt: new Date(0) })));
   });

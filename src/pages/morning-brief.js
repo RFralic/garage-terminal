@@ -1,7 +1,7 @@
 // morning-brief.js: the /apps/morning-brief page. A signed-in member turns the
 // daily or weekly email on, picks the day, time, time zone and sections, optionally adds
 // their calendar's secret iCal address, and sees a preview built from their
-// Logbook, Project Tracker and Home Projects upkeep data with the same code the
+// Logbook, Project Tracker, Home Projects upkeep and Pantry data with the same code the
 // sender uses.
 //
 // Settings: briefs/{uid}. Last send: briefStatus/{uid} (written by
@@ -11,7 +11,7 @@ import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where
 import { db } from '../lib/firebase.js';
 import { mountHeader } from '../lib/header.js';
 import { watchSession } from '../lib/session.js';
-import { AHEAD_CHOICES, DEFAULT_SECTIONS, SECTIONS, WEEKDAYS, aheadDaysFor, buildAlert, buildBrief, renderBrief, upkeepStatus } from '../brief/brief.js';
+import { AHEAD_CHOICES, DEFAULT_SECTIONS, SECTIONS, SECTION_HINTS, WEEKDAYS, aheadDaysFor, buildAlert, buildBrief, renderBrief, upkeepStatus } from '../brief/brief.js';
 import { normalizeCalendarUrl } from '../brief/ics.js';
 import { isValidTimeZone } from '../brief/time.js';
 
@@ -58,7 +58,7 @@ for (const [key, label] of Object.entries(SECTIONS)) {
   const i = document.createElement('input');
   i.type = 'checkbox';
   i.dataset.section = key;
-  l.append(i, ` ${key === 'maintenance' ? 'Maintenance: Logbook services and Home Projects upkeep' : label}`);
+  l.append(i, ` ${SECTION_HINTS[key] || label}`);
   $('mb-sections').append(l);
 }
 const sectionBoxes = () => [...document.querySelectorAll('[data-section]')];
@@ -95,7 +95,7 @@ function read() {
 
 // ---------- preview --------------------------------------------------------------------
 
-let data = { records: [], projects: [], upkeep: [] };
+let data = { records: [], projects: [], upkeep: [], pantries: [] };
 function drawPreview() {
   const s = read();
   const brief = s.mode === 'maintenance'
@@ -140,13 +140,27 @@ async function load(user) {
     // Home Projects upkeep reminders; the preview still works if these can't be read
     getDocs(query(collection(db, 'homeprojects', user.uid, 'projects'), where('kind', '==', 'upkeep'))).catch((err) => { console.error(err); return { docs: [], failed: true }; }),
   ]);
+  // Pantries you're in (apps/pantry), for the Pantry sections; the preview still works without them
+  const pantries = await getDocs(query(collection(db, 'pantries'), where('memberIds', 'array-contains', user.uid)))
+    .then((snap) => Promise.all(snap.docs.map(async (p) => {
+      const [items, shopping] = await Promise.all([
+        getDocs(collection(db, 'pantries', p.id, 'items')),
+        getDocs(query(collection(db, 'pantries', p.id, 'shopping'), where('done', '==', false))),
+      ]);
+      return { name: p.data().name || 'Pantry', items: items.docs.map((d) => ({ id: d.id, ...d.data() })), shopping: shopping.docs.map((d) => d.data()) };
+    })))
+    .catch((err) => { console.error(err); return []; });
   fill(settings.exists() ? settings.data() : { enabled: false, hour: 6, tz: here, sections: DEFAULT_SECTIONS });
   data = {
     records: records.docs.map((d) => ({ id: d.id, ...d.data() })),
     projects: projects.docs.map((d) => ({ id: d.id, ...d.data() })),
     upkeep: upkeep.docs.map((d) => ({ id: d.id, ...d.data() })),
     upkeepError: !!upkeep.failed,
+    pantries,
   };
+  $('mb-pantry-note').textContent = pantries.length
+    ? `Pantry: ${pantries.map((p) => `${p.name} (${p.items.length} item${p.items.length === 1 ? '' : 's'})`).join(', ')}.`
+    : "You're not in a pantry yet, so the Pantry sections are left out of the email.";
   showLast(status.exists() ? status.data() : null);
   show('form');
   drawPreview();
