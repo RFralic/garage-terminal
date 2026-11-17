@@ -122,6 +122,38 @@ export async function changeQty(pid, me, itemId, delta, expires) {
   });
 }
 
+/**
+ * Apply a move from logic.js planMove(): updates, a new entry and/or a removal, all in one
+ * write so a move never half-happens.
+ */
+export async function applyMove(pid, me, plan) {
+  const b = writeBatch(db);
+  for (const u of plan.update) {
+    b.update(doc(itemsCol(pid), u.id), { lots: u.lots, ...(u.location ? { location: u.location } : {}), updatedBy: me.uid, updatedAt: serverTimestamp() });
+  }
+  for (const c of plan.create) b.set(doc(itemsCol(pid)), { ...itemData(c, me), createdAt: serverTimestamp() });
+  for (const id of plan.remove) b.delete(doc(itemsCol(pid), id));
+  await b.commit();
+}
+
+/**
+ * Apply a bulk scan from logic.js planBulk(): +n on items already there (each one safely,
+ * like a scan), then the new entries in one write. Returns how many things were added.
+ */
+export async function applyBulk(pid, me, plan) {
+  let n = 0;
+  for (const a of plan.add) {
+    const r = await changeQty(pid, me, a.id, a.n, a.expires);
+    n += r.changed;
+  }
+  if (plan.create.length) {
+    const b = writeBatch(db);
+    for (const c of plan.create) { b.set(doc(itemsCol(pid)), { ...itemData(c, me), createdAt: serverTimestamp() }); n += totalQty(c); }
+    await b.commit();
+  }
+  return n;
+}
+
 export async function addBarcode(pid, me, itemId, code) {
   await updateDoc(doc(itemsCol(pid), itemId), { barcodes: arrayUnion(code), updatedBy: me.uid, updatedAt: serverTimestamp() });
 }

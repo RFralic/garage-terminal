@@ -12,9 +12,11 @@
  *     Enter; while the scanner screen is open, a fast burst like that is a scan.
  *     Nothing is listened to when the scanner screen is closed.
  *
- *   GTScan.open({title, allowKeep, onCode})   opens the scanner screen.
+ *   GTScan.open({title, allowKeep, keep, onCode, onClose})   opens the scanner screen.
  *     onCode({text, format, via}, {keep}) runs for each scan. With "Keep scanning"
  *     ticked the screen stays open and whatever string onCode returns is shown on it.
+ *     keep: true starts with "Keep scanning" ticked (bulk scanning).
+ *     onClose() runs once the scanner screen has closed (after a scan or the ✕).
  *   <input data-scan>   any such input (now or added later) gets a small scan
  *     button; a scan fills the input in and fires its input/change events.
  */
@@ -200,7 +202,7 @@ body.gtscan-open{overflow:hidden}
           <button type="button" role="radio" data-mode="camera">Camera</button>
           <button type="button" role="radio" data-mode="bluetooth">Bluetooth</button>
         </div>
-        ${opts.allowKeep ? `<label class="gtscan-keep"><input type="checkbox" data-keep><span>Keep scanning<small>Stay open to scan several in a row</small></span></label>` : ""}
+        ${opts.allowKeep ? `<label class="gtscan-keep"><input type="checkbox" data-keep${opts.keep ? " checked" : ""}><span>Keep scanning<small>Stay open to scan several in a row</small></span></label>` : ""}
         <div class="gtscan-type" data-typebox hidden><input data-typed aria-label="Barcode or part number" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Barcode or part #"><button type="button" class="gtscan-btn" data-typego>Look up</button></div>
         <button type="button" class="gtscan-link" data-typeopen>Type the code instead</button>
       </div>`;
@@ -359,6 +361,7 @@ body.gtscan-open{overflow:hidden}
     s.el.remove(); document.body.classList.remove("gtscan-open");
     cur = null;
     if (s.back && s.back.isConnected && s.back.focus) { try { s.back.focus({ preventScroll: true }); } catch (e) { /* fine */ } }
+    if (s.opts.onClose) { try { s.opts.onClose(); } catch (e) { /* the page's problem, not the scanner's */ } }
   }
 
   // ---- scan buttons on Part # fields ---------------------------------------------------

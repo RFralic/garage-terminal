@@ -2,7 +2,9 @@
 // everyone in the pantry, logged in and out with the Logbook's barcode scanner
 // (public/apps/scanner.js: phone camera or a Bluetooth scanner).
 //
-//   Pantry tab     search, Scan, expiring / running low, items by location
+//   Pantry tab     search, Scan, expiring / running low, items by location; Bulk scan in
+//                  (scan a load into one place, check the list, save it all) and Move (an
+//                  item, or some of it, to another place: logic.js planMove / planBulk)
 //   Shopping tab   running low (automatic) + things added by hand, Scan groceries in
 //   Household tab  people and roles, invite codes, use-by defaults, activity
 //
@@ -455,6 +457,7 @@ function renderPantry() {
     ? 'Nothing here yet. Scan something you have, or add it by hand.' : 'Nothing here yet.')]));
 
   T.adds.replaceChildren(...(canEdit() ? [
+    window.GTScan ? btn('Bulk scan in', openBulkStart, 'primary') : null,
     btn('+ Add an item', () => openItem(null)),
     btn('+ Homemade batch', openBatch),
     window.GTScan ? btn('Scan to use up (−1 each)', () => startScan('use')) : null,
@@ -717,6 +720,7 @@ function openItem(item, prefill = {}) {
     d.photo ? el('img', { class: 'pt-photo', src: d.photo, alt: '', referrerpolicy: 'no-referrer' }) : null,
     !isNew ? el('div', { class: 'pt-count' }, el('span', { class: 'mutedt' }, 'On hand'), countB) : null,
     !isNew && !ro ? el('div', { class: 'pt-two' }, btn('− Used 1', quick(-1), 'amber'), btn('+ Got 1', quick(1), 'primary')) : null,
+    !isNew && !ro && L.totalQty(d) > 0 ? btn(`Move to another place…`, () => openMove(item), 'pt-move') : null,
     hm ? el('div', { class: 'pt-lots' },
       el('div', {}, el('b', {}, `Homemade · batch ${hm.batch}`), el('span', { class: 'mono' }, L.spacedCode(L.batchCode(hm.batch)))),
       el('div', {}, el('span', {}, hm.method || ''), el('span', {}, [hm.made && 'made ' + L.fmtMDY(hm.made), hm.useBy && 'use by ' + L.fmtMY(hm.useBy)].filter(Boolean).join(' · '))),
@@ -772,6 +776,197 @@ function openItem(item, prefill = {}) {
 
   openSheet(isNew ? 'Add an item' : d.name, isNew ? (d.barcodes[0] ? `Code ${d.barcodes[0]}` : 'Pantry') : d.location || '', body,
     { focus: isNew ? 'input' : '.pt-b' });
+}
+
+// ---------- moving things ---------------------------------------------------------------
+// "Move…" on an item: how many (the soonest-expiring go first, keeping their dates) and
+// where to. If the same thing is already kept there, they join up (logic.js planMove).
+
+function placeChips(places, value, onPick) {
+  const wrap = el('div', { class: 'pt-placechips', role: 'group', 'aria-label': 'Where' });
+  const draw = () => wrap.replaceChildren(...places.map((p) => el('button', {
+    type: 'button', class: 'chip', 'aria-pressed': String(p === value),
+    onclick: () => { value = p; draw(); onPick(p); },
+  }, p)));
+  draw();
+  return wrap;
+}
+
+function stepper(value, max, onChange, label) {
+  const box = input({ type: 'number', min: '1', max: String(max), inputmode: 'numeric', value, 'aria-label': label, style: 'width:80px;text-align:center' });
+  const set = (v) => { const n = Math.min(max, Math.max(1, Math.floor(Number(v) || 1))); box.value = String(n); onChange(n); };
+  box.addEventListener('change', () => set(box.value));
+  return el('div', { class: 'pt-stepper' },
+    el('button', { type: 'button', class: 'pt-b', 'aria-label': 'One less', onclick: () => set(Number(box.value) - 1) }, '−'), box,
+    el('button', { type: 'button', class: 'pt-b', 'aria-label': 'One more', onclick: () => set(Number(box.value) + 1) }, '+'));
+}
+
+function openMove(item) {
+  const it = S.items.find((x) => x.id === item.id) || item;
+  const total = L.totalQty(it);
+  const places = locationsInUse().filter((p) => p !== it.location);
+  let qty = total, to = places[0] || '';
+  const other = input({ placeholder: 'Somewhere else, e.g. Garage shelf', maxlength: '40', 'aria-label': 'Somewhere else' });
+  const plan = el('p', { class: 'pt-msg', role: 'status' });
+  const draw = () => {
+    const dest = other.value.trim() || to;
+    if (!dest) { plan.textContent = 'Pick where it’s going.'; return; }
+    const p = L.planMove(S.items, it, qty, dest);
+    const moved = L.takeLots(it.lots, qty).taken;
+    const dates = moved.filter((l) => l.expires).map((l) => `${l.qty} exp ${L.fmtShort(l.expires)}`).join(', ');
+    plan.textContent = `${qty} of ${total} move${qty === 1 ? 's' : ''} to ${dest}`
+      + (p.into ? `, joining the ${p.into} already there.` : p.create.length ? ' as a new entry there.' : '.')
+      + (dates ? ` (${dates}.)` : '');
+  };
+  other.addEventListener('input', draw);
+  const go = btn('Move', async (e) => {
+    const dest = other.value.trim() || to;
+    if (!dest) { plan.textContent = 'Pick where it’s going.'; return; }
+    e.currentTarget.disabled = true;
+    try {
+      await St.applyMove(S.pid, S.me, L.planMove(S.items, it, qty, dest));
+      St.log(S.pid, S.me, `moved ${qty} ${it.name}: ${it.location} → ${dest}`);
+      closeSheet();
+      toast(`Moved ${qty} ${it.name} to ${dest}.`);
+    } catch (err) { e.currentTarget.disabled = false; plan.textContent = `Couldn't move it: ${errText(err)}`; }
+  }, 'primary');
+  openSheet(`Move ${it.name}`, `${total} in ${it.location || 'no place'}`, [
+    el('div', { class: 'f' }, el('span', { class: 'field-label' }, 'How many'),
+      el('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' },
+        stepper(qty, total, (n) => { qty = n; draw(); }, 'How many to move'),
+        total > 1 ? el('span', { class: 'mutedt small' }, `of ${total}. The soonest-expiring go first.`) : null)),
+    el('div', { class: 'f' }, el('span', { class: 'field-label' }, 'To'),
+      placeChips(places, to, (p) => { to = p; other.value = ''; draw(); }), other),
+    plan,
+    el('div', { class: 'pt-btns' }, go, btn('Cancel', () => openItem(it), 'ghost')),
+  ], { focus: '.chip[aria-pressed="true"]' });
+  draw();
+}
+
+// ---------- bulk scan in ------------------------------------------------------------------
+// Pick a place (Pantry, Fridge, Basement…), scan everything going there one after another
+// (the scanner stays open), then check the list and save it all at once (logic.js planBulk).
+// Codes the pantry doesn't know are looked up in Open Food Facts and become new items.
+
+let bulk = null; // { location, rows: [{ key, code, itemId, n, expires, name, brand, size, photo, looking }] }
+
+function openBulkStart() {
+  if (!canEdit()) { toast('Viewers can\'t change counts.'); return; }
+  if (bulk && bulk.rows.length) { openBulkReview(); return; }
+  let place = L.LOCATIONS.includes(S.filter) ? S.filter : (store.get('ptBulkPlace', 'Pantry'));
+  const places = locationsInUse();
+  if (!places.includes(place)) place = 'Pantry';
+  openSheet('Bulk scan in', 'Scan a load of groceries or supplies in one go', [
+    el('p', { class: 'small' }, 'Pick where it’s all going, then scan each thing (the scanner stays open). You’ll check the list before anything is saved.'),
+    el('div', { class: 'f' }, el('span', { class: 'field-label' }, 'Going into'), placeChips(places, place, (p) => { place = p; })),
+    el('div', { class: 'pt-btns' },
+      btn('Start scanning', () => { store.set('ptBulkPlace', place); bulk = { location: place, rows: [] }; closeSheet(); startBulk(); }, 'primary'),
+      btn('Cancel', closeSheet, 'ghost')),
+  ], { focus: '.pt-b.primary' });
+}
+
+function lookUpRow(row) {
+  if (!L.isRetail(row.code) || row.looking) return;
+  row.looking = true;
+  lookupProduct(row.code).then((p) => {
+    row.looking = false;
+    row.looked = true;
+    if (p && !row.name) Object.assign(row, { name: p.name || '', brand: p.brand || '', size: p.size || '', photo: p.photo || '' });
+    // On the review list already: fill in just that name box (if it's still empty), so nobody's typing is interrupted.
+    const box = bulkSheetOpen && document.querySelector(`[data-bulkkey="${CSS.escape(row.key)}"]`);
+    if (box) { if (!box.value && row.name) box.value = row.name; box.placeholder = 'What is it?'; }
+  });
+}
+
+function startBulk() {
+  if (!window.GTScan || !bulk) return;
+  GTScan.open({
+    title: `Bulk scan into ${bulk.location}`,
+    allowKeep: true,
+    keep: true,
+    onCode: (r) => {
+      const hits = L.findByCode(S.items, r.text);
+      const hit = hits.find((h) => h.location === bulk.location) || hits[0];
+      const key = hit ? `i:${hit.id}` : `c:${L.codeKey(r.text)}`;
+      let row = bulk.rows.find((x) => x.key === key);
+      if (!row) {
+        row = { key, code: L.cleanCode(r.text), itemId: hit ? hit.id : '', n: 0, expires: '', name: '', brand: '', size: '', photo: '' };
+        bulk.rows.push(row);
+        if (!hit) lookUpRow(row);
+      }
+      row.n += 1;
+      return hit ? `${hit.name}: ${row.n} so far` : `New: ${row.code} (${row.n}). You’ll name it next.`;
+    },
+    // a scan with "Keep scanning" unticked arrives just after the screen closes
+    onClose: () => setTimeout(openBulkReview, 0),
+  });
+}
+
+let bulkSheetOpen = false;
+function openBulkReview() {
+  if (!bulk) return;
+  bulk.rows = bulk.rows.filter((r) => r.n > 0);
+  if (!bulk.rows.length) { bulk = null; return; }
+  const total = bulk.rows.reduce((t, r) => t + r.n, 0);
+  const msg = el('p', { class: 'pt-msg', role: 'status' });
+  const where = select(locationsInUse(), bulk.location);
+  where.setAttribute('aria-label', 'Going into');
+  where.addEventListener('change', () => { bulk.location = where.value; openBulkReview(); });
+  const lines = bulk.rows.map((r, i) => {
+    const it = r.itemId && S.items.find((x) => x.id === r.itemId);
+    const n = input({ type: 'number', min: '0', max: '999', inputmode: 'numeric', value: r.n, 'aria-label': 'How many', style: 'width:70px;text-align:center' });
+    n.addEventListener('change', () => { r.n = Math.max(0, Math.min(999, Math.floor(Number(n.value) || 0))); });
+    const date = input({ type: 'date', value: r.expires, 'aria-label': 'Expires (optional)' });
+    date.addEventListener('change', () => { r.expires = date.value; });
+    const x = el('button', { type: 'button', class: 'pt-x', 'aria-label': 'Remove this line', onclick: () => { bulk.rows.splice(i, 1); openBulkReview(); } }, '✕');
+    let head;
+    if (it) {
+      const here = it.location === bulk.location ? it : S.items.find((y) => y.location === bulk.location && L.sameThing(y, it));
+      head = el('div', {}, el('b', {}, it.name),
+        el('div', { class: 'mutedt small' }, here ? `${L.totalQty(here)} in ${bulk.location} now` : `Kept in ${it.location}; starts a new entry in ${bulk.location}`));
+    } else {
+      const name = input({ value: r.name, placeholder: r.looking ? 'Looking it up…' : 'What is it?', maxlength: '120', 'aria-label': `Name for ${r.code}`, 'data-bulkname': String(i), 'data-bulkkey': r.key });
+      name.addEventListener('input', () => { r.name = name.value; });
+      head = el('div', {}, name, el('div', { class: 'mutedt small mono' }, `New · ${r.code}${r.brand || r.size ? ' · ' + [r.brand, r.size].filter(Boolean).join(' · ') : ''}`));
+    }
+    return el('div', { class: 'pt-bulkrow' + (it ? '' : ' new') }, head, el('div', { class: 'pt-bulkctl' }, n, date, x));
+  });
+  let sure = false;
+  const save = btn(`Save all (${total})`, async (e) => {
+    const missing = bulk.rows.findIndex((r) => !r.itemId && r.n > 0 && !r.name.trim());
+    if (missing >= 0) {
+      msg.textContent = 'Give each new thing a name (or remove that line).';
+      const f = document.querySelector(`[data-bulkname="${missing}"]`); if (f) f.focus();
+      return;
+    }
+    e.currentTarget.disabled = true;
+    msg.textContent = 'Saving…';
+    try {
+      const into = bulk.location;
+      const n = await St.applyBulk(S.pid, S.me, L.planBulk(S.items, bulk.rows, into));
+      St.log(S.pid, S.me, `bulk scanned ${n} into ${into}`);
+      bulk = null;
+      bulkSheetOpen = false;
+      closeSheet();
+      toast(`Added ${n} to the ${into}.`);
+    } catch (err) {
+      e.currentTarget.disabled = false;
+      msg.textContent = `Couldn't save it all: ${errText(err)}. Try Save all again.`;
+    }
+  }, 'primary');
+  bulkSheetOpen = true;
+  openSheet('Check the list', `${total} scanned · nothing is saved until Save all`, [
+    el('div', { class: 'f' }, el('span', { class: 'field-label' }, 'Going into'), where),
+    el('div', { class: 'pt-bulk' }, ...lines),
+    el('p', { class: 'mutedt small' }, 'Dates are optional: things with the same date are counted together.'),
+    msg,
+    el('div', { class: 'pt-btns' }, save,
+      btn('Scan more', () => { bulkSheetOpen = false; closeSheet(); startBulk(); }),
+      btn('Discard', (e) => {
+        if (!sure) { sure = true; e.currentTarget.textContent = 'Tap again to discard'; return; }
+        bulk = null; bulkSheetOpen = false; closeSheet(); toast('Bulk scan discarded.');
+      }, 'ghost')),
+  ], { focus: '.pt-b.primary', onClose: () => { bulkSheetOpen = false; } });
 }
 
 // ---------- homemade batches and labels -----------------------------------------------
