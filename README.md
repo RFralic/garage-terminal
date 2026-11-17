@@ -200,6 +200,13 @@ designs in `reference/bbs-design/`, not deployed). It isn't linked from any menu
   to that board (`bbsReads/{uid}`). The file cabinet (`bbsFiles`, Storage `bbs/files/`) takes PDF, photos,
   ZIP, text and office documents up to 25 MB. Reply counts and clean-up of deleted threads, photos and files
   are done by Cloud Functions (`functions/bbs-content.js`). Tests: `tests/bbs.boards.rules.test.js`.
+- **Shop Talk** (`#chat`, `src/bbs/chat.js`): one live room (`bbsChat`, photos in Storage `bbs/chat/`).
+  Messages are deleted after 7 days by `bbsChatCleanup`, a Cloud Function that runs every night at 3:30 a.m.
+  Eastern (it uses Cloud Scheduler, which the functions deploy turns on). Tapping a message offers Save to a
+  board (the `bbs` function copies it, and its photo, into a new thread credited to whoever said it, so it
+  outlives the clean-up), Quote in a new post and Reply; the sysop and co-sysops can also delete it and mute
+  the person (1 hour, 1 day or until unmuted; `bbsMembers.mutedUntil`). Muted members can read but not send.
+  Tests: `tests/bbs.chat.rules.test.js`.
 - **Emails** go out from Cloud Functions the moment something happens, from `brief@garageterminal.com`
   through Resend: "New BBS request" to the sysop, "You're in" to people who are approved or added. Nothing is
   sent to people who are denied or removed.

@@ -5,7 +5,7 @@ import { el, timeAgo } from '../lib/ui.js';
 import { boardNo, isNewThread, markRead, watchBoardThreads } from './data.js';
 
 export function threadRow(ctx, t, fresh) {
-  const who = t.saved ? `saved from Shop Talk by ${t.authorHandle}` : t.authorHandle;
+  const who = t.saved ? `${t.authorHandle} · saved from Shop Talk${t.savedBy ? ` by ${t.savedBy}` : ''}` : t.authorHandle;
   return el('li', {}, el('a', { class: 'trow', href: `#t/${t.id}` },
     el('span', { class: 'main' },
       el('span', { class: 'ttitle' }, t.pinned ? el('span', { class: 'badge', style: 'margin-right:6px' }, 'Pinned') : null,

@@ -4,6 +4,7 @@
 //   postDeleted   lowers replyCount; deletes the post's photo from Storage
 //   threadDeleted deletes the thread's posts (and so their photos)
 //   fileDeleted   deletes a file cabinet upload when its entry is deleted
+//   chatDeleted   deletes a Shop Talk photo when its message is deleted
 //
 // Members can't change these numbers or other people's uploads themselves; these
 // run with full access. Google may (rarely) run a trigger twice, so a count can
@@ -54,4 +55,8 @@ export async function threadDeleted(event) {
 
 export async function fileDeleted(event) {
   await deleteUpload(event.data?.data()?.path);
+}
+
+export async function chatDeleted(event) {
+  await deleteUpload(event.data?.data()?.photo?.path);
 }

@@ -19,9 +19,12 @@ function savedBox(saved) {
   if (!saved) return null;
   const at = saved.at?.toDate ? saved.at.toDate() : null;
   const when = at ? at.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  // The quoted message goes through the same safe Markdown renderer, so its link is clickable.
+  const quote = el('blockquote', { class: 'quote md' });
+  setMarkdown(quote, saved.text || '');
   return el('div', { class: 'savedfrom' },
     el('span', { class: 'label' }, `Saved from Shop Talk · ${saved.who}${when ? ` · ${when}` : ''}`),
-    saved.text ? el('blockquote', { class: 'quote' }, saved.text) : null);
+    saved.text ? quote : null);
 }
 
 function postEl(ctx, thread, p) {
@@ -56,7 +59,7 @@ function postEl(ctx, thread, p) {
   return el('article', { class: 'post', id: `p-${p.id}` },
     el('header', {}, el('b', { class: 'mono' }, p.authorHandle), el('span', { class: 'mono small dim' }, ' · ', timeEl(p.createdAt), p.editedAt ? ' · edited' : '')),
     savedBox(p.saved), body, photoEl(p.photo),
-    p.saved?.note ? el('p', { class: 'small', style: 'margin:0' }, el('span', { class: 'dim' }, `Note from ${p.authorHandle}: `), p.saved.note) : null,
+    p.saved?.note ? el('p', { class: 'small', style: 'margin:0' }, el('span', { class: 'dim' }, `Note from ${p.saved.by || p.authorHandle}: `), p.saved.note) : null,
     actions.childNodes.length ? actions : null);
 }
 
