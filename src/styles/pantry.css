@@ -145,3 +145,15 @@ body.pt-sheet-open{overflow:hidden}
   background:#1F2630;border:1px solid var(--line-2);border-radius:8px;padding:10px 14px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .pt-toast:empty{display:none}
 @media (max-width:420px){.pt-sizes{grid-template-columns:1fr}.pt-two{grid-template-columns:1fr}}
+
+/* Move and Bulk scan in */
+.pt-placechips{display:flex;flex-wrap:wrap;gap:8px}
+.pt-placechips .chip[aria-pressed="true"]{border-color:var(--green);color:var(--green)}
+.pt-stepper{display:flex;gap:6px;align-items:center}
+.pt-stepper .pt-b{min-width:44px}
+.pt-bulk{display:flex;flex-direction:column;gap:8px}
+.pt-bulkrow{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.pt-bulkrow.new{border-style:dashed;border-color:var(--amber)}
+.pt-bulkrow b{overflow-wrap:anywhere}
+.pt-bulkctl{display:grid;grid-template-columns:70px minmax(0,1fr) 44px;gap:8px;align-items:center}
+.pt-move{width:100%}

@@ -6,7 +6,7 @@
 // Two cans that expire in March and four that expire in June are two lots.
 // "Used 1" always takes from the lot that expires first.
 
-export const LOCATIONS = ['Pantry', 'Fridge', 'Freezer', 'Supplies'];
+export const LOCATIONS = ['Pantry', 'Fridge', 'Freezer', 'Supplies', 'Basement'];
 
 /** How homemade food was put up, and the default "use by" for each, in months. */
 export const METHODS = [
@@ -74,6 +74,107 @@ export function batchFromCode(code) {
 /** "20000042" → "2000 0042" (how it's printed under the bars). */
 export function spacedCode(code) {
   return code.length === 8 ? code.slice(0, 4) + ' ' + code.slice(4) : code;
+}
+
+// ---------- moving and bulk scanning ---------------------------------------------
+// An item lives in one place. Moving some of it somewhere else either joins the same
+// thing that's already there, or starts a new entry there with the same details.
+
+/** Takes `n` from the lots, soonest-expiring first, keeping their dates. Returns { taken, left }. */
+export function takeLots(lots, n) {
+  const left = sortLots(lots);
+  const taken = [];
+  let want = Math.max(0, Math.floor(Number(n) || 0));
+  for (const l of left) {
+    if (!want) break;
+    const t = Math.min(l.qty, want);
+    if (t) { taken.push({ qty: t, expires: l.expires }); l.qty -= t; want -= t; }
+  }
+  return { taken, left: left.filter((l) => l.qty > 0) };
+}
+
+/** Adds lots (with their dates) to other lots. */
+export function mergeLots(lots, more) {
+  let out = sortLots(lots);
+  for (const l of sortLots(more)) out = addToLots(out, l.qty, l.expires);
+  return out;
+}
+
+const norm = (v) => String(v || '').trim().toLowerCase();
+/** The same thing kept somewhere else: a shared barcode, or the same name, brand and size. */
+export function sameThing(a, b) {
+  const codes = new Set((a.barcodes || []).map(codeKey));
+  if ((b.barcodes || []).some((c) => codes.has(codeKey(c)))) return true;
+  return !!norm(a.name) && norm(a.name) === norm(b.name) && norm(a.brand) === norm(b.brand) && norm(a.size) === norm(b.size);
+}
+
+/** The details copied to a new entry for the same thing in another place. */
+const COPY_KEYS = ['name', 'brand', 'size', 'barcodes', 'photo', 'notes', 'homemade', 'keepAtLeast'];
+export function copyFor(item, location, lots) {
+  const out = { location, lots };
+  for (const k of COPY_KEYS) if (item[k] !== undefined && item[k] !== null) out[k] = JSON.parse(JSON.stringify(item[k]));
+  // "keep at least" is about the place it came from; the new spot starts without one
+  out.keepAtLeast = null;
+  return out;
+}
+
+/**
+ * Plan a move of `n` of `item` to `to`. Returns
+ *   { update: [{ id, lots, location? }], create: [item], remove: [id], into: name of what it joined or '' }
+ * The soonest-expiring ones move first and keep their dates.
+ */
+export function planMove(items, item, n, to) {
+  const total = totalQty(item);
+  const qty = Math.min(total, Math.max(1, Math.floor(Number(n) || 0)));
+  const target = items.find((x) => x.id !== item.id && x.location === to && sameThing(x, item));
+  const plan = { update: [], create: [], remove: [], into: target ? target.name : '' };
+  if (!total || to === item.location) return plan;
+  const { taken, left } = takeLots(item.lots, qty);
+  if (target) {
+    plan.update.push({ id: target.id, lots: mergeLots(target.lots, taken) });
+    if (left.length) plan.update.push({ id: item.id, lots: left });
+    // All of it joined the other one: the old entry goes, unless it has a "keep at least"
+    // (then it stays at 0, so the shopping list still says to restock that spot).
+    else if (item.keepAtLeast) plan.update.push({ id: item.id, lots: [] });
+    else plan.remove.push(item.id);
+  } else if (!left.length) {
+    plan.update.push({ id: item.id, lots: taken, location: to }); // everything moves: the item just changes place
+  } else {
+    plan.update.push({ id: item.id, lots: left });
+    plan.create.push(copyFor(item, to, taken));
+  }
+  return plan;
+}
+
+/**
+ * Plan a bulk scan into `location`. `rows` are the review lines:
+ *   { code, n, expires, itemId? (a known item), name, brand, size, photo (for a new one) }
+ * A known item that already lives in `location` gets +n there. One that lives somewhere else
+ * gets +n on the same thing in `location`, or a new entry there. Unknown codes become new items.
+ * Returns { add: [{ id, n, expires }], create: [item] }.
+ */
+export function planBulk(items, rows, location) {
+  const plan = { add: [], create: [] };
+  const made = []; // new entries in this plan, so two lines for the same thing join up
+  for (const r of rows) {
+    const n = Math.max(0, Math.floor(Number(r.n) || 0));
+    if (!n) continue;
+    const lot = { qty: n, expires: r.expires || '' };
+    const known = r.itemId && items.find((x) => x.id === r.itemId);
+    const probe = known || { name: r.name, brand: r.brand, size: r.size, barcodes: r.code ? [r.code] : [] };
+    const here = known && known.location === location ? known
+      : items.find((x) => x.location === location && sameThing(x, probe));
+    if (here) { plan.add.push({ id: here.id, n, expires: r.expires || '' }); continue; }
+    const again = made.find((x) => sameThing(x, probe));
+    if (again) { again.lots = mergeLots(again.lots, [lot]); continue; }
+    const fresh = known ? copyFor(known, location, [lot])
+      : { name: String(r.name || '').trim(), brand: r.brand || '', size: r.size || '', photo: r.photo || '', notes: '', homemade: null,
+        keepAtLeast: null, barcodes: r.code ? [r.code] : [], location, lots: [lot] };
+    if (known && r.code && !(fresh.barcodes || []).some((c) => codeKey(c) === codeKey(r.code))) fresh.barcodes = [...(fresh.barcodes || []), r.code];
+    made.push(fresh);
+    plan.create.push(fresh);
+  }
+  return plan;
 }
 
 // ---------- dates (plain "YYYY-MM-DD" strings, local calendar days) -------------

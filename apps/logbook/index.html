@@ -182,6 +182,14 @@ body.sheet-open{overflow:hidden}
 .istat b{font:500 1.3rem var(--f-mono)}
 .istat.warn b{color:var(--warn)}
 .invsearch input{height:44px;background:var(--surface)}
+/* Bulk scan review */
+.bulklist{display:grid;gap:8px}
+.bulkrow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2)}
+.bulkrow.new{border-style:dashed;border-color:var(--accent)}
+.bulkmain{flex:1;min-width:0;display:grid;gap:2px}.bulkmain b{overflow-wrap:anywhere}.bulkmain small{color:var(--muted)}
+.bulkmain label{font-size:.72rem}
+.bulkx{min-width:40px;padding:0}
+.sbtns3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.sbtns3 button{min-height:48px}
 .fchip{min-height:36px;padding:0 13px;border-radius:999px;font-weight:500;font-size:.88rem;background:var(--surface)}
 .fchip[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:var(--bg)}
 .ilist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
@@ -490,7 +498,7 @@ async function init(){
     const local=lsLoad();if(local.length)offerImport(local);
     const slow=setTimeout(()=>showBanner("Still connecting… your records will appear when the connection comes back."),10000);
     unsub=col.onSnapshot(snap=>{
-      clearTimeout(slow);if(!snap.metadata.fromCache)showBanner("");
+      clearTimeout(slow);if(!snap.metadata.fromCache&&!$("#banner").classList.contains("ok"))showBanner(""); // keep a confirmation (showToast) showing
       engines=snap.docs.map(d=>({id:d.id,...d.data()}));
       openLinked(!snap.metadata.fromCache);
       if(view.id&&!engines.find(e=>e.id===view.id)&&!(draft&&draft._new&&draft.id===view.id)){view.id=null;draft=null}
@@ -934,7 +942,7 @@ const costN=p=>{const n=parseFloat(String(p.cost||"").replace(/[^0-9.]/g,""));re
 
 function renderInventory(kt,wire){
   const app=$("#app");const all=partsOf();
-  if(!all.length){app.innerHTML=kt+`<div class="empty"><h2>No spare parts yet</h2><p class="muted">Keep a list of the filters, plugs, belts and fluids on your shelf.</p><div class="actions" style="justify-content:center"><button class="primary" id="addEmpty">+ Add part</button>${scanBtn("invScan","Scan a barcode",true)}</div></div>`;$("#addEmpty").onclick=()=>openPart(null);if($("#invScan"))$("#invScan").onclick=startScan;wire();return}
+  if(!all.length){app.innerHTML=kt+`<div class="empty"><h2>No spare parts yet</h2><p class="muted">Keep a list of the filters, plugs, belts and fluids on your shelf.</p><div class="actions" style="justify-content:center"><button class="primary" id="addEmpty">+ Add part</button>${scanBtn("invScan","Scan a barcode",true)}${scanBtn("invBulk","Bulk scan",true)}</div></div>`;$("#addEmpty").onclick=()=>openPart(null);if($("#invScan"))$("#invScan").onclick=startScan;if($("#invBulk"))$("#invBulk").onclick=startBulk;wire();return}
   const low=all.filter(isLow).length, value=all.reduce((s,p)=>s+costN(p)*qtyN(p),0);
   const q=invQuery.trim().toLowerCase();
   const shown=all.filter(p=>(invFilter==="All"||(invFilter==="Low stock"?isLow(p):p.category===invFilter))&&
@@ -945,7 +953,7 @@ function renderInventory(kt,wire){
     <div class="invstats"><div class="istat"><small>Parts</small><b>${all.length}</b></div>
       <div class="istat ${low?"warn":""}"><small>Low stock</small><b>${low}</b></div>
       <div class="istat"><small>Value</small><b>${value?money(value):"—"}</b></div></div>
-    <div class="invsearchrow"><label class="invsearch">Search parts<input type="search" id="invQ" value="${esc(invQuery)}" placeholder="Name, part #, or what it fits"></label>${scanBtn("invScan")}</div>
+    <div class="invsearchrow"><label class="invsearch">Search parts<input type="search" id="invQ" value="${esc(invQuery)}" placeholder="Name, part #, or what it fits"></label>${scanBtn("invScan")}${scanBtn("invBulk","Bulk scan",true)}</div>
     <div class="chips">${cats.map(c=>`<button class="fchip" data-cat="${esc(c)}" aria-pressed="${c===invFilter}">${esc(c)}</button>`).join("")}</div>
     <div class="ilist">${shown.length?shown.map(p=>{const fits=allFits(p).map(nameOf).filter(Boolean);
       return `<article class="iitem ${isLow(p)?"low":""}">
@@ -956,6 +964,7 @@ function renderInventory(kt,wire){
       </article>`}).join(""):`<p class="muted">No parts match. Try another search or filter.</p>`}</div></div>`;
   const qi=$("#invQ");qi.addEventListener("input",()=>{invQuery=qi.value;clearTimeout(qi._t);qi._t=setTimeout(()=>{render();const n=$("#invQ");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}},250)});
   if($("#invScan"))$("#invScan").onclick=startScan;
+  if($("#invBulk"))$("#invBulk").onclick=startBulk;
   app.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{invFilter=b.dataset.cat;render()});
   app.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openPart(engines.find(e=>e.id===b.dataset.edit)));
   app.querySelectorAll("[data-dq]").forEach(b=>b.onclick=async()=>{const p=engines.find(e=>e.id===b.dataset.id);if(!p)return;
@@ -1047,6 +1056,71 @@ function startScan(){if(!window.GTScan)return;
   GTScan.open({title:"Scan a part",allowKeep:true,onCode:(r,{keep})=>{const hits=scanFind(r.text);
     if(keep)return hits.length?hits.map(p=>`${p.name||p.number||"Part"}: ${invLine(p)}`).join(" · "):`Not in inventory: ${r.text}`;
     scanRes={...r,step:"result",linkQ:"",back:document.activeElement};renderScanSheet()}})}
+/* ---------- Bulk scan: many parts in a row, then review and save them all at once ----------
+   Each scan only adds to a tally; nothing is saved until "Save all". Parts you have get +N;
+   codes that aren't on any part become new parts (give each a name), with an optional
+   shelf / location for the new ones. Uses the shared scanner with "Keep scanning" ticked. */
+let bulk=null; // { rows: [{ key, code, id, n, name, retail }], loc }
+function startBulk(){if(!window.GTScan)return;
+  if(!bulk)bulk={rows:[],loc:""};
+  GTScan.open({title:"Bulk scan parts in",allowKeep:true,keep:true,
+    onCode:r=>{const hit=scanFind(r.text)[0],retail=GTScan.util.isRetail(r.text);
+      const key=hit?"p:"+hit.id:"c:"+normPN(r.text);
+      let row=bulk.rows.find(x=>x.key===key);
+      if(!row){row={key,code:r.text,id:hit?hit.id:"",n:0,name:"",retail};bulk.rows.push(row)}
+      row.n++;
+      return hit?`${hit.name||hit.number||"Part"}: +${row.n} so far`:`New code ${r.text}: ${row.n}. Name it when you're done.`},
+    // after a scan with "Keep scanning" off, the scan arrives just after the screen closes
+    onClose:()=>setTimeout(renderBulk,0)})}
+function closeBulk(){const w=$("#bulkWrap");if(w)w.remove();document.body.classList.remove("sheet-open")}
+function renderBulk(focusSel){closeBulk();if(!bulk)return;
+  bulk.rows=bulk.rows.filter(r=>r.n>0);
+  if(!bulk.rows.length){bulk=null;return}
+  const total=bulk.rows.reduce((t,r)=>t+r.n,0),fresh=bulk.rows.filter(r=>!r.id);
+  const locs=[...new Set(partsOf().map(p=>p.location).filter(Boolean))].sort();
+  const rows=bulk.rows.map((r,i)=>{const p=r.id&&engines.find(e=>e.id===r.id);
+    const step=`<div class="stepper"><button type="button" aria-label="One less" data-bn="-1" data-i="${i}">−</button><span class="mono">${r.n}</span><button type="button" aria-label="One more" data-bn="1" data-i="${i}">+</button></div>`;
+    const x=`<button type="button" class="ghost bulkx" data-bx="${i}" aria-label="Remove this line">✕</button>`;
+    if(p)return `<div class="bulkrow"><div class="bulkmain"><b>${esc(p.name||"Unnamed part")}</b><span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" ")||"No part #")}</span>
+      <small>${qtyN(p)} on hand → ${qtyN(p)+r.n}${p.location?" · "+esc(p.location):""}</small></div>${step}${x}</div>`;
+    return `<div class="bulkrow new"><div class="bulkmain"><label>New part<input data-bname="${i}" value="${esc(r.name)}" placeholder="What is it? e.g. Oil filter" maxlength="120"></label>
+      <small>${r.retail?"Barcode":"Part #"} <span class="mono">${esc(r.code)}</span></small></div>${step}${x}</div>`}).join("");
+  const w=document.createElement("div");w.id="bulkWrap";w.className="sheetwrap";
+  w.innerHTML=`<form class="sheet" id="bulkForm" role="dialog" aria-modal="true" aria-labelledby="bulkTitle">
+    <div class="sheethead"><div><small>Nothing is saved until you tap Save all</small><h2 id="bulkTitle">Review ${total} scan${total===1?"":"s"}</h2></div>
+      <button type="button" class="ghost sheetx" id="bkClose" aria-label="Close"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
+    <div class="bulklist">${rows}</div>
+    ${fresh.length?`<label>Shelf / location for the new parts (optional)<input id="bkLoc" list="bkLocs" value="${esc(bulk.loc)}" placeholder="e.g. Shelf B" maxlength="60"></label><datalist id="bkLocs">${locs.map(l=>`<option value="${esc(l)}"></option>`).join("")}</datalist>`:""}
+    <p class="smsg" id="bkMsg" role="alert"></p>
+    <div class="sbtns3"><button type="button" id="bkMore">Scan more</button><button type="button" id="bkDrop">Discard</button><button type="submit" class="primary" id="bkSave">Save all</button></div>
+  </form>`;
+  document.body.appendChild(w);document.body.classList.add("sheet-open");
+  const msg=t=>{$("#bkMsg").textContent=t};
+  w.querySelectorAll("[data-bname]").forEach(inp=>inp.addEventListener("input",()=>{bulk.rows[+inp.dataset.bname].name=inp.value}));
+  const loc=$("#bkLoc");if(loc)loc.addEventListener("input",()=>{bulk.loc=loc.value});
+  w.querySelectorAll("[data-bn]").forEach(b=>b.onclick=()=>{const r=bulk.rows[+b.dataset.i];r.n=Math.max(0,r.n+parseInt(b.dataset.bn,10));renderBulk()});
+  w.querySelectorAll("[data-bx]").forEach(b=>b.onclick=()=>{bulk.rows.splice(+b.dataset.bx,1);renderBulk()});
+  $("#bkMore").onclick=()=>{closeBulk();startBulk()};
+  let sure=false;
+  $("#bkDrop").onclick=e=>{if(!sure){sure=true;e.currentTarget.textContent="Tap again to discard";return}bulk=null;closeBulk()};
+  $("#bkClose").onclick=()=>{closeBulk();showToast("Your scans are kept: tap Bulk scan to finish them.")};
+  w.addEventListener("keydown",ev=>{if(ev.key==="Escape"){ev.preventDefault();$("#bkClose").click()}});
+  $("#bulkForm").onsubmit=async ev=>{ev.preventDefault();
+    const unnamed=bulk.rows.findIndex(r=>!r.id&&!r.name.trim());
+    if(unnamed>=0){msg("Give every new part a name (or remove that line).");const n=w.querySelector(`[data-bname="${unnamed}"]`);if(n)n.focus();return}
+    const btn=$("#bkSave");btn.disabled=true;msg("Saving…");
+    const now=new Date().toISOString(),place=(bulk.loc||"").trim();let made=0,added=0;
+    try{
+      for(const r of bulk.rows){
+        const p=r.id&&engines.find(e=>e.id===r.id);
+        if(p){await saveEngine({...p,qty:String(qtyN(p)+r.n)});added+=r.n;continue}
+        await saveEngine({id:uid(),kind:"part",name:r.name.trim(),brand:"",number:r.retail?"":r.code,barcodes:r.retail?[r.code]:[],
+          category:guessCat(r.name),qty:String(r.n),reorderAt:"",location:place,cost:"",source:"",fits:[],notes:"",createdAt:now});
+        made++;added+=r.n}
+      bulk=null;closeBulk();showToast(`Saved ${added} part${added===1?"":"s"}${made?` (${made} new)`:""}.`)}
+    catch(err){btn.disabled=false;msg("Couldn't save everything: "+(err.message||err.code)+". Saved lines are done; try Save all again for the rest.")}};
+  const f=focusSel&&w.querySelector(focusSel);if(f)f.focus();else{const n=w.querySelector("[data-bname]");(n||$("#bkSave")).focus()}
+}
 function closeScanSheet(){const back=scanRes&&scanRes.back;scanRes=null;const w=$("#scanWrap");if(w)w.remove();document.body.classList.remove("sheet-open");if(back&&back.isConnected)back.focus()}
 function renderScanSheet(focusSel){const old=$("#scanWrap");if(old)old.remove();if(!scanRes)return;
   const r=scanRes,hits=scanFind(r.text);

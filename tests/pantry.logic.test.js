@@ -178,3 +178,86 @@ describe('Pantry: label images', () => {
     assert.equal(labelFileName({ name: 'Strawberry Jam!', batch: 42 }, '40x30'), 'label-strawberry-jam-batch42-40x30mm.png');
   });
 });
+
+// ---------- moving and bulk scanning ---------------------------------------------------
+import { LOCATIONS, takeLots, mergeLots, sameThing, planMove, planBulk } from '../src/pantry/logic.js';
+
+describe('Pantry: moving things', () => {
+  const beans = (extra = {}) => ({ id: 'a', name: 'Green beans', brand: 'Del Monte', size: '14.5 oz', location: 'Supplies', barcodes: ['024000163084'],
+    keepAtLeast: null, lots: [{ qty: 2, expires: '2027-03-01' }, { qty: 4, expires: '2027-06-01' }], ...extra });
+
+  test('Basement is one of the places', () => {
+    assert.deepEqual(LOCATIONS, ['Pantry', 'Fridge', 'Freezer', 'Supplies', 'Basement']);
+  });
+  test('takeLots takes the soonest-expiring first and keeps the dates', () => {
+    assert.deepEqual(takeLots(beans().lots, 3), { taken: [{ qty: 2, expires: '2027-03-01' }, { qty: 1, expires: '2027-06-01' }], left: [{ qty: 3, expires: '2027-06-01' }] });
+    assert.deepEqual(mergeLots([{ qty: 1, expires: '2027-06-01' }], [{ qty: 2, expires: '2027-06-01' }, { qty: 1, expires: '' }]),
+      [{ qty: 3, expires: '2027-06-01' }, { qty: 1, expires: '' }]);
+  });
+  test('the same thing: a shared barcode, or the same name, brand and size', () => {
+    assert.ok(sameThing(beans(), { name: 'Beans', barcodes: ['0024000163084'] }));
+    assert.ok(sameThing(beans({ barcodes: [] }), { name: 'green beans ', brand: 'del monte', size: '14.5 OZ', barcodes: [] }));
+    assert.ok(!sameThing(beans({ barcodes: [] }), { name: 'Green beans', brand: 'Libby', size: '14.5 oz', barcodes: [] }));
+  });
+  test('move some to a place that doesn’t have it: a new entry there, with the oldest ones', () => {
+    const it = beans();
+    const p = planMove([it], it, 3, 'Pantry');
+    assert.deepEqual(p.update, [{ id: 'a', lots: [{ qty: 3, expires: '2027-06-01' }] }]);
+    assert.equal(p.create.length, 1);
+    assert.equal(p.create[0].location, 'Pantry');
+    assert.equal(p.create[0].name, 'Green beans');
+    assert.deepEqual(p.create[0].barcodes, ['024000163084']);
+    assert.deepEqual(p.create[0].lots, [{ qty: 2, expires: '2027-03-01' }, { qty: 1, expires: '2027-06-01' }]);
+  });
+  test('move all of it to a place that doesn’t have it: the item just changes place', () => {
+    const it = beans();
+    const p = planMove([it], it, 6, 'Basement');
+    assert.deepEqual(p.update, [{ id: 'a', lots: it.lots.map((l) => ({ ...l })), location: 'Basement' }]);
+    assert.deepEqual(p.create, []);
+  });
+  test('move into a place that already has it: they join up', () => {
+    const it = beans();
+    const there = { id: 'b', name: 'Green beans', brand: 'Del Monte', size: '14.5 oz', location: 'Pantry', barcodes: ['024000163084'], lots: [{ qty: 1, expires: '2027-06-01' }] };
+    const some = planMove([it, there], it, 3, 'Pantry');
+    assert.equal(some.into, 'Green beans');
+    assert.deepEqual(some.update, [{ id: 'b', lots: [{ qty: 2, expires: '2027-03-01' }, { qty: 2, expires: '2027-06-01' }] }, { id: 'a', lots: [{ qty: 3, expires: '2027-06-01' }] }]);
+    const all = planMove([it, there], it, 6, 'Pantry');
+    assert.deepEqual(all.remove, ['a'], 'all of it joined: the old entry goes');
+    const kept = planMove([beans({ keepAtLeast: 4 }), there], beans({ keepAtLeast: 4 }), 6, 'Pantry');
+    assert.deepEqual(kept.remove, []);
+    assert.deepEqual(kept.update[1], { id: 'a', lots: [] }, 'unless it has a "keep at least": then it stays at 0');
+  });
+  test('nothing to move, or the same place: no changes', () => {
+    const empty = beans({ lots: [] });
+    assert.deepEqual(planMove([empty], empty, 1, 'Pantry'), { update: [], create: [], remove: [], into: '' });
+    const it = beans();
+    assert.deepEqual(planMove([it], it, 1, 'Supplies').update, []);
+  });
+});
+
+describe('Pantry: bulk scanning', () => {
+  const items = [
+    { id: 'milk', name: 'Milk', location: 'Fridge', barcodes: ['111'], lots: [{ qty: 1, expires: '' }] },
+    { id: 'beans', name: 'Green beans', location: 'Supplies', barcodes: ['222'], keepAtLeast: 6, lots: [{ qty: 6, expires: '' }] },
+  ];
+  test('known, already here: +n there (with the date)', () => {
+    assert.deepEqual(planBulk(items, [{ code: '111', n: 2, itemId: 'milk', expires: '2026-12-01' }], 'Fridge'),
+      { add: [{ id: 'milk', n: 2, expires: '2026-12-01' }], create: [] });
+  });
+  test('known, but it lives somewhere else: a new entry in this place (or +n on the one there)', () => {
+    const p = planBulk(items, [{ code: '222', n: 3, itemId: 'beans' }], 'Pantry');
+    assert.equal(p.create.length, 1);
+    assert.equal(p.create[0].location, 'Pantry');
+    assert.equal(p.create[0].name, 'Green beans');
+    assert.equal(p.create[0].keepAtLeast, null);
+    assert.deepEqual(p.create[0].lots, [{ qty: 3, expires: '' }]);
+    const withPantryOne = [...items, { id: 'beans2', name: 'Green beans', location: 'Pantry', barcodes: ['222'], lots: [] }];
+    assert.deepEqual(planBulk(withPantryOne, [{ code: '222', n: 3, itemId: 'beans' }], 'Pantry'), { add: [{ id: 'beans2', n: 3, expires: '' }], create: [] });
+  });
+  test('unknown codes become new items; zero lines are skipped', () => {
+    const p = planBulk(items, [{ code: '333', n: 4, name: 'Butter', brand: 'Land O Lakes', size: '1 lb' }, { code: '444', n: 0, name: 'x' }], 'Fridge');
+    assert.deepEqual(p.add, []);
+    assert.equal(p.create.length, 1);
+    assert.deepEqual({ ...p.create[0] }, { name: 'Butter', brand: 'Land O Lakes', size: '1 lb', photo: '', notes: '', homemade: null, keepAtLeast: null, barcodes: ['333'], location: 'Fridge', lots: [{ qty: 4, expires: '' }] });
+  });
+});

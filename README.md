@@ -146,6 +146,13 @@ days without a commit to the repo; re-enable it under Actions if that happens.
 
 `/apps/pantry`: food and household supplies, **shared by a household**, logged in and out with the Logbook's
 barcode scanner (`public/apps/scanner.js`: phone camera or a Bluetooth scanner in keyboard mode).
+Places: Pantry, Fridge, Freezer, Supplies and Basement (`LOCATIONS` in `src/pantry/logic.js`), plus any typed in.
+
+- **Bulk scan in:** pick a place, scan a load of things one after another (the scanner stays open), check the
+  list (counts, optional dates, names for new codes, looked up in Open Food Facts) and save it all at once.
+  Something kept elsewhere gets an entry in the new place too (`planBulk`).
+- **Move:** an item, or some of it, to another place. The soonest-expiring go first and keep their dates;
+  if the same thing (shared barcode, or same name, brand and size) is already there, they join up (`planMove`).
 
 - **Shared, with roles.** Unlike the other apps, a pantry belongs to several people: `pantries/{pid}` lists
   them in `members: {uid: role}` (+ `memberIds`, `memberNames`). Owner: invites, roles, settings. Member:
