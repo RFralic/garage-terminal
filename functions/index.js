@@ -2,6 +2,7 @@
 //
 //   onPostCreated / onPostDeleted: keep the forum counters up to date (below)
 //   moderate: every sysop moderation action, always logged (see moderate.js)
+//   bbs, bbsKnock, bbsRequestEmail, bbsWelcomeEmail: the BBS (see bbs.js)
 //
 // These run on Google's servers (not in the browser) with full access, so they
 // can update numbers that members are never allowed to touch directly:
@@ -18,9 +19,11 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { onDocumentCreated, onDocumentDeleted } from 'firebase-functions/v2/firestore';
+import { defineSecret } from 'firebase-functions/params';
 import { onCall } from 'firebase-functions/v2/https';
 import { setGlobalOptions, logger } from 'firebase-functions/v2';
 import { moderateHandler } from './moderate.js';
+import { bbsHandler, knockHandler, requestEmail, welcomeEmail } from './bbs.js';
 
 initializeApp();
 const db = getFirestore();
@@ -74,3 +77,17 @@ export const onPostDeleted = onDocumentDeleted(POST_PATH, async (event) => {
 // Called from the page by the sysop. Checks the caller is sysop itself, so it's
 // safe for it to be reachable from the internet (that's how pages call it).
 export const moderate = onCall({ maxInstances: 3 }, moderateHandler);
+
+// ---------- the BBS ------------------------------------------------------------------
+// Secrets live in Google Cloud Secret Manager (see README.md, "BBS"), never in the repo:
+//   RESEND_API_KEY  sends the BBS emails (same Resend account as the Morning Brief)
+//   BBS_PASSCODE    the 6-digit passcode, used only when the sysop switches it on
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+const BBS_PASSCODE = defineSecret('BBS_PASSCODE');
+
+export const bbs = onCall({ maxInstances: 3 }, bbsHandler);
+export const bbsKnock = onCall({ maxInstances: 3, secrets: [BBS_PASSCODE] }, (request) => knockHandler(request, BBS_PASSCODE.value()));
+export const bbsRequestEmail = onDocumentCreated({ document: 'bbsRequests/{uid}', secrets: [RESEND_API_KEY] },
+  (event) => requestEmail(event, RESEND_API_KEY.value()));
+export const bbsWelcomeEmail = onDocumentCreated({ document: 'bbsMembers/{uid}', secrets: [RESEND_API_KEY] },
+  (event) => welcomeEmail(event, RESEND_API_KEY.value()));

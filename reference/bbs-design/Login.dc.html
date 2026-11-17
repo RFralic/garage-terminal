@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BBS log in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&amp;family=Barlow:wght@400;500;600&amp;family=Space+Mono:wght@400;700&amp;display=swap">
+<style>
+body{margin:0;background:#1A1916}
+a{color:#F59A4E}a:hover{color:#FFB877}
+@keyframes lblink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.lcur{animation:lblink 1s steps(1) infinite}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #1A1916; color: #EFEAE0; font-family: Barlow, system-ui, sans-serif; font-size: 16px; line-height: 1.4; display: flex; flex-direction: column">
+
+<header style="background: #0F0E0C; padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 12px">
+<img src="/_blob/4c4d92d0d8f2a55fcc100ea507098b9b" alt="Garage Terminal logo" style="width: 48px; height: 48px; flex: none">
+<div style="display: flex; flex-direction: column">
+<span style="font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #F2A65A">PRIVATE · MEMBERS ONLY</span>
+<h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 28px; line-height: 1; text-transform: uppercase">The Garage_Terminal BBS</h1>
+</div>
+</div>
+<div aria-hidden="true" style="height: 8px; background: repeating-linear-gradient(135deg, #F2A65A 0 10px, #0F0E0C 10px 20px)"></div>
+</header>
+
+<div style="flex: 1; padding: 20px 16px; display: flex; flex-direction: column; gap: 18px">
+<div style="font-family: 'Space Mono', monospace; font-size: 13px; color: #A9A196; line-height: 1.6">ATDT GARAGE_TERMINAL<br><span style="color: #F07A2A">CONNECT 2400/ARQ ... OK</span></div>
+
+<ol aria-label="Steps" style="{{olStyle}}">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="3">
+<li style="{{s.style}}">{{s.label}}</li>
+</sc-for>
+</ol>
+
+<sc-if value="{{s0}}" hint-placeholder-val="{{true}}">
+<section style="display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 26px; text-transform: uppercase">Who's at the door?</h2>
+<p style="margin: 0; color: #BDB5A8">Sign in with Google so the sysop knows who's asking. Nobody else sees your email.</p>
+<button type="button" onClick="{{goPass}}" style="min-height: 52px; border: 2px solid #EFEAE0; border-radius: 4px; background: #EFEAE0; color: #140F0A; font: 600 17px Barlow, sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12.2c0-.6-.1-1.2-.2-1.7H12v3.3h4.5a4 4 0 0 1-1.7 2.6v2.1h2.8c1.6-1.5 2.4-3.7 2.4-6.3z"/><path d="M12 20.5c2.3 0 4.2-.8 5.6-2l-2.8-2.1c-.8.5-1.7.8-2.8.8-2.2 0-4-1.5-4.7-3.4H4.4v2.2A8.5 8.5 0 0 0 12 20.5z"/></svg>Sign in with Google</button>
+<a href="#" style="font-family: 'Space Mono', monospace; font-size: 13px; align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center">[ esc ] back to the site</a>
+</section>
+</sc-if>
+
+<sc-if value="{{s1}}" hint-placeholder-val="{{false}}">
+<section style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #23211D; border: 2px solid #4A463F; border-radius: 4px">
+<span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 4px; background: #F07A2A; color: #140F0A; font: 700 14px 'Space Mono', monospace; display: flex; align-items: center; justify-content: center">RF</span>
+<span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 600">Signed in as [handle]</span><span style="font-size: 13px; color: #A9A196">Not you? <a href="#">Switch account</a></span></span>
+</div>
+<h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 26px; text-transform: uppercase">Enter the passcode</h2>
+<label for="pc" style="font-size: 14px; color: #BDB5A8">The code the sysop gave you</label>
+<div style="position: relative">
+<div aria-hidden="true" style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px">
+<sc-for list="{{boxes}}" as="b" hint-placeholder-count="6">
+<span style="{{b.style}}">{{b.ch}}</span>
+</sc-for>
+</div>
+<input id="pc" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" value="{{code}}" onChange="{{typeCode}}" style="position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; margin: 0; padding: 0; border: 0; opacity: 0; font-size: 16px; color: transparent; background: transparent; caret-color: transparent; cursor: text">
+</div>
+<sc-if value="{{wrong}}" hint-placeholder-val="{{false}}"><p role="alert" style="margin: 0; color: #FF9A8A; font-size: 14px">That's not it. 3 tries left before a 15-minute lockout.</p></sc-if>
+<button type="button" onClick="{{submit}}" style="min-height: 52px; border: 2px solid #F07A2A; border-radius: 4px; background: #F07A2A; color: #140F0A; font: 700 20px 'Barlow Condensed', sans-serif; text-transform: uppercase; cursor: pointer">Knock</button>
+<span style="font-size: 13px; color: #A9A196">Tap the boxes and type. Try a wrong code to see the warning; any 6 digits starting with 1 works in this mockup.</span>
+</section>
+</sc-if>
+
+<sc-if value="{{s2}}" hint-placeholder-val="{{false}}">
+<section style="display: flex; flex-direction: column; gap: 14px">
+<div style="border: 2px solid #F2A65A; background: #23211D; border-radius: 4px; padding: 14px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: #F2A65A; letter-spacing: 0.1em">REQUEST SENT</span>
+<h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 26px; text-transform: uppercase">Hang tight, [handle]</h2>
+<p style="margin: 0; color: #BDB5A8">The sysop will let you in soon. You'll get an email when you're approved, and next time the <span style="font-family: 'Space Mono', monospace; color: #EFEAE0">&gt;_</span> brings you straight in.</p>
+</div>
+<div style="font-family: 'Space Mono', monospace; font-size: 13px; color: #A9A196">Waiting for the sysop<span class="lcur" style="color: #F07A2A">█</span></div>
+<a href="#" style="min-height: 48px; display: flex; align-items: center; justify-content: center; border: 2px solid #4A463F; border-radius: 4px; text-decoration: none; color: #EFEAE0; font: 700 18px 'Barlow Condensed', sans-serif; text-transform: uppercase">Back to Garage Terminal</a>
+<button type="button" onClick="{{restart}}" style="all: unset; cursor: pointer; font-family: 'Space Mono', monospace; font-size: 12px; color: #A9A196; min-height: 44px">↺ Start the mockup over</button>
+</section>
+</sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"withPasscode":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(p){super(p);this.state={step:0,code:'',wrong:false};}
+  renderVals() {
+    const st=this.state.step, code=this.state.code, pc=!!this.props.withPasscode;
+    const labels=pc?['1 · Sign in','2 · Passcode','3 · Wait']:['1 · Sign in','2 · Wait'];
+    const steps=labels.map((label,i)=>({label,style:'padding: 6px 4px; text-align: center; border-radius: 4px; font: 700 12px Space Mono, monospace; '+(i===st?'background: #F07A2A; color: #140F0A':i<st?'background: #2A2722; color: #F2A65A':'background: #23211D; color: #A9A196')}));
+    const boxes=[0,1,2,3,4,5].map(i=>({ch:i<code.length?'•':(i===code.length?'_':''),style:'height: 52px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font: 700 24px Space Mono, monospace; color: #F07A2A; background: '+(i===code.length?'#2A2722':'#23211D')+'; border: 2px solid '+(i<code.length||i===code.length?'#F07A2A':(this.state.wrong?'#FF9A8A':'#4A463F'))}));
+    return {steps,boxes,code,wrong:this.state.wrong,s0:st===0,s1:pc&&st===1,s2:st===(pc?2:1),
+      olStyle:'list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat('+labels.length+', minmax(0, 1fr)); gap: 6px',
+      goPass:()=>this.setState({step:1}),
+      typeCode:e=>this.setState({code:String(e.target.value||'').replace(/\D/g,'').slice(0,6),wrong:false}),
+      submit:()=>{if(code.length===6&&code[0]==='1')this.setState({step:2});else this.setState({wrong:true});},
+      restart:()=>this.setState({step:0,code:'',wrong:false})};
+  }
+}
+</script>
+</body>
+</html>

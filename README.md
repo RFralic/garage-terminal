@@ -175,6 +175,51 @@ name, description, icon (put it in `public/img/`) and link, and set `data-catego
 
 The counts on the buttons and the "N apps" label update by themselves.
 
+## The BBS (private, members only)
+
+The Garage_Terminal BBS lives at `/bbs` (`bbs/index.html`, `src/pages/bbs.js`, `src/bbs/`, `src/styles/bbs.css`;
+designs in `reference/bbs-design/`, not deployed). It isn't linked from any menu and is `noindex`.
+
+- **The door:** a dim, blinking `>_` at the end of every site footer (`src/lib/door.js`). Tap it and type the
+  **door word** (default `backroom`; the sysop changes it in `/mod#bbs` → Settings). On a computer, typing the
+  word anywhere on a page works too. Members who are signed in and let in skip the word. The word isn't a
+  secret (this repo is public); it only hides the door.
+- **Getting in:** sign in with Google (and pick a handle) → a join request (`bbsRequests/{uid}`) → the sysop or a
+  co-sysop approves it in `/mod#bbs`. Denied people can't ask again for 30 days (`bbsDenied/{uid}`) unless
+  that's cleared. Optional **passcode** (off by default): 6 digits, checked by the `bbsKnock` Cloud Function,
+  5 tries then a 15-minute lockout.
+- **Who decides:** every change to the member list and BBS settings goes through the `bbs` Cloud Function
+  (`functions/bbs.js`), which checks powers and writes the mod log. Co-sysops can approve, deny, add and remove
+  members (`/mod` shows them only the BBS tab); only the sysop can make co-sysops and change settings.
+  `firestore.rules` (BBS section) lets nobody outside the member list read anything, checked on every read,
+  so removing someone cuts them off at once. Tests: `tests/bbs.rules.test.js`, `tests/bbs.functions.test.js`.
+- **Emails** go out from Cloud Functions the moment something happens, from `brief@garageterminal.com`
+  through Resend: "New BBS request" to the sysop, "You're in" to people who are approved or added. Nothing is
+  sent to people who are denied or removed.
+
+### Secrets for the BBS (Google Cloud Secret Manager)
+
+The BBS functions read two secrets from Secret Manager, never from the repo, the page or Firestore. **Both
+must exist before the BBS reaches `main`,** or the "Deploy Cloud Functions" step fails (the site and rules
+still deploy).
+
+1. Open the project in the Google Cloud console: https://console.cloud.google.com/security/secret-manager?project=garage-terminal-15499
+   If asked, click **Enable** for the Secret Manager API.
+2. **+ Create secret** → Name `RESEND_API_KEY` → Secret value: the same Resend API key as the
+   `RESEND_API_KEY` GitHub secret (Resend → API Keys; create a new one if you don't have it saved) → **Create secret**.
+3. **+ Create secret** → Name `BBS_PASSCODE` → Secret value: any 6 digits, e.g. `482916` (it's only used when
+   you switch "Require a passcode" on, but it has to exist) → **Create secret**.
+4. Let the deploy account manage the secrets' access: **IAM & Admin → IAM** → find the service account
+   GitHub deploys with (the `client_email` in the `FIREBASE_SERVICE_ACCOUNT` GitHub secret) → pencil icon →
+   **+ Add another role** → **Secret Manager Admin** → **Save**. On the next deploy, the Firebase tools give
+   the functions read access to these two secrets.
+5. Merge the BBS pull request (or re-run the newest **Deploy** run on `main`: Actions → Deploy → the run →
+   **Re-run all jobs**).
+
+**Changing the passcode:** Secret Manager → `BBS_PASSCODE` → **+ New version** → the new 6 digits → **Add new
+version**, then re-run the newest Deploy run on `main` (functions use the version that was current when they
+were deployed). Tell members the new code yourself; it's never shown anywhere on the site.
+
 ## Security table → tests
 
 Every row of the security table in `PLAN.md` has its own block in `tests/plan-table.rules.test.js`;
@@ -192,6 +237,7 @@ the other test files go into detail:
 | One post per 20 seconds | `forum.rules` (rate limit) |
 | Hidden items and drafts invisible except to the sysop | `forum.rules`, `library.rules`, `plan-table` |
 | Storage: published files public, sysop-only uploads/deletes, 50 MB | `library.rules` (Storage) |
+| BBS: members only (checked on every read), own request only, sysop vs co-sysop powers, passcode lockout | `bbs.rules`, `bbs.functions` |
 
 Note: the Storage tests need the Storage emulator to read Firestore; they pass on GitHub. In some
 sandboxed environments with an HTTP proxy, the emulator can't reach Firestore and three of them fail.

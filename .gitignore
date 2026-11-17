@@ -6,3 +6,5 @@ dist/
 # Never commit service-account keys
 *service-account*.json
 check-phone-output/
+# Local secrets for the Functions emulator (never commit)
+functions/.secret.local

@@ -41,11 +41,15 @@ One Firebase-hosted site with a home page, an open forum, a wiki and library, an
 | Forum | Everyone reads | Members with a handle post and reply; sysop moderates |
 | Wiki & library | Everyone reads and downloads | Sysop only, from the upload page |
 | Moderation | Sysop only | Sysop only |
-| BBS (private) | Hidden for now | Built in a later round |
+| BBS (private) | Approved members only, through the hidden `>_` door | Members post, chat and share files; sysop and co-sysops let people in and moderate |
 
 The apps (RepClock, Engine & Vehicle Logbook) stay where they are; the home page links out to them.
 
-Note on `garage-terminal.html`: the BBS menu link, card and section, and the hero buttons, are switched off with the `hidden` attribute (plus a `[hidden]{display:none!important}` rule). Keep them hidden; they come back when the BBS is built.
+Note on `garage-terminal.html`: the hero buttons are switched off with the `hidden` attribute. The old BBS menu link, card and section were removed when the BBS was built: it's reached only through the `>_` in the footer.
+
+### The BBS
+
+A private board at `/bbs`, deliberately different in look ("shop floor, dark"). The way in is a dim, blinking `>_` in every footer plus a door word set by the sysop; people sign in with Google, ask to join, and the sysop or a co-sysop lets them in from `/mod`. Inside: Boards (threads with photos), Files (a members-only file cabinet), Shop Talk (live chat that clears after 7 days; messages worth keeping are saved to a board) and Crew. Firestore and Storage rules check the member list on every read. Details and the secrets it needs: README.md, "The BBS".
 
 ## Stack, pages and look
 

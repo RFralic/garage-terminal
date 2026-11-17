@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BBS live chat, Shop Talk</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&amp;family=Barlow:wght@400;500;600&amp;family=Space+Mono:wght@400;700&amp;display=swap">
+<style>
+body{margin:0;background:#1A1916}
+a{color:#F59A4E}a:hover{color:#FFB877}
+@keyframes cblink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.ccur{animation:cblink 1s steps(1) infinite}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #1A1916; color: #EFEAE0; font-family: Barlow, system-ui, sans-serif; font-size: 16px; line-height: 1.4; display: flex; flex-direction: column; position: relative; overflow: hidden">
+
+<header style="background: #0F0E0C; padding: 12px 16px 10px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 10px">
+<img src="/_blob/4c4d92d0d8f2a55fcc100ea507098b9b" alt="Garage Terminal logo" style="width: 36px; height: 36px; flex: none">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<span style="font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #F2A65A">THE GARAGE_TERMINAL BBS</span>
+<h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 24px; line-height: 1; text-transform: uppercase">Shop Talk</h1>
+</div>
+<span style="flex: none; font-family: 'Space Mono', monospace; font-size: 12px; color: #EFEAE0; border: 2px solid #4A463F; border-radius: 4px; padding: 4px 8px"><span style="color: #F07A2A">●</span> 3 here</span>
+</div>
+<div aria-hidden="true" style="height: 6px; background: repeating-linear-gradient(135deg, #F2A65A 0 10px, #0F0E0C 10px 20px)"></div>
+</header>
+
+<nav aria-label="BBS sections" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 2px solid #4A463F; background: #23211D">
+<a href="WorkshopDark.dc.html" style="min-height: 46px; display: flex; align-items: center; justify-content: center; color: #EFEAE0; text-decoration: none; font: 700 16px 'Barlow Condensed', sans-serif; text-transform: uppercase">Boards</a>
+<a href="#" style="min-height: 46px; display: flex; align-items: center; justify-content: center; color: #EFEAE0; text-decoration: none; font: 700 16px 'Barlow Condensed', sans-serif; text-transform: uppercase; border-left: 2px solid #4A463F">Files</a>
+<a href="#" aria-current="page" style="min-height: 46px; display: flex; align-items: center; justify-content: center; background: #F07A2A; color: #140F0A; text-decoration: none; font: 700 16px 'Barlow Condensed', sans-serif; text-transform: uppercase">Chat</a>
+<a href="#" style="min-height: 46px; display: flex; align-items: center; justify-content: center; color: #EFEAE0; text-decoration: none; font: 700 16px 'Barlow Condensed', sans-serif; text-transform: uppercase; border-left: 2px solid #4A463F">Crew</a>
+</nav>
+
+<div style="padding: 8px 16px; background: #23211D; border-bottom: 1px dashed #4A463F; font-size: 13px; color: #BDB5A8">Messages clear after <b style="color: #EFEAE0">7 days</b>. Tap a message to save it to a board.</div>
+
+<div role="log" aria-label="Chat messages" aria-live="polite" style="flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="text-align: center; font-family: 'Space Mono', monospace; font-size: 12px; color: #A9A196">— Tonight —</div>
+<sc-for list="{{msgs}}" as="m" hint-placeholder-count="6">
+<sc-if value="{{m.sys}}" hint-placeholder-val="{{false}}"><div style="font-family: 'Space Mono', monospace; font-size: 12px; color: #A9A196">{{m.time}} · {{m.text}}</div></sc-if>
+<sc-if value="{{m.talk}}" hint-placeholder-val="{{true}}">
+<div style="{{m.rowStyle}}">
+<div style="display: flex; gap: 8px; align-items: baseline"><span style="{{m.nameStyle}}">{{m.who}}</span><span style="font-family: 'Space Mono', monospace; font-size: 11px; color: #A9A196">{{m.time}}</span><sc-if value="{{m.saved}}" hint-placeholder-val="{{false}}"><span style="font-family: 'Space Mono', monospace; font-size: 11px; color: #F2A65A">★ saved</span></sc-if></div>
+<button type="button" onClick="{{m.open}}" aria-label="Message options" style="{{m.bubbleStyle}}">
+<span>{{m.text}}</span>
+<sc-if value="{{m.hasPic}}" hint-placeholder-val="{{false}}"><span style="display: flex; align-items: center; justify-content: center; height: 110px; margin-top: 6px; border-radius: 4px; background: #34302A; color: #BDB5A8; font: 12px 'Space Mono', monospace">[ photo: carb bowl ]</span></sc-if>
+<sc-if value="{{m.hasLink}}" hint-placeholder-val="{{false}}"><span style="display: block; margin-top: 6px; padding: 6px 8px; border-radius: 4px; border: 1px solid #4A463F; font: 12px 'Space Mono', monospace; color: #F59A4E">youtube.com/watch?v=[video]</span></sc-if>
+</button>
+</div>
+</sc-if>
+</sc-for>
+<div style="font-family: 'Space Mono', monospace; font-size: 12px; color: #A9A196">[handle] is typing<span class="ccur" style="color: #F07A2A">█</span></div>
+</div>
+
+<sc-if value="{{toast}}" hint-placeholder-val="{{false}}"><div role="status" style="position: absolute; left: 16px; right: 16px; bottom: 84px; padding: 10px 12px; border-radius: 4px; background: #EFEAE0; color: #140F0A; font-weight: 600; display: flex; justify-content: space-between; gap: 8px"><span>{{toast}}</span><a href="#" style="color: #8A3207">View</a></div></sc-if>
+
+<form onSubmit="{{send}}" style="padding: 10px 12px 14px; background: #0F0E0C; display: flex; gap: 8px; align-items: center">
+<label for="msg" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message</label>
+<button type="button" aria-label="Add a photo" style="flex: none; width: 46px; height: 46px; border: 2px solid #4A463F; border-radius: 4px; background: #23211D; color: #EFEAE0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg></button>
+<input id="msg" type="text" autocomplete="off" value="{{draft}}" onChange="{{typing}}" placeholder="Talk shop…" style="flex: 1; min-width: 0; min-height: 46px; padding: 0 12px; border: 2px solid #4A463F; border-radius: 4px; background: #23211D; color: #EFEAE0; font: 16px Barlow, sans-serif">
+<button type="submit" aria-label="Send" style="flex: none; width: 52px; height: 46px; border: 2px solid #F07A2A; border-radius: 4px; background: #F07A2A; color: #140F0A; cursor: pointer; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l16-8-6 16-2-6z"/></svg></button>
+</form>
+
+<sc-if value="{{sheet}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: flex; flex-direction: column; justify-content: flex-end">
+<div role="dialog" aria-label="Message options" style="background: #23211D; border-top: 2px solid #F07A2A; padding: 16px 16px 20px; display: flex; flex-direction: column; gap: 12px">
+<div style="padding: 8px 10px; border-left: 0; border: 2px solid #4A463F; border-radius: 4px; background: #1A1916; display: flex; flex-direction: column; gap: 2px">
+<span style="font: 700 12px 'Space Mono', monospace; color: #F2A65A">{{selWho}} · {{selTime}}</span>
+<span style="font-size: 14px">{{selText}}</span>
+</div>
+<sc-if value="{{pickMode}}" hint-placeholder-val="{{false}}">
+<h2 style="margin: 0; font: 800 20px 'Barlow Condensed', sans-serif; text-transform: uppercase">Save to which board?</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{boardOpts}}" as="o" hint-placeholder-count="4">
+<button type="button" onClick="{{o.pick}}" style="{{o.style}}">{{o.name}}</button>
+</sc-for>
+</div>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #BDB5A8">Add a note (optional)
+<input type="text" placeholder="Why it's worth keeping" style="min-height: 44px; padding: 0 12px; border: 2px solid #4A463F; border-radius: 4px; background: #1A1916; color: #EFEAE0; font: 16px Barlow, sans-serif"></label>
+<span style="font-size: 13px; color: #A9A196">It becomes a post on that board, with the photo and link, credited to the person who said it. It stays after the chat clears.</span>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button type="button" onClick="{{close}}" style="min-height: 48px; border: 2px solid #4A463F; border-radius: 4px; background: transparent; color: #EFEAE0; font: 700 18px 'Barlow Condensed', sans-serif; text-transform: uppercase; cursor: pointer">Cancel</button>
+<button type="button" onClick="{{doSave}}" style="min-height: 48px; border: 2px solid #F07A2A; border-radius: 4px; background: #F07A2A; color: #140F0A; font: 700 18px 'Barlow Condensed', sans-serif; text-transform: uppercase; cursor: pointer">Save</button>
+</div>
+</sc-if>
+<sc-if value="{{menuMode}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{goPick}}" style="min-height: 52px; border: 2px solid #F07A2A; border-radius: 4px; background: #F07A2A; color: #140F0A; font: 700 19px 'Barlow Condensed', sans-serif; text-transform: uppercase; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Save to a board</button>
+<button type="button" onClick="{{close}}" style="min-height: 48px; border: 2px solid #EFEAE0; border-radius: 4px; background: transparent; color: #EFEAE0; font: 700 18px 'Barlow Condensed', sans-serif; text-transform: uppercase; cursor: pointer">Quote in a new post</button>
+<button type="button" onClick="{{close}}" style="min-height: 48px; border: 2px solid #4A463F; border-radius: 4px; background: transparent; color: #EFEAE0; font: 700 18px 'Barlow Condensed', sans-serif; text-transform: uppercase; cursor: pointer">Reply</button>
+<button type="button" onClick="{{close}}" style="all: unset; cursor: pointer; text-align: center; min-height: 44px; font: 13px 'Space Mono', monospace; color: #A9A196">Close</button>
+</sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(p){super(p);this.state={draft:'',mine:[],sel:null,mode:'menu',board:'Shop Notes',saved:{},toast:''};}
+  renderVals() {
+    const base=[
+      {sys:true,time:'8:58p',text:'[handle] walked into the shop'},
+      {who:'[handle]',time:'9:01p',text:'Anyone got a flywheel puller I can borrow this weekend?'},
+      {who:'[sysop]',time:'9:02p',text:'Yep, the 3-jaw one. Swing by Saturday.',me:true},
+      {who:'[handle]',time:'9:04p',text:'This is what the bowl looked like before soaking. Video I followed:',pic:true,link:true},
+      {sys:true,time:'9:05p',text:'[handle] walked into the shop'},
+      {who:'[handle]',time:'9:06p',text:'Float height on the 8N is 1/4 in from the gasket. Wrote it down so I stop forgetting.'}
+    ];
+    const all=base.concat(this.state.mine);
+    const S=this.state;
+    const msgs=all.map((m,i)=>({...m,talk:!m.sys,sys:!!m.sys,hasPic:!!m.pic,hasLink:!!m.link,saved:!!S.saved[i],
+      open:()=>this.setState({sel:i,mode:'menu',toast:''}),
+      rowStyle:'display: flex; flex-direction: column; gap: 2px; '+(m.me?'align-items: flex-end':'align-items: flex-start'),
+      nameStyle:'font: 700 13px Space Mono, monospace; color: '+(m.me?'#F07A2A':'#F2A65A'),
+      bubbleStyle:'all: unset; box-sizing: border-box; cursor: pointer; display: block; max-width: 290px; padding: 8px 10px; border-radius: 4px; color: #EFEAE0; font: 16px/1.4 Barlow, sans-serif; border: 2px solid '+(S.sel===i?'#F2A65A':(m.me?'#F07A2A':'#4A463F'))+'; background: '+(m.me?'#2A2722':'#23211D')}));
+    const sm=S.sel!==null?all[S.sel]:null;
+    const boards=['Shop Notes','General','Builds'];
+    return {msgs,draft:S.draft,toast:S.toast,sheet:!!sm,menuMode:S.mode==='menu',pickMode:S.mode==='pick',
+      selWho:sm?sm.who:'',selTime:sm?sm.time:'',selText:sm?sm.text:'',
+      boardOpts:boards.map(n=>({name:n,pick:()=>this.setState({board:n}),style:'min-height: 46px; border-radius: 4px; cursor: pointer; font: 700 16px Barlow Condensed, sans-serif; text-transform: uppercase; border: 2px solid '+(S.board===n?'#F07A2A':'#4A463F')+'; background: '+(S.board===n?'#F07A2A':'#1A1916')+'; color: '+(S.board===n?'#140F0A':'#EFEAE0')})),
+      goPick:()=>this.setState({mode:'pick'}),
+      close:()=>this.setState({sel:null,mode:'menu'}),
+      doSave:()=>this.setState({saved:{...S.saved,[S.sel]:true},sel:null,mode:'menu',toast:'Saved to '+S.board}),
+      typing:e=>this.setState({draft:e.target.value}),
+      send:e=>{e.preventDefault();const t=S.draft.trim();if(!t)return;const d=new Date();const h=d.getHours()%12||12,mi=String(d.getMinutes()).padStart(2,'0');this.setState({draft:'',mine:S.mine.concat([{who:'[sysop]',time:h+':'+mi+(d.getHours()<12?'a':'p'),text:t,me:true}])});}};
+  }
+}
+</script>
+</body>
+</html>

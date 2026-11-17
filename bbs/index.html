@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<!--
+  The Garage_Terminal BBS: private, members only. Not linked from any menu; the
+  way in is the blinking >_ in the site footer (src/lib/door.js).
+  Logic: src/pages/bbs.js (log-in + sections) · Look: src/styles/bbs.css
+  Designs: reference/bbs-design/ (not deployed).
+  Who can see what is enforced by firestore.rules and storage.rules (BBS sections).
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>The Garage_Terminal BBS</title>
+<meta name="theme-color" content="#0F0E0C">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="/src/styles/bbs.css">
+<script type="module" src="/src/pages/bbs.js"></script>
+</head>
+<body>
+<header class="b-head">
+  <div class="inner">
+    <div class="b-brand">
+      <img src="/logo.svg" alt="Garage Terminal logo" width="48" height="48">
+      <div><span class="eyebrow" id="b-eyebrow">PRIVATE · MEMBERS ONLY</span><h1 class="b-title" id="b-title">The Garage_Terminal BBS</h1></div>
+      <span class="here-pill" id="b-here" hidden></span>
+    </div>
+    <div class="hazard" aria-hidden="true"></div>
+  </div>
+</header>
+<nav class="b-tabs" id="b-tabs" aria-label="BBS sections" hidden><div class="inner"></div></nav>
+<main><div class="inner" id="b-main"><p class="modem">ATDT GARAGE_TERMINAL<br>dialing…</p></div></main>
+<footer class="b-foot" id="b-foot" hidden>
+  <div class="inner"><a href="/">← garage_terminal</a><button type="button" id="b-logoff">LOG OFF</button></div>
+</footer>
+</body>
+</html>
