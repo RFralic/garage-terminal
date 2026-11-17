@@ -91,9 +91,11 @@ export async function getReads(uid) {
 export async function markRead(uid, what) {
   const r = await getReads(uid);
   const now = Timestamp.now();
-  if (what === 'files') r.files = now;
+  // 'files' and 'chat' are single marks; anything else is a board id.
+  const single = what === 'files' || what === 'chat';
+  if (single) r[what] = now;
   else r.boards = { ...(r.boards || {}), [what]: now };
-  await setDoc(doc(db, 'bbsReads', uid), what === 'files' ? { files: serverTimestamp() } : { boards: { [what]: serverTimestamp() } }, { merge: true }).catch(() => {});
+  await setDoc(doc(db, 'bbsReads', uid), single ? { [what]: serverTimestamp() } : { boards: { [what]: serverTimestamp() } }, { merge: true }).catch(() => {});
 }
 /** Threads with activity after my last visit to their board. */
 export const isNewThread = (t, r, handle) => ms(t.lastAt) > ms(r?.boards?.[t.boardId]) && t.lastBy !== handle;

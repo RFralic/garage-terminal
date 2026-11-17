@@ -206,7 +206,8 @@ designs in `reference/bbs-design/`, not deployed). It isn't linked from any menu
   board (the `bbs` function copies it, and its photo, into a new thread credited to whoever said it, so it
   outlives the clean-up), Quote in a new post and Reply; the sysop and co-sysops can also delete it and mute
   the person (1 hour, 1 day or until unmuted; `bbsMembers.mutedUntil`). Muted members can read but not send.
-  Tests: `tests/bbs.chat.rules.test.js`.
+  The Chat tab shows how many messages others sent since you last had Shop Talk open (`bbsReads.chat`;
+  never opened: the last 24 hours; 99+ at most). Tests: `tests/bbs.chat.rules.test.js`.
 - **Private messages** (`#dm/<uid>`, `src/bbs/dm.js`): one-to-one conversations, started from the **Message**
   button on the Crew tab (which also lists your conversations and shows an unread count). Stored in
   `bbsDms/{uidA_uidB}/messages`; photos in Storage `bbs/dm/`. **Only the two members can read a conversation,

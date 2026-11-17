@@ -79,17 +79,19 @@ export async function renderChat(ctx) {
     const text = input.value.trim();
     const photoFile = pick.files[0] || null;
     if (!text && !photoFile) return;
-    sendBtn.disabled = true;
+    // Clear the box straight away so the next message can be typed and sent while this one
+    // goes out. Only a photo upload holds the send button. If sending fails, the text comes back.
+    const reply = replyTo ? { who: replyTo.handle, text: (replyTo.text || '[photo]').slice(0, 140) } : null;
+    input.value = ''; pick.value = ''; setReply(null); stickToBottom = true;
+    if (photoFile) sendBtn.disabled = true;
     try {
-      await sendChat({ uid: ctx.uid, handle: ctx.handle, text, photoFile,
-        reply: replyTo ? { who: replyTo.handle, text: (replyTo.text || '[photo]').slice(0, 140) } : null,
+      await sendChat({ uid: ctx.uid, handle: ctx.handle, text, photoFile, reply,
         onProgress: (p) => { status.textContent = `Sending the photo… ${Math.round(p * 100)}%`; } });
-      input.value = ''; pick.value = ''; status.textContent = '';
-      setReply(null);
-      stickToBottom = true;
+      if (photoFile) status.textContent = '';
     } catch (err) {
+      if (!input.value) input.value = text;
       status.textContent = /permission/i.test(err.code || err.message) ? 'You can’t send right now (muted?).' : (err.message || 'Couldn’t send. Try again.');
-    } finally { sendBtn.disabled = false; input.focus(); }
+    } finally { if (photoFile) sendBtn.disabled = false; input.focus(); }
   });
 
   function setReply(m) {

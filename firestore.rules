@@ -763,7 +763,7 @@ service cloud.firestore {
     //                            replyCount, pinned, locked }
     //   bbsThreads/{id}/posts/{postId}  { authorUid, authorHandle, body, photo?, createdAt, editedAt? }
     //                          the opening post has the id "op", written together with its thread
-    //   bbsReads/{uid}         { boards: { boardId: when }, files: when }  your own "last visit" marks
+    //   bbsReads/{uid}         { boards: { boardId: when }, files: when, chat: when }  your own "last visit" marks
     //   bbsFiles/{id}          the file cabinet: { title, titleLower, note, name, type, size,
     //                            contentType, path, byUid, byHandle, createdAt }
     // replyCount / lastAt / lastBy are kept by Cloud Functions (functions/bbs-content.js), which
@@ -996,9 +996,10 @@ service cloud.firestore {
     match /bbsReads/{uid} {
       allow read, delete: if isSelf(uid);
       allow create, update: if isSelf(uid) && bbsIn()
-        && request.resource.data.keys().hasOnly(['boards', 'files'])
+        && request.resource.data.keys().hasOnly(['boards', 'files', 'chat'])
         && (!('boards' in request.resource.data) || request.resource.data.boards is map)
-        && (!('files' in request.resource.data) || request.resource.data.files is timestamp);
+        && (!('files' in request.resource.data) || request.resource.data.files is timestamp)
+        && (!('chat' in request.resource.data) || request.resource.data.chat is timestamp);
     }
 
     // The file cabinet. The upload itself is checked by storage.rules (members, 25 MB).

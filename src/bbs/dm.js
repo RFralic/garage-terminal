@@ -118,16 +118,19 @@ export async function renderDm(ctx, [otherUid]) {
     e.preventDefault();
     const text = input.value.trim(), file = pick.files[0] || null;
     if (!text && !file) return;
-    sendBtn.disabled = true;
+    // Clear the box straight away (see Shop Talk); only a photo upload holds the send button.
+    input.value = ''; pick.value = ''; stick = true;
+    if (file) sendBtn.disabled = true;
     try {
       await send({ me: ctx.uid, handle: ctx.handle, other: otherUid, otherHandle: name, text, file,
         onProgress: (p) => { status.textContent = `Sending the photo… ${Math.round(p * 100)}%`; } });
-      input.value = ''; pick.value = ''; status.textContent = ''; stick = true;
+      if (file) status.textContent = '';
       if (!stop) listen();
     } catch (err) {
       console.error(err);
+      if (!input.value) input.value = text;
       status.textContent = /permission/i.test(err.code || err.message) ? 'You can’t send this right now.' : (err.message || 'Couldn’t send. Try again.');
-    } finally { sendBtn.disabled = false; input.focus(); }
+    } finally { if (file) sendBtn.disabled = false; input.focus(); }
   });
 
   const drawState = () => {
