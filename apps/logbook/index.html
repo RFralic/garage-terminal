@@ -313,7 +313,7 @@ a.doc::after{content:"↗";font-weight:400}
 const TASKS=["Oil change","Spark plug","Air filter","Fuel filter","Fuel stabilizer","Blade sharpened","Carb cleaned","Belt","Grease / lube","Winterized","Other"];
 const EQUIP=["Push mower","Riding mower","Zero-turn mower","Generator","Pressure washer","Snow blower","Tiller","Chainsaw","String trimmer","Leaf blower","Outboard","Go-kart / mini bike","Four-wheeler","Other"];
 const SPEC=[ // [key,label,mono?]
- ["make","Equipment make"],["model","Equipment model"],["serial","Serial number",1],["year","Year",1],
+ ["make","Equipment make"],["model","Equipment model"],["serial","Serial number",1],["year","Year",1],["warranty","Warranty"],
  ["engineMake","Engine make"],["engineModel","Engine model / spec",1],["engineType","Engine type"],["cycle","Cycle"],["fuelMix","Fuel / mix ratio"],
  ["hours","Current hours",1],["plug","Spark plug",1,1],["plugGap","Plug gap",1],["oilType","Oil type"],
  ["oilCapacity","Oil capacity"],["airFilter","Air filter part #",1,1],["fuelFilter","Fuel filter part #",1,1]
@@ -347,13 +347,13 @@ const EQ_ICONS={
 const duoFill=p=>p.replace(/<(circle|rect)/g,'<$1 fill="currentColor" fill-opacity=".28"').replace(/<path d="([^"]*z[^"]*)"/g,'<path fill="currentColor" fill-opacity=".28" d="$1"');
 const eqIcon=t=>{const p=EQ_ICONS[t];return p?`<svg class="eqi" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${duoFill(p)}</svg>`:""};
 const VSPEC=[
- ["year","Year",1],["make","Make"],["model","Model"],["trim","Trim"],["vin","VIN",1],["plate","License plate",1],
+ ["year","Year",1],["make","Make"],["model","Model"],["trim","Trim"],["vin","VIN",1],["plate","License plate",1],["warranty","Warranty"],
  ["engine","Engine"],["hours","Current mileage",1],["oilType","Oil type"],["oilCapacity","Oil capacity"],["oilInterval","Oil change every (miles)",1],
  ["oilFilter","Oil filter part #",1,1],["airFilter","Air filter part #",1,1],["cabinFilter","Cabin filter part #",1,1],
  ["plug","Spark plug",1,1],["plugGap","Plug gap",1],["brakePads","Brake pads part #",1,1],["battery","Battery",1,1],
  ["wipers","Wiper sizes",1,1],["tireSize","Tire size",1],["tirePressure","Tire pressure"],["coolant","Coolant type"],["transFluid","Transmission fluid"]
 ];
-const VPH={year:"2018",make:"Ford",model:"F-150",trim:"XLT",vin:"1FTEW1EG…",plate:"ABC-1234",engine:"5.0L V8",hours:"84,250",oilType:"SAE 5W-20 synthetic blend",oilCapacity:"8.8 qt with filter",oilInterval:"5000",oilFilter:"FL-500S",airFilter:"FA-1883",cabinFilter:"FP-67",plug:"SP-542",plugGap:"0.049 in",brakePads:"Front / rear #",battery:"Group 65",wipers:"22 in / 22 in",tireSize:"275/65R18",tirePressure:"35 psi",coolant:"Orange (Motorcraft Yellow)",transFluid:"Mercon ULV"};
+const VPH={warranty:"3 yr / 36,000 mi · ends Jun 2028 · Smith Ford",year:"2018",make:"Ford",model:"F-150",trim:"XLT",vin:"1FTEW1EG…",plate:"ABC-1234",engine:"5.0L V8",hours:"84,250",oilType:"SAE 5W-20 synthetic blend",oilCapacity:"8.8 qt with filter",oilInterval:"5000",oilFilter:"FL-500S",airFilter:"FA-1883",cabinFilter:"FP-67",plug:"SP-542",plugGap:"0.049 in",brakePads:"Front / rear #",battery:"Group 65",wipers:"22 in / 22 in",tireSize:"275/65R18",tirePressure:"35 psi",coolant:"Orange (Motorcraft Yellow)",transFluid:"Mercon ULV"};
 const TQ_UNITS=["ft-lb","in-lb","N·m"];
 const tqSorted=e=>[...(e.torque||[])].sort((a,b)=>(a.item||"").localeCompare(b.item||""));
 const withBrand=(b,n)=>[b,n].map(x=>String(x||"").trim()).filter(Boolean).join(" ");
@@ -711,7 +711,7 @@ function renderSpecs(e){
     $("#delNo").onclick=()=>{pendingDelete=false;renderSpecs(e)}}
   else $("#delBtn").onclick=()=>{pull();pendingDelete=true;renderSpecs(e)};
 }
-const PH={engineType:"Single-cylinder OHV",make:"Honda",model:"HRN216",serial:"MAGA-1234567",year:"2021",engineMake:"Honda",engineModel:"GCV170",fuelMix:"Unleaded 87, ethanol-free",hours:"112",plug:"NGK BPR5ES",plugGap:"0.028–0.031 in",oilType:"SAE 10W-30",oilCapacity:"0.58 qt (0.55 L)",airFilter:"17211-ZL8-023",fuelFilter:"—"};
+const PH={warranty:"2 yr · ends May 2027 · keep the receipt",engineType:"Single-cylinder OHV",make:"Honda",model:"HRN216",serial:"MAGA-1234567",year:"2021",engineMake:"Honda",engineModel:"GCV170",fuelMix:"Unleaded 87, ethanol-free",hours:"112",plug:"NGK BPR5ES",plugGap:"0.028–0.031 in",oilType:"SAE 10W-30",oilCapacity:"0.58 qt (0.55 L)",airFilter:"17211-ZL8-023",fuelFilter:"—"};
 
 function renderLog(e){
   const log=sortedLog(e);const k=K(e);
