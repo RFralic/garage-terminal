@@ -189,6 +189,18 @@ body.sheet-open{overflow:hidden}
 .lpadd{display:flex;gap:8px;align-items:stretch}.lpadd select{flex:1;min-width:0}
 .lpmsg{margin:0;font-size:.85rem;color:var(--steel)}.lpmsg:empty{display:none}.lpused b{color:var(--ink);font-weight:600}
 .iwarr{font-size:.85rem;color:var(--muted)}.iwarr span{color:var(--ink)}
+/* receipts */
+.rclist{display:flex;flex-wrap:wrap;gap:8px}
+.rcchip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);font-size:.88rem;max-width:100%}
+.rcchip .rcopen{min-height:36px;padding:0 4px 0 12px;border:none;background:none;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;text-align:left}
+.rcchip .rcx{min-height:36px;width:36px;padding:0;justify-content:center;font-size:1.1rem;border:none;background:none}
+.rclink{min-height:32px;padding:2px 10px;font-size:.82rem;margin:2px 4px 0 0}
+.rcview img{display:block;max-width:100%;height:auto;margin:0 auto 10px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.rcmsg{margin:0;font-size:.85rem;color:var(--steel)}.rcmsg:empty{display:none}
+/* inventory: parts for one machine */
+.invfor{display:flex;flex-direction:column;gap:4px;font-size:.85rem;max-width:420px}
+.forbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;border:1px solid var(--line);border-left:4px solid var(--steel);border-radius:8px;background:var(--surface-2);font-size:.9rem}
+.forbar b{color:var(--ink)}
 /* Bulk scan review */
 .bulklist{display:grid;gap:8px}
 .bulkrow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2)}
@@ -637,7 +649,7 @@ function renderSpecView(e){
       const addBtn=(lab,num,br)=>`<button class="addinv" data-addinv="1" data-label="${esc(lab)}" data-brand="${esc(br||"")}" data-number="${esc(num)}">+ Add to inventory</button>`;
       const stockCell=(st,lab,num,br)=>{if(!st.length)return`<span class="stk none">Not in inventory</span>${addBtn(lab,num,br)}`;const q=st.reduce((n,p)=>n+qtyN(p),0);
         return `<span class="stk ${q===0?"out":st.some(isLow)?"low":"ok"}">${q} on hand</span><span class="muted" style="font-size:.82rem">${esc([...new Set(st.map(p=>p.location).filter(Boolean))].join(", "))}</span>`};
-      const addMore=`<div class="actions"><button id="goInv">Go to inventory →</button></div>`;
+      const addMore=`<div class="actions"><button id="goInv">Go to inventory for this ${kindOf(e)==="vehicle"?"vehicle":"engine"} →</button></div>`;
       if(!x.rows.length&&!x.tagged.length)return sect("Parts &amp; spares on the shelf",`<p class="muted" style="margin:0;font-size:.85rem">No part numbers yet. Add them with Edit.</p>${addMore}`);
       return sect("Parts &amp; spares on the shelf",`<p class="muted" style="margin:0;font-size:.85rem">Matched by part number against your inventory.</p><div class="tablewrap"><table><thead><tr><th>Part</th><th>Part #</th><th>On the shelf</th></tr></thead><tbody>
         ${x.rows.map(r=>`<tr><td>${esc(r.label)}</td><td class="n">${r.brand?`<span class="pbrand">${esc(r.brand)}</span> `:""}${esc(r.number)}</td><td><div class="stkcell">${stockCell(r.stock,r.label,r.number,r.brand)}</div></td></tr>`).join("")}
@@ -647,7 +659,7 @@ function renderSpecView(e){
     ${e.notes?sect("Notes",`<p class="vnotes">${esc(e.notes)}</p>`):""}
   </section>`;
   $("#panel").querySelectorAll("[data-addinv]").forEach(b=>b.onclick=()=>openPart(null,{returnTo:e.id,prefill:{name:b.dataset.label,brand:b.dataset.brand||"",number:b.dataset.number,category:guessCat(b.dataset.label),qty:"0",reorderAt:"0",fits:[e.id]},msg:"This part starts at 0 on hand and is marked Reorder. Update the count once you have it."}));
-  if($("#goInv"))$("#goInv").onclick=()=>{view={id:null,tab:"specs"};draft=null;editing=false;pendingDelete=false;listKind="part";try{localStorage.setItem("sel-kind","part")}catch(x){}render();window.scrollTo(0,0)};
+  if($("#goInv"))$("#goInv").onclick=()=>{setInvFor(e.id);invFilter="All";invQuery="";view={id:null,tab:"specs"};draft=null;editing=false;pendingDelete=false;listKind="part";try{localStorage.setItem("sel-kind","part")}catch(x){}render();window.scrollTo(0,0)};
   $("#editBtn").onclick=()=>{editing=true;draft=JSON.parse(JSON.stringify(e));pendingDelete=false;renderSpecs(e)};
 }
 function renderSpecs(e){
@@ -744,8 +756,11 @@ function scanPartUsed(e){if(!window.GTScan)return;
     onClose:()=>{const b=$("#l-scanpart");if(b)b.focus()}});
 }
 const partLabel=p=>[p.brand,p.number].filter(Boolean).join(" ")||p.name||"Part";
-function usedParts(l){if(!(l.parts||[]).length)return"";
-  return `<div class="lpused">${l.parts.map(x=>`<div>Part: ${esc([x.brand,x.number].filter(Boolean).join(" ")||x.name)}${x.name&&(x.brand||x.number)?` (${esc(x.name)})`:""} ×${esc(x.qty)}${x.warranty?` · <b>Warranty:</b> ${esc(x.warranty)}`:""}</div>`).join("")}</div>`}
+/* the parts-used lines under a log entry. live: on screen (receipt buttons); otherwise printed (receipts follow on their own pages) */
+function usedParts(l,live){if(!(l.parts||[]).length)return"";
+  return `<div class="lpused">${l.parts.map(x=>{const rc=x.receipts||[];
+    return `<div>Part: ${esc([x.brand,x.number].filter(Boolean).join(" ")||x.name)}${x.name&&(x.brand||x.number)?` (${esc(x.name)})`:""} ×${esc(x.qty)}${x.warranty?` · <b>Warranty:</b> ${esc(x.warranty)}`:""}${
+      rc.length?(live?`<div>${rc.map(r=>`<button type="button" class="rclink" data-rcview="${esc(r.id)}">${r.type==="pdf"?"PDF":"Receipt"}: ${esc(rcLabel(r))}</button>`).join("")}</div>`:` · <b>Receipt${rc.length>1?"s":""}:</b> attached`):""}</div>`}).join("")}</div>`}
 function drawLogParts(e){const box=$("#lParts");if(!box)return;
   if(logParts.id!==e.id)logParts={id:e.id,rows:[]};
   logParts.rows=logParts.rows.filter(r=>engines.some(p=>p.id===r.partId));
@@ -781,17 +796,21 @@ function renderLog(e){
         <label>Cost<input id="l-cost" class="pn" inputmode="decimal" placeholder="$ optional"></label>
       </div>
       <div><label>Work done</label><div class="chips" style="margin-top:6px">${tl.map((t,i)=>`<label class="chip"><input type="checkbox" id="t-${i}" value="${esc(t)}">${esc(t)}</label>`).join("")}</div></div>
+      <label>Other work done<input id="l-other" maxlength="300" placeholder="Type your own, e.g. Replaced serpentine belt, cleaned throttle body"><small class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">Separate jobs with commas. A name that matches a tracked service counts for it.</small></label>
       <div class="lparts" id="lParts"></div>
       <label>Notes<textarea id="l-notes" placeholder="${esc(k.logPh)}"></textarea></label>
       <div class="actions"><button class="primary" type="submit">Add to log</button><span id="logMsg" class="saved"></span></div>
     </form>
     <div><h3>History</h3>${log.length?`<div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>Date</th><th>${k.meterCol}</th><th>Work done</th><th>Notes</th><th>Cost</th><th></th></tr></thead><tbody>
-      ${log.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td class="n">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}${usedParts(l)}</td><td class="n">${l.cost?"$"+esc(l.cost):""}</td>
+      ${log.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td class="n">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}${usedParts(l,true)}</td><td class="n">${l.cost?"$"+esc(l.cost):""}</td>
         <td>${pendingLog===l.id?`<span class="confirm"><button class="danger" data-yes="${esc(l.id)}">Delete</button><button data-no>Keep</button></span>`:`<button class="ghost" data-del="${esc(l.id)}">Delete</button>`}</td></tr>`).join("")}
     </tbody></table></div>`:`<p class="muted">No services logged yet. Use the form above to record the first one.</p>`}</div>
   </section>`;
   $("#logForm").onsubmit=async ev=>{ev.preventDefault();
     const tasks=tl.filter((t,i)=>$("#t-"+i).checked);
+    // typed-in jobs join the ticked ones; one that matches a known name (any capitals) uses that name
+    for(const raw of $("#l-other").value.split(/[,\n]+/)){const t=raw.trim().slice(0,80);if(!t)continue;
+      const known=tl.find(x=>x.toLowerCase()===t.toLowerCase())||t;if(!tasks.some(x=>x.toLowerCase()===known.toLowerCase()))tasks.push(known)}
     const notes=$("#l-notes").value.trim();
     const used=logParts.rows.map(r=>({r,p:engines.find(x=>x.id===r.partId)})).filter(x=>x.p&&x.r.n>0);
     if(!tasks.length&&!notes&&!used.length){$("#logMsg").textContent="Tick at least one job, add a part used, or add a note.";$("#logMsg").style.color="var(--accent)";return}
@@ -799,7 +818,8 @@ function renderLog(e){
     if(short){$("#logMsg").textContent=`Only ${qtyN(short.p)} ${short.p.name||"of that part"} on hand.`;$("#logMsg").style.color="var(--accent)";return}
     const entry={id:uid(),date:$("#l-date").value||today(),hours:$("#l-hours").value.trim(),cost:$("#l-cost").value.replace(/^\$/,"").trim(),tasks,notes};
     // Parts used: what they were and their warranty at the time (the entry's date is the install date).
-    if(used.length)entry.parts=used.map(({r,p})=>({partId:p.id,name:p.name||"",brand:p.brand||"",number:p.number||"",qty:r.n,warranty:(p.warranty||"").trim()}));
+    if(used.length)entry.parts=used.map(({r,p})=>({partId:p.id,name:p.name||"",brand:p.brand||"",number:p.number||"",qty:r.n,warranty:(p.warranty||"").trim(),
+      ...((p.receipts||[]).length?{receipts:p.receipts.map(x=>({id:x.id,name:x.name||"",type:x.type,at:x.at||""}))}:{})})); // the part's receipts go with the service
     const out={...e,log:[...(e.log||[]),entry]};
     const num=v=>parseFloat(String(v||"").replace(/,/g,""));
     if(entry.hours&&(!e.hours||num(entry.hours)>=num(e.hours))){out.hours=entry.hours;out.hoursAt=entry.date}
@@ -822,7 +842,9 @@ function renderLog(e){
   $("#panel").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{pendingLog=b.dataset.del;renderLog(e)});
   $("#panel").querySelectorAll("[data-no]").forEach(b=>b.onclick=()=>{pendingLog=null;renderLog(e)});
   $("#panel").querySelectorAll("[data-yes]").forEach(b=>b.onclick=async()=>{const id=b.dataset.yes;pendingLog=null;
-    try{await saveEngine({...e,log:(e.log||[]).filter(l=>l.id!==id)})}catch(err){showBanner("Couldn't delete entry: "+(err.message||err.code))}});
+    const rc=(e.log||[]).filter(l=>l.id===id).flatMap(l=>(l.parts||[]).flatMap(x=>(x.receipts||[]).map(r=>r.id)));
+    try{await saveEngine({...e,log:(e.log||[]).filter(l=>l.id!==id)});await rcCleanup(rc)}catch(err){showBanner("Couldn't delete entry: "+(err.message||err.code))}});
+  $("#panel").querySelectorAll("[data-rcview]").forEach(b=>b.onclick=()=>{const r=(e.log||[]).flatMap(l=>(l.parts||[]).flatMap(x=>x.receipts||[])).find(x=>x.id===b.dataset.rcview);if(r)openReceipt(r)});
 }
 let pendingLog=null;
 /* ---------- Maintenance due: the Due tab, each machine's service schedule, and the interval sheet ---------- */
@@ -979,6 +1001,12 @@ const DL={save:async({filename,data})=>{
 /* ---------- garage inventory ---------- */
 const PCATS=["Filters","Spark plugs","Belts","Fluids","Hardware","Electrical","Brakes","Tires","Other"];
 let invFilter="All", invQuery="", partEdit=null, scanBusy=false;
+/* invFor: show only the parts for one engine / vehicle (the spec sheet's "Go to inventory" sets it).
+   While it's set, parts you add, scan in or bulk scan are tagged to that machine. */
+let invFor=(()=>{try{return localStorage.getItem("inv-for")||""}catch(e){return""}})();
+function setInvFor(id){invFor=id||"";try{localStorage.setItem("inv-for",invFor)}catch(e){}}
+const forName=()=>invFor?nameOf(invFor):null; // null once that machine is gone
+const tagFor=p=>{const n=forName();return n&&!allFits(p).includes(invFor)?{...p,fits:[...(p.fits||[]),invFor]}:p};
 const isPart=e=>kindOf(e)==="part";
 const partsOf=()=>engines.filter(isPart);
 const machines=()=>engines.filter(e=>!isPart(e)).sort(byName);
@@ -1006,7 +1034,15 @@ const money=n=>"$"+(Math.round(n*100)/100).toLocaleString(undefined,{minimumFrac
 const costN=p=>{const n=parseFloat(String(p.cost||"").replace(/[^0-9.]/g,""));return isNaN(n)?0:n};
 
 function renderInventory(kt,wire){
-  const app=$("#app");const all=partsOf();
+  const app=$("#app");const every=partsOf();
+  if(invFor&&!forName())setInvFor("");
+  const fn=forName(),all=fn?every.filter(p=>allFits(p).includes(invFor)):every;
+  const ms=machines();
+  const forSel=ms.length?`<label class="invfor">Show parts for<select id="invFor"><option value="">Everything</option>${ms.map(m=>`<option value="${esc(m.id)}" ${m.id===invFor?"selected":""}>${esc(dname(m))}</option>`).join("")}</select></label>`:"";
+  const forBar=fn?`<div class="forbar" role="status"><span>Showing parts for <b>${esc(fn)}</b>. Parts you add or scan here are tagged to it.</span><button type="button" class="ghost" id="forAll">Show all parts</button></div>`:"";
+  const wireFor=()=>{const s=$("#invFor");if(s)s.onchange=()=>{setInvFor(s.value);render()};const a=$("#forAll");if(a)a.onclick=()=>{setInvFor("");render()}};
+  if(!all.length&&fn){app.innerHTML=kt+`<div class="inv">${forSel}${forBar}<div class="empty"><h2>No parts for ${esc(fn)} yet</h2><p class="muted">Add or scan its filters, plugs and belts here and they're tagged to it.</p><div class="actions" style="justify-content:center"><button class="primary" id="addEmpty">+ Add part</button>${scanBtn("invScan","Scan a barcode",true)}${scanBtn("invBulk","Bulk scan",true)}</div></div></div>`;
+    $("#addEmpty").onclick=()=>openPart(null);if($("#invScan"))$("#invScan").onclick=startScan;if($("#invBulk"))$("#invBulk").onclick=startBulk;wireFor();wire();return}
   if(!all.length){app.innerHTML=kt+`<div class="empty"><h2>No spare parts yet</h2><p class="muted">Keep a list of the filters, plugs, belts and fluids on your shelf.</p><div class="actions" style="justify-content:center"><button class="primary" id="addEmpty">+ Add part</button>${scanBtn("invScan","Scan a barcode",true)}${scanBtn("invBulk","Bulk scan",true)}</div></div>`;$("#addEmpty").onclick=()=>openPart(null);if($("#invScan"))$("#invScan").onclick=startScan;if($("#invBulk"))$("#invBulk").onclick=startBulk;wire();return}
   const low=all.filter(isLow).length, value=all.reduce((s,p)=>s+costN(p)*qtyN(p),0);
   const q=invQuery.trim().toLowerCase();
@@ -1018,19 +1054,21 @@ function renderInventory(kt,wire){
     <div class="invstats"><div class="istat"><small>Parts</small><b>${all.length}</b></div>
       <div class="istat ${low?"warn":""}"><small>Low stock</small><b>${low}</b></div>
       <div class="istat"><small>Value</small><b>${value?money(value):"—"}</b></div></div>
+    ${forSel}${forBar}
     <div class="invsearchrow"><label class="invsearch">Search parts<input type="search" id="invQ" value="${esc(invQuery)}" placeholder="Name, part #, or what it fits"></label>${scanBtn("invScan")}${scanBtn("invBulk","Bulk scan",true)}</div>
     <div class="chips">${cats.map(c=>`<button class="fchip" data-cat="${esc(c)}" aria-pressed="${c===invFilter}">${esc(c)}</button>`).join("")}</div>
     <div class="ilist">${shown.length?shown.map(p=>{const fits=allFits(p).map(nameOf).filter(Boolean);
       return `<article class="iitem ${isLow(p)?"low":""}">
         <div class="irow"><button class="iname" data-edit="${esc(p.id)}"><b>${esc(p.name||"Unnamed part")}</b><span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))||"No part #"}</span></button>
           <div class="stepper"><button aria-label="Use one" data-dq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>−</button><span class="mono">${qtyN(p)}</span><button aria-label="Add one" data-dq="1" data-id="${esc(p.id)}">+</button></div></div>
-        <div class="imeta">${p.category?`<span class="tag">${esc(p.category)}</span>`:""}${p.location?`<span>${esc(p.location)}</span>`:""}${isLow(p)?`<span class="tag reorder">Reorder</span>`:""}</div>
+        <div class="imeta">${p.category?`<span class="tag">${esc(p.category)}</span>`:""}${p.location?`<span>${esc(p.location)}</span>`:""}${isLow(p)?`<span class="tag reorder">Reorder</span>`:""}${(p.receipts||[]).length?`<span>${p.receipts.length} receipt${p.receipts.length>1?"s":""}</span>`:""}</div>
         ${(p.warranty||"").trim()?`<div class="iwarr">Warranty: <span>${esc(p.warranty)}</span></div>`:""}
         ${fits.length?`<div class="ifits">Fits: <span>${esc(fits.join(", "))}</span></div>`:""}
-      </article>`}).join(""):`<p class="muted">No parts match. Try another search or filter.</p>`}</div></div>`;
+      </article>`}).join(""):`<p class="muted">No parts match. Try another search or filter${fn?", or Show all parts":""}.</p>`}</div></div>`;
   const qi=$("#invQ");qi.addEventListener("input",()=>{invQuery=qi.value;clearTimeout(qi._t);qi._t=setTimeout(()=>{render();const n=$("#invQ");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}},250)});
   if($("#invScan"))$("#invScan").onclick=startScan;
   if($("#invBulk"))$("#invBulk").onclick=startBulk;
+  wireFor();
   app.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{invFilter=b.dataset.cat;render()});
   app.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openPart(engines.find(e=>e.id===b.dataset.edit)));
   app.querySelectorAll("[data-dq]").forEach(b=>b.onclick=async()=>{const p=engines.find(e=>e.id===b.dataset.id);if(!p)return;
@@ -1040,7 +1078,7 @@ function renderInventory(kt,wire){
 }
 function guessCat(l){l=String(l||"").toLowerCase();return /filter/.test(l)?"Filters":/plug/.test(l)?"Spark plugs":/belt/.test(l)?"Belts":/brake/.test(l)?"Brakes":/battery|bulb|fuse/.test(l)?"Electrical":/tire/.test(l)?"Tires":/oil|fluid|coolant/.test(l)?"Fluids":/blade|bolt|pin|nut/.test(l)?"Hardware":""}
 function openPart(p,opts){opts=opts||{};
-  partEdit={returnTo:opts.returnTo||null,isNew:!p,d:p?JSON.parse(JSON.stringify(p)):{id:uid(),kind:"part",name:"",brand:"",number:"",category:"",qty:"1",reorderAt:"",location:"",cost:"",source:"",fits:[],notes:"",createdAt:new Date().toISOString(),...(opts.prefill||{})},confirmDel:false,msg:"",note:opts.msg||""};
+  partEdit={returnTo:opts.returnTo||null,isNew:!p,d:p?JSON.parse(JSON.stringify(p)):{id:uid(),kind:"part",name:"",brand:"",number:"",category:"",qty:"1",reorderAt:"",location:"",cost:"",source:"",fits:!opts.returnTo&&forName()?[invFor]:[],notes:"",createdAt:new Date().toISOString(),...(opts.prefill||{})},confirmDel:false,msg:"",note:opts.msg||""};
   render();window.scrollTo(0,0);
 }
 function closePart(note){const rt=partEdit&&partEdit.returnTo;partEdit=null;
@@ -1076,6 +1114,12 @@ function renderPartEdit(){
     <div class="parts"><h3>Fits</h3>${ms.length?`<div class="chips">${ms.map(m=>`<button class="fchip" data-fit="${esc(m.id)}" aria-pressed="${(d.fits||[]).includes(m.id)}">${esc(dname(m))}</button>`).join("")}</div>
       ${(()=>{const am=autoFits(d).map(nameOf).filter(Boolean);return am.length?`<p style="margin:0;font-size:.85rem">Matches by part # on: <b style="color:var(--steel)">${esc(am.join(", "))}</b></p>`:""})()}
       <p class="muted" style="margin:0;font-size:.82rem">Tap the engines and vehicles this part goes on. It also shows on their Specs tab.</p>`:`<p class="muted" style="margin:0">Add an engine or vehicle first to tag what this part fits.</p>`}</div>
+    <div class="parts"><h3>Receipts</h3>
+      ${(d.receipts||[]).length?`<div class="rclist">${d.receipts.map((r,i)=>`<span class="rcchip"><button type="button" class="rcopen" data-rcopen="${i}" title="${esc(rcLabel(r))}">${r.type==="pdf"?"PDF":"Photo"} · ${esc(rcLabel(r))}</button><button type="button" class="ghost rcx" data-rcdel="${i}" aria-label="${pe.rcDel===i?"Tap again to remove":"Remove"} ${esc(rcLabel(r))}">${pe.rcDel===i?"✓":"×"}</button></span>`).join("")}</div>`:""}
+      <p class="muted" style="margin:0;font-size:.82rem">For warranty claims: a photo of the receipt, a screenshot, or a PDF of an emailed receipt (up to 680 KB). When this part is used on a service, its receipts go with that log entry.</p>
+      ${pe.isNew?`<p class="muted" style="margin:0;font-size:.85rem">Save the part first, then add its receipts.</p>`:!rcStore()?`<p class="muted" style="margin:0;font-size:.85rem">Sign in to add receipts.</p>`:`<div class="actions" style="margin:0"><button type="button" id="rcCam">Take a photo</button><button type="button" id="rcPick">Add a file</button></div>
+      <input type="file" id="rcCamIn" accept="image/*" capture="environment" hidden><input type="file" id="rcPickIn" accept="image/*,application/pdf,.pdf" hidden>`}
+      <p class="rcmsg" id="rcMsg" role="status">${esc(pe.rcMsg||"")}</p></div>
     <label class="span2">Notes<textarea id="p-notes" placeholder="Sizes, specs, when you bought it">${esc(d.notes)}</textarea></label>
     <div class="actions"><button class="primary" id="pSave">Save part</button><button id="pCancel">Cancel</button><span id="pMsg" class="saved"></span><span style="flex:1"></span>
       ${pe.isNew?"":pe.confirmDel?`<span class="confirm">Delete this part? <button class="danger" id="pDelYes">Delete</button><button id="pDelNo">Keep</button></span>`:`<button class="danger" id="pDel">Delete part</button>`}</div>
@@ -1089,6 +1133,28 @@ function renderPartEdit(){
     if(!(d.barcodes||[]).some(b=>normPN(b)===c))d.barcodes=[...(d.barcodes||[]),r.text];
     const other=partsOf().find(p=>p.id!==d.id&&scanHits(p,r.text));
     renderPartEdit();if(other)showToast(`Heads up: ${r.text} also finds ${other.name||other.number||"another part"}.`)}})};
+  // receipts: saved straight away (on the receipts doc and the stored part), so Cancel doesn't lose them
+  const rcMsg=t=>{pe.rcMsg=t;const m=$("#rcMsg");if(m)m.textContent=t};
+  const addReceipt=async f=>{const st=rcStore();if(!st||!f)return;
+    $("#rcCam").disabled=true;$("#rcPick").disabled=true;rcMsg("Adding the receipt…");
+    try{const {type,data}=await receiptFromFile(f);const id=uid(),at=new Date().toISOString();
+      const name=(f.name&&!/^image\.(jpe?g|png)$/i.test(f.name)?f.name:type==="pdf"?"Receipt PDF":"Receipt photo").replace(/[\u0000-\u001f<>]/g,"").slice(0,80);
+      await st.set(id,{partId:d.id,name,type,data,size:data.length,createdAt:at});
+      const meta={id,name,type,at};d.receipts=[...(d.receipts||[]),meta];
+      const cur=engines.find(x=>x.id===d.id);if(cur)await saveEngine({...cur,receipts:[...(cur.receipts||[]),meta]});
+      pe.rcMsg="Receipt added.";if(partEdit===pe)renderPartEdit()}
+    catch(err){rcMsg(err.message||String(err.code||err));const a=$("#rcCam"),b=$("#rcPick");if(a)a.disabled=false;if(b)b.disabled=false}};
+  if($("#rcCam")){$("#rcCam").onclick=()=>{pull();$("#rcCamIn").click()};$("#rcPick").onclick=()=>{pull();$("#rcPickIn").click()};
+    const onRc=ev=>{const f=ev.target.files&&ev.target.files[0];ev.target.value="";addReceipt(f)};$("#rcCamIn").onchange=onRc;$("#rcPickIn").onchange=onRc}
+  app.querySelectorAll("[data-rcopen]").forEach(b=>b.onclick=()=>openReceipt(d.receipts[+b.dataset.rcopen]));
+  app.querySelectorAll("[data-rcdel]").forEach(b=>b.onclick=async()=>{pull();const i=+b.dataset.rcdel;
+    if(pe.rcDel!==i){pe.rcDel=i;pe.rcMsg="Tap ✓ to remove that receipt from this part.";renderPartEdit();return}
+    const r=d.receipts[i];pe.rcDel=null;d.receipts=d.receipts.filter((_,j)=>j!==i);
+    const cur=engines.find(x=>x.id===d.id);
+    try{if(cur)await saveEngine({...cur,receipts:(cur.receipts||[]).filter(x=>x.id!==r.id)});
+      await rcCleanup([r.id]);pe.rcMsg=rcListed(r.id)?"Removed from this part. Services it was used on keep it.":"Receipt removed."}
+    catch(err){pe.rcMsg="Couldn't remove it: "+(err.message||err.code)}
+    if(partEdit===pe)renderPartEdit()});
   $("#pCancel").onclick=()=>closePart();
   $("#pSave").onclick=async()=>{pull();if(!d.name.trim()&&!d.number.trim()){const m=$("#pMsg");m.style.color="var(--accent)";m.textContent="Add a part name or part number.";return}
     d.qty=String(Math.max(0,parseInt(d.qty,10)||0));d.reorderAt=d.reorderAt===""?"":String(Math.max(0,parseInt(d.reorderAt,10)||0));
@@ -1096,8 +1162,8 @@ function renderPartEdit(){
     try{await saveEngine({...d});const back=pe.returnTo;if(!back)listKind="part";closePart(back?`Added ${d.name||d.number} to your inventory.`:"")}catch(err){b.disabled=false;$("#pMsg").textContent="Couldn't save: "+(err.message||err.code)}};
   if($("#pDel"))$("#pDel").onclick=()=>{pull();pe.confirmDel=true;renderPartEdit()};
   if($("#pDelNo"))$("#pDelNo").onclick=()=>{pe.confirmDel=false;renderPartEdit()};
-  if($("#pDelYes"))$("#pDelYes").onclick=async()=>{const id=d.id;engines=engines.filter(x=>x.id!==id);closePart();
-    try{await removeEngine(id)}catch(err){showBanner("Couldn't delete: "+(err.message||err.code))}};
+  if($("#pDelYes"))$("#pDelYes").onclick=async()=>{const id=d.id,rc=(d.receipts||[]).map(r=>r.id);engines=engines.filter(x=>x.id!==id);closePart();
+    try{await removeEngine(id);await rcCleanup(rc)}catch(err){showBanner("Couldn't delete: "+(err.message||err.code))}};
   // camera / photo
   $("#scanBtn").onclick=()=>{pull();$("#camIn").click()};
   $("#pickBtn").onclick=()=>{pull();$("#picIn").click()};
@@ -1130,7 +1196,7 @@ function startScan(){if(!window.GTScan)return;
 let bulk=null; // { rows: [{ key, code, id, n, name, retail }], loc }
 function startBulk(){if(!window.GTScan)return;
   if(!bulk)bulk={rows:[],loc:""};
-  GTScan.open({title:"Bulk scan parts in",allowKeep:true,keep:true,
+  GTScan.open({title:forName()?`Bulk scan parts in for ${forName()}`:"Bulk scan parts in",allowKeep:true,keep:true,
     onCode:r=>{const hit=scanFind(r.text)[0],retail=GTScan.util.isRetail(r.text);
       const key=hit?"p:"+hit.id:"c:"+normPN(r.text);
       let row=bulk.rows.find(x=>x.key===key);
@@ -1154,7 +1220,7 @@ function renderBulk(focusSel){closeBulk();if(!bulk)return;
       <small>${r.retail?"Barcode":"Part #"} <span class="mono">${esc(r.code)}</span></small></div>${step}${x}</div>`}).join("");
   const w=document.createElement("div");w.id="bulkWrap";w.className="sheetwrap";
   w.innerHTML=`<form class="sheet" id="bulkForm" role="dialog" aria-modal="true" aria-labelledby="bulkTitle">
-    <div class="sheethead"><div><small>Nothing is saved until you tap Save all</small><h2 id="bulkTitle">Review ${total} scan${total===1?"":"s"}</h2></div>
+    <div class="sheethead"><div><small>Nothing is saved until you tap Save all${forName()?` · tagged to ${esc(forName())}`:""}</small><h2 id="bulkTitle">Review ${total} scan${total===1?"":"s"}</h2></div>
       <button type="button" class="ghost sheetx" id="bkClose" aria-label="Close"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
     <div class="bulklist">${rows}</div>
     ${fresh.length?`<label>Shelf / location for the new parts (optional)<input id="bkLoc" list="bkLocs" value="${esc(bulk.loc)}" placeholder="e.g. Shelf B" maxlength="60"></label><datalist id="bkLocs">${locs.map(l=>`<option value="${esc(l)}"></option>`).join("")}</datalist>`:""}
@@ -1180,9 +1246,9 @@ function renderBulk(focusSel){closeBulk();if(!bulk)return;
     try{
       for(const r of bulk.rows){
         const p=r.id&&engines.find(e=>e.id===r.id);
-        if(p){await saveEngine({...p,qty:String(qtyN(p)+r.n)});added+=r.n;continue}
+        if(p){await saveEngine({...tagFor(p),qty:String(qtyN(p)+r.n)});added+=r.n;continue}
         await saveEngine({id:uid(),kind:"part",name:r.name.trim(),brand:"",number:r.retail?"":r.code,barcodes:r.retail?[r.code]:[],
-          category:guessCat(r.name),qty:String(r.n),reorderAt:"",location:place,cost:"",source:"",fits:[],notes:"",createdAt:now});
+          category:guessCat(r.name),qty:String(r.n),reorderAt:"",location:place,cost:"",source:"",fits:forName()?[invFor]:[],notes:"",createdAt:now});
         made++;added+=r.n}
       bulk=null;closeBulk();showToast(`Saved ${added} part${added===1?"":"s"}${made?` (${made} new)`:""}.`)}
     catch(err){btn.disabled=false;msg("Couldn't save everything: "+(err.message||err.code)+". Saved lines are done; try Save all again for the rest.")}};
@@ -1210,7 +1276,7 @@ function renderScanSheet(focusSel){const old=$("#scanWrap");if(old)old.remove();
     html=head("Found")+`<div class="scres">${hits.map(p=>`<div class="sccard"><b>${esc(p.name||"Unnamed part")}</b>
         <span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>
         <span class="sccount${qtyN(p)<=0?" out":""}">${esc(invLine(p))}</span>
-        <div class="scacts"><button type="button" data-sdq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>− Used 1</button><button type="button" data-sdq="1" data-id="${esc(p.id)}">+ Got 1</button><button type="button" data-open="${esc(p.id)}">Open</button></div></div>`).join("")}</div>
+        <div class="scacts"><button type="button" data-sdq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>− Used 1</button><button type="button" data-sdq="1" data-id="${esc(p.id)}">+ Got 1</button><button type="button" data-open="${esc(p.id)}">Open</button>${forName()&&!allFits(p).includes(invFor)?`<button type="button" data-tagfor="${esc(p.id)}">Tag to ${esc(forName())}</button>`:""}</div></div>`).join("")}</div>
       <p class="smsg" id="sc-msg" role="alert"></p>
       <div class="sbtns"><button type="button" id="sc-done">Done</button><button type="button" class="primary" id="sc-again">Scan another</button></div>`;
   }else{
@@ -1247,6 +1313,8 @@ function renderScanSheet(focusSel){const old=$("#scanWrap");if(old)old.remove();
     b.disabled=true;const n=Math.max(0,qtyN(p)+parseInt(b.dataset.sdq,10));
     try{await saveEngine({...p,qty:String(n)});renderScanSheet()}catch(err){b.disabled=false;msg("Couldn't update the count: "+(err.message||err.code))}});
   w.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{const p=engines.find(e=>e.id===b.dataset.open);closeScanSheet();if(p)openPart(p)});
+  w.querySelectorAll("[data-tagfor]").forEach(b=>b.onclick=async()=>{const p=engines.find(e=>e.id===b.dataset.tagfor);if(!p)return;const n=forName();
+    b.disabled=true;try{await saveEngine(tagFor(p));renderScanSheet();showToast(`Tagged ${p.name||p.number||"the part"} to ${n}.`)}catch(err){b.disabled=false;msg("Couldn't save: "+(err.message||err.code))}});
   const f=w.querySelector(focusSel||"#sc-again")||w.querySelector("#scClose");if(f)f.focus();
 }
 let samplerP=null;
@@ -1257,6 +1325,73 @@ async function shrinkPhoto(file){
     const c=document.createElement("canvas");c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);
     c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
     return await new Promise(r=>c.toBlob(b=>r(b||file),"image/jpeg",0.85))}catch(e){return file}
+}
+/* ---------- receipts: photos / PDFs of what a part cost, for warranty claims ----------
+   Each file is one doc in the receipts collection (loaded only when opened or printed).
+   The part keeps a short list: receipts: [{ id, name, type: "image" | "pdf", at }].
+   When the part is used on a service, that list is copied onto the log entry's part line,
+   so the service carries its receipts (History, print). Firestore docs max out at 1 MiB,
+   so photos are shrunk to JPEG and PDFs must be under RC_MAX. */
+const RC_MAX=680*1024;
+const rcCache=new Map();
+const rcStore=()=>!offline&&FB&&FB.receipts&&currentUser?FB.receipts(currentUser.uid):null;
+function rcGet(id){if(!rcCache.has(id)){const st=rcStore();if(!st)return Promise.resolve(null);
+  rcCache.set(id,st.get(id).catch(e=>{rcCache.delete(id);throw e}))}return rcCache.get(id)}
+const toDataURL=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(b)});
+async function shrinkTo(file,px,q){try{const bmp=await createImageBitmap(file);const sc=Math.min(1,px/Math.max(bmp.width,bmp.height));
+  const c=document.createElement("canvas");c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);
+  const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,0,0,c.width,c.height);
+  return await new Promise(r=>c.toBlob(b=>r(b),"image/jpeg",q))}catch(e){return null}}
+/** A chosen file → { type, data (data: URL) }. Throws a message the person can act on. */
+async function receiptFromFile(f){
+  if(f.type==="application/pdf"||/\.pdf$/i.test(f.name)){
+    if(f.size>RC_MAX)throw new Error("That PDF is over 680 KB. Take a screenshot of the receipt and add that instead.");
+    const data=await toDataURL(f);if(!/^data:application\/pdf;base64,/.test(data))throw new Error("That file isn't a PDF.");
+    return {type:"pdf",data}}
+  if(!/^image\//.test(f.type)&&!/\.(jpe?g|png|gif|webp|heic|heif)$/i.test(f.name))throw new Error("Choose a photo, a screenshot or a PDF.");
+  for(const [px,q] of [[1600,.82],[1300,.75],[1000,.7]]){const b=await shrinkTo(f,px,q);if(b&&b.size<=RC_MAX)return {type:"image",data:await toDataURL(b)}}
+  throw new Error("Couldn't read that photo. Try a screenshot (PNG or JPEG) instead.");
+}
+const rcLabel=r=>r.name||(r.type==="pdf"?"Receipt PDF":"Receipt photo");
+/** Is this receipt still listed on any part or log entry? (Then its file stays.) */
+const rcListed=id=>engines.some(m=>(m.receipts||[]).some(r=>r.id===id)||(m.log||[]).some(l=>(l.parts||[]).some(x=>(x.receipts||[]).some(r=>r.id===id))));
+/** Delete the files of receipts nothing lists any more. */
+async function rcCleanup(ids){const st=rcStore();if(!st)return;for(const id of ids){if(!rcListed(id)){rcCache.delete(id);try{await st.delete(id)}catch(e){}}}}
+/* pdf.js (only loaded when a PDF receipt is shown or printed): each page → a JPEG */
+let pdfjsP=null;
+const PDFJS="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+function loadPdfjs(){return pdfjsP||(pdfjsP=new Promise((res,rej)=>{const sc=document.createElement("script");sc.src=PDFJS+"pdf.min.js";
+  sc.onload=()=>{if(!window.pdfjsLib)return rej(new Error("PDF reader didn't load"));pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS+"pdf.worker.min.js";res(window.pdfjsLib)};
+  sc.onerror=()=>{pdfjsP=null;rej(new Error("PDF reader didn't load"))};document.head.appendChild(sc)}))}
+async function pdfImages(dataURL,maxPages){const lib=await loadPdfjs();
+  const bytes=Uint8Array.from(atob(dataURL.split(",")[1]),ch=>ch.charCodeAt(0));
+  const pdf=await lib.getDocument({data:bytes,isEvalSupported:false}).promise;const out=[];
+  for(let i=1;i<=Math.min(pdf.numPages,maxPages||10);i++){const pg=await pdf.getPage(i);const vp=pg.getViewport({scale:1.6});
+    const c=document.createElement("canvas");c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);const g=c.getContext("2d");
+    g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);await pg.render({canvasContext:g,viewport:vp}).promise;out.push(c.toDataURL("image/jpeg",.85))}
+  return out}
+/** A receipt as image data: URLs (one per page). Never throws: an empty list means it couldn't be read. */
+async function rcImages(id){try{const d=await rcGet(id);if(!d||typeof d.data!=="string")return [];
+  if(d.type==="pdf")return await pdfImages(d.data,10);return /^data:image\//.test(d.data)?[d.data]:[]}catch(e){return []}}
+/* the receipt viewer sheet */
+async function openReceipt(r){
+  const old=$("#rcWrap");if(old)old.remove();
+  const w=document.createElement("div");w.id="rcWrap";w.className="sheetwrap";const back=document.activeElement;
+  w.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rcTitle"><div class="sheethead"><div><small>Receipt${r.at?" · added "+esc(fmtDate(String(r.at).slice(0,10))):""}</small><h2 id="rcTitle">${esc(rcLabel(r))}</h2></div>
+    <button type="button" class="ghost sheetx" id="rcClose" aria-label="Close"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div>
+    <div class="rcview" id="rcBody"><p class="muted">Loading…</p></div><div class="sbtns" id="rcBtns"></div></div>`;
+  document.body.appendChild(w);document.body.classList.add("sheet-open");
+  let blobUrl=null;
+  const close=()=>{w.remove();document.body.classList.remove("sheet-open");if(blobUrl)URL.revokeObjectURL(blobUrl);if(back&&back.isConnected)back.focus()};
+  $("#rcClose").onclick=close;w.addEventListener("click",ev=>{if(ev.target===w)close()});
+  w.addEventListener("keydown",ev=>{if(ev.key==="Escape"){ev.preventDefault();close()}});$("#rcClose").focus();
+  let d=null;try{d=await rcGet(r.id)}catch(e){}
+  const body=$("#rcBody");if(!body)return;
+  if(!d){body.innerHTML=`<p class="muted">${rcStore()?"This receipt couldn't be loaded. Check your connection and try again.":"Sign in to see receipts."}</p>`;return}
+  const imgs=await rcImages(r.id);if(!$("#rcBody"))return;
+  body.innerHTML=imgs.length?imgs.map((src,i)=>`<img src="${esc(src)}" alt="${esc(rcLabel(r))}${imgs.length>1?" page "+(i+1):""}">`).join(""):`<p class="muted">This ${d.type==="pdf"?"PDF":"file"} can't be shown here.</p>`;
+  if(d.type==="pdf"){try{const bytes=Uint8Array.from(atob(d.data.split(",")[1]),ch=>ch.charCodeAt(0));blobUrl=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));
+    $("#rcBtns").innerHTML=`<a class="doc" href="${blobUrl}" target="_blank" rel="noopener">Open the PDF</a>`}catch(e){}}
 }
 async function readLabel(file){
   const pe=partEdit;if(!pe)return;const setMsg=t=>{pe.msg=t;const m=$("#scanMsg");if(m)m.textContent=t};
@@ -1354,7 +1489,7 @@ function sheetBody(e){
   <div class="two"><div><h2>Specifications</h2><table class="kv">${rows||"<tr><td>No specs recorded</td></tr>"}</table></div>
   <div><h2>Part numbers</h2><table><thead><tr><th>Part</th><th>Brand</th><th>Part #</th></tr></thead><tbody>${parts.map(p=>`<tr><td>${esc(p[0])}</td><td>${esc(p[2])}</td><td class="m">${esc(p[1]||"")}</td></tr>`).join("")||"<tr><td colspan=3>None recorded</td></tr>"}</tbody></table></div></div>
   <h2>Service log</h2><table class="log"><thead><tr><th style="width:13%">Date</th><th style="width:10%">${k.meterCol}</th><th style="width:27%">Work done</th><th>Notes / parts used</th><th style="width:10%">Cost</th></tr></thead><tbody>
-  ${log.map(l=>`<tr><td class="m">${fmtDate(l.date)}</td><td class="m">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}${usedParts(l)}</td><td class="m">${l.cost?"$"+esc(l.cost):""}</td></tr>`).join("")}${blanks}</tbody></table>
+  ${log.map(l=>`<tr><td class="m">${fmtDate(l.date)}</td><td class="m">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}${usedParts(l,false)}</td><td class="m">${l.cost?"$"+esc(l.cost):""}</td></tr>`).join("")}${blanks}</tbody></table>
   ${(e.torque||[]).length?`<h2>Torque specs &amp; bolt sizes</h2><table><thead><tr><th style="width:30%">Fastener</th><th style="width:16%">Socket / wrench</th><th style="width:15%">Torque</th><th>Notes</th></tr></thead><tbody>${tqSorted(e).map(t=>`<tr><td>${esc(t.item)}</td><td class="m">${esc(t.size||"")}</td><td class="m">${esc(t.value)} ${esc(t.value?t.unit||"ft-lb":"")}</td><td>${esc(t.notes||"")}</td></tr>`).join("")}</tbody></table>`:""}
   ${docsOf(e).length?`<h2>Manuals &amp; links</h2><table><tbody>${docsOf(e).map(d=>`<tr><th style="width:28%">${esc(d.label)}</th><td class="m url">${esc(safeUrl(d.url))}</td></tr>`).join("")}</tbody></table>`:""}
   ${e.notes?`<h2>Notes</h2><p class="notes">${esc(e.notes)}</p>`:""}`;
@@ -1368,25 +1503,52 @@ h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px
 table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:5px 7px;text-align:left;vertical-align:top}
 th{background:#eee;font-size:10px;text-transform:uppercase;letter-spacing:.05em}.kv th{width:42%;text-transform:none;letter-spacing:0;font-size:11px;background:#f4f4f4}
 .m{font-family:"Courier New",monospace}.blank td{height:22px}.url{word-break:break-all;font-size:10px}.notes{white-space:pre-wrap;border:1px solid #999;padding:8px}
+.rcpage{break-before:page;page-break-before:always;padding-top:4px}.rcpage .rcsub{color:#444;margin-bottom:8px}
+.rcpage img{display:block;max-width:100%;max-height:8.6in;margin:0 auto;border:1px solid #999}
 @media print{body{padding:0}@page{margin:0.5in}tr{break-inside:avoid}}`;
-function sheetHTML(e){return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(dname(e))} service record</title><style>${SHEET_CSS}</style></head><body>${sheetBody(e)}</body></html>`}
+function sheetHTML(e,extra){return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(dname(e))} service record</title><style>${SHEET_CSS}</style></head><body>${sheetBody(e)}${extra||""}</body></html>`}
+/** Receipts on this machine's log entries, oldest service first (one per file, even if two entries share it). */
+function receiptsOf(e){const seen=new Set(),out=[];
+  for(const l of sortedLog(e).slice().reverse())for(const x of l.parts||[])for(const r of x.receipts||[]){if(seen.has(r.id))continue;seen.add(r.id);out.push({r,l,x})}
+  return out}
+/** Each receipt (each page of a PDF) on its own printed page, after the service records. */
+async function receiptPages(e){let html="";
+  for(const {r,l,x} of receiptsOf(e)){const imgs=await rcImages(r.id);
+    const head=`<div class="eyebrow">Receipt · ${esc(dname(e))}</div><h2 style="margin-top:4px">${esc([x.brand,x.number].filter(Boolean).join(" ")||x.name||"Part")}${x.name&&(x.brand||x.number)?" ("+esc(x.name)+")":""}</h2>
+      <div class="rcsub">Used on the ${fmtDate(l.date)} service${x.warranty?" · Warranty: "+esc(x.warranty):""} · ${esc(rcLabel(r))}</div>`;
+    if(!imgs.length){html+=`<div class="rcpage">${head}<p>This receipt couldn't be loaded${rcStore()?"":" (sign in to print receipts)"}.</p></div>`;continue}
+    imgs.forEach((src,i)=>{html+=`<div class="rcpage">${head}${imgs.length>1?`<div class="rcsub">Page ${i+1} of ${imgs.length}</div>`:""}<img src="${esc(src)}" alt=""></div>`})}
+  return html}
 
 async function renderPrint(e){
+  const nrc=receiptsOf(e).length;
   $("#panel").innerHTML=`<section class="panel">
     <div class="actions"><button class="primary" id="prOne">Print</button><button id="dlOne">Save printable record</button><button id="dlAll">Save all ${K(e).plural.toLowerCase()}</button><span id="dlMsg" class="muted" style="font-size:.88rem"></span></div>
     <p class="muted" style="margin:0;font-size:.88rem">Print it now, or save a print-ready page to print later (or "Save as PDF"). Blank rows at the bottom let you hand-write services in the shop.</p>
+    ${nrc?`<label class="chip" style="width:fit-content;max-width:100%"><input type="checkbox" id="prRc" checked>Add the ${nrc} receipt${nrc>1?"s":""} from parts used, each on its own page</label>`:""}
     <div class="tablewrap" style="border:none"><div class="sheet" id="sheetPrev"></div></div></section>`;
   const prev=$("#sheetPrev");const sh=prev.attachShadow?prev.attachShadow({mode:"open"}):prev;
-  sh.innerHTML=`<style>${SHEET_CSS.replace("body{","div.root{")}</style><div class="root" style="padding:0">${sheetBody(e)}</div>`;
+  const css=SHEET_CSS.replace("body{","div.root{")+`.rcpage{border-top:2px dashed #999;margin-top:28px;padding-top:16px}`;
+  sh.innerHTML=`<style>${css}</style><div class="root" style="padding:0">${sheetBody(e)}<div id="rcPrev"></div></div>`;
+  const withRc=()=>{const c=$("#prRc");return !!(c&&c.checked)};
+  let rcHtml=null;const rcReady=()=>rcHtml||(rcHtml=receiptPages(e));
+  const showRc=async()=>{const box=sh.querySelector("#rcPrev");if(!box)return;if(!withRc()){box.innerHTML="";return}
+    box.innerHTML=`<p class="rcpage">Loading receipts…</p>`;const h=await rcReady();if(withRc()&&sh.querySelector("#rcPrev"))sh.querySelector("#rcPrev").innerHTML=h};
+  if(nrc){showRc();$("#prRc").onchange=showRc}
+  const extra=async()=>withRc()?await rcReady():"";
   let dl=null;try{dl=await DL}catch(x){}
   const msg=$("#dlMsg");
   if(!dl){$("#dlOne").disabled=true;$("#dlAll").disabled=true;msg.textContent="Saving files isn't available in this view.";return}
   const save=async(name,html)=>{try{await dl.save({filename:name,data:html});msg.textContent="Saved "+name}catch(err){msg.textContent=err.code==="declined"?"Save cancelled.":"Couldn't save: "+(err.message||err.code)}};
-  $("#prOne").onclick=()=>{const w=window.open("","_blank");if(!w){msg.textContent="Your browser blocked the print window. Use Save printable record instead.";return}w.document.write(sheetHTML(e));w.document.close();w.focus();setTimeout(()=>w.print(),300)};
+  // the window opens on the tap (so it isn't blocked), then fills in once the receipts are ready
+  $("#prOne").onclick=async()=>{const w=window.open("","_blank");if(!w){msg.textContent="Your browser blocked the print window. Use Save printable record instead.";return}
+    if(withRc()){w.document.write("<p style='font-family:sans-serif'>Getting the receipts ready…</p>")}
+    const html=sheetHTML(e,await extra());w.document.open();w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),500)};
   const slug=s=>(s||"engine").replace(/[^\w\- ]+/g,"").trim().replace(/\s+/g,"-")||"engine";
-  $("#dlOne").onclick=()=>save(slug(dname(e))+"-service-record.html",sheetHTML(e));
-  $("#dlAll").onclick=()=>{const kd=kindOf(e);const all=engines.filter(x=>kindOf(x)===kd).sort(byName);
-    save((kd==="vehicle"?"vehicle":"small-engine")+"-records.html",`<!doctype html><html><head><meta charset="utf-8"><title>${K(e).plural} service records</title><style>${SHEET_CSS}.pg{break-after:page;page-break-after:always;margin-bottom:40px}.pg:last-child{break-after:auto}</style></head><body>${all.map(x=>`<div class="pg">${sheetBody(x)}</div>`).join("")}</body></html>`)};
+  $("#dlOne").onclick=async()=>{if(withRc())msg.textContent="Getting the receipts ready…";save(slug(dname(e))+"-service-record.html",sheetHTML(e,await extra()))};
+  $("#dlAll").onclick=async()=>{const kd=kindOf(e);const all=engines.filter(x=>kindOf(x)===kd).sort(byName);const rc=withRc()||(!nrc&&all.some(x=>receiptsOf(x).length));
+    if(rc)msg.textContent="Getting the receipts ready…";const pages=[];for(const x of all)pages.push(`<div class="pg">${sheetBody(x)}${rc?await receiptPages(x):""}</div>`);
+    save((kd==="vehicle"?"vehicle":"small-engine")+"-records.html",`<!doctype html><html><head><meta charset="utf-8"><title>${K(e).plural} service records</title><style>${SHEET_CSS}.pg{break-after:page;page-break-after:always;margin-bottom:40px}.pg:last-child{break-after:auto}</style></head><body>${pages.join("")}</body></html>`)};
 }
 
 init();

@@ -438,12 +438,25 @@ service cloud.firestore {
     //   logbook/{uid}/records/{id}          engines, vehicles, parts (inventory)
     //   logbook/{uid}/projects/{id}         Project Tracker projects and jobs
     //   logbook/{uid}/trackerSettings/{id}  Project Tracker counter and shop info
+    //   logbook/{uid}/receipts/{id}         a receipt photo or PDF on a part (one file per doc)
     match /logbook/{uid}/{part}/{docId} {
-      allow read, delete: if isSelf(uid) && part in ['records', 'projects', 'trackerSettings'];
+      allow read, delete: if isSelf(uid) && part in ['records', 'projects', 'trackerSettings', 'receipts'];
       allow create, update: if isSelf(uid)
         && part in ['records', 'projects', 'trackerSettings']
         && docId.matches('^[A-Za-z0-9_-]{1,64}$')
         && request.resource.data is map;
+      // Receipts: only these fields; the file is a data: URL string (a shrunk JPEG
+      // photo or a small PDF), kept under Firestore's 1 MiB doc limit.
+      allow create, update: if isSelf(uid)
+        && part == 'receipts'
+        && docId.matches('^[A-Za-z0-9_-]{1,64}$')
+        && request.resource.data.keys().hasOnly(['partId', 'name', 'type', 'data', 'size', 'createdAt'])
+        && request.resource.data.partId is string && request.resource.data.partId.matches('^[A-Za-z0-9_-]{1,64}$')
+        && request.resource.data.name is string && request.resource.data.name.size() <= 120
+        && request.resource.data.type in ['image', 'pdf']
+        && request.resource.data.data is string && request.resource.data.data.size() <= 1000000
+        && request.resource.data.size is int
+        && request.resource.data.createdAt is string;
     }
 
     // =========================================================================
