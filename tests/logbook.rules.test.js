@@ -59,7 +59,26 @@ describe('Logbook + Project Tracker', () => {
     }
   });
 
-  test('only the three kinds of data, with simple IDs', async () => {
+  test('receipts: the member can add, read and delete their own; nobody else can', async () => {
+    const rc = { partId: 'r2', name: 'receipt.png', type: 'image', data: 'data:image/jpeg;base64,AAAA', size: 27, createdAt: '2026-11-18T00:00:00Z' };
+    const db = as('bob');
+    await assertSucceeds(setDoc(doc(db, 'logbook', 'bob', 'receipts', 'c1'), rc));
+    await assertSucceeds(getDoc(doc(db, 'logbook', 'bob', 'receipts', 'c1')));
+    await assertSucceeds(setDoc(doc(db, 'logbook', 'bob', 'receipts', 'c2'), { ...rc, type: 'pdf', data: 'data:application/pdf;base64,AAAA' }));
+    for (const other of [guest(), as('mallory'), as('boss')]) {
+      await assertFails(getDoc(doc(other, 'logbook', 'bob', 'receipts', 'c1')));
+      await assertFails(getDocs(collection(other, 'logbook', 'bob', 'receipts')));
+      await assertFails(setDoc(doc(other, 'logbook', 'bob', 'receipts', 'c3'), rc));
+      await assertFails(deleteDoc(doc(other, 'logbook', 'bob', 'receipts', 'c1')));
+    }
+    // only the receipt fields, a known type, and under the 1 MiB doc limit
+    await assertFails(setDoc(doc(db, 'logbook', 'bob', 'receipts', 'c4'), { ...rc, extra: 1 }));
+    await assertFails(setDoc(doc(db, 'logbook', 'bob', 'receipts', 'c4'), { ...rc, type: 'exe' }));
+    await assertFails(setDoc(doc(db, 'logbook', 'bob', 'receipts', 'c4'), { ...rc, data: 'x'.repeat(1000001) }));
+    await assertSucceeds(deleteDoc(doc(db, 'logbook', 'bob', 'receipts', 'c1')));
+  });
+
+  test('only the known kinds of data, with simple IDs', async () => {
     const db = as('bob');
     await assertFails(setDoc(doc(db, 'logbook', 'bob', 'other', 'x1'), part));
     await assertFails(getDocs(collection(db, 'logbook', 'bob', 'other')));

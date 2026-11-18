@@ -8,6 +8,9 @@
 //   onAuth(cb), signIn(), signInRedirect(), signOut()
 //   records(uid)   Logbook: engines, vehicles and parts
 //                  -> Firestore logbook/{uid}/records/{recordId}
+//   receipts(uid)  Logbook: receipt photos / PDFs on parts, one per doc,
+//                  read only when opened or printed
+//                  -> Firestore logbook/{uid}/receipts/{receiptId}
 //   forUser(uid)   Project Tracker:
 //                    projects/{id}  -> logbook/{uid}/projects/{id}
 //                    settings/{x}   -> logbook/{uid}/trackerSettings/{x}  (counter, shop)
@@ -18,7 +21,7 @@
 // (window.__gtOfflineCache) so they keep working without a signal.
 
 import { onAuthStateChanged, signOut, signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
-import { collection, deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.js';
 import { finishRedirectSignIn, signInWithGoogle, watchSession } from '../lib/session.js';
 
@@ -57,6 +60,19 @@ function records(uid) {
       delete: () => deleteDoc(doc(col, safeId(id))),
     }),
     onSnapshot: (next, err) => onSnapshot(col, { includeMetadataChanges: true }, next, err),
+  };
+}
+
+/** Logbook receipts: set(id, data), get(id) -> data or null, delete(id). */
+function receipts(uid) {
+  const col = userCol(uid, 'receipts');
+  return {
+    set: (id, data) => setDoc(doc(col, safeId(id)), data),
+    get: async (id) => {
+      const s = await getDoc(doc(col, safeId(id)));
+      return s.exists() ? s.data() : null;
+    },
+    delete: (id) => deleteDoc(doc(col, safeId(id))),
   };
 }
 
@@ -111,5 +127,6 @@ window.fbResolve({
   signInRedirect,
   signOut: () => signOut(auth),
   records,
+  receipts,
   forUser,
 });
