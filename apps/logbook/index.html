@@ -182,6 +182,11 @@ body.sheet-open{overflow:hidden}
 .istat b{font:500 1.3rem var(--f-mono)}
 .istat.warn b{color:var(--warn)}
 .invsearch input{height:44px;background:var(--surface)}
+.lparts{display:grid;gap:8px}.lparts>label small{text-transform:none;letter-spacing:0;font-weight:400}
+.lprow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.lpname{flex:1;min-width:0;display:grid;gap:2px;overflow-wrap:anywhere}.lpname small{color:var(--muted)}
+.lpused{margin-top:4px;font-size:.85rem;color:var(--muted)}.lpused b{color:var(--ink);font-weight:600}
+.iwarr{font-size:.85rem;color:var(--muted)}.iwarr span{color:var(--ink)}
 /* Bulk scan review */
 .bulklist{display:grid;gap:8px}
 .bulkrow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2)}
@@ -713,6 +718,31 @@ function renderSpecs(e){
 }
 const PH={warranty:"2 yr · ends May 2027 · keep the receipt",engineType:"Single-cylinder OHV",make:"Honda",model:"HRN216",serial:"MAGA-1234567",year:"2021",engineMake:"Honda",engineModel:"GCV170",fuelMix:"Unleaded 87, ethanol-free",hours:"112",plug:"NGK BPR5ES",plugGap:"0.028–0.031 in",oilType:"SAE 10W-30",oilCapacity:"0.58 qt (0.55 L)",airFilter:"17211-ZL8-023",fuelFilter:"—"};
 
+/* Parts used on a service: picked from the inventory on the Log a service form. The entry keeps
+   each part's name, part # and warranty as they were (entry.parts); their counts go down on save.
+   Kept outside the form's HTML so a live update of the page doesn't clear what's been picked. */
+let logParts={id:null,rows:[]}; // rows: [{ partId, n }]
+const partLabel=p=>[p.brand,p.number].filter(Boolean).join(" ")||p.name||"Part";
+function usedParts(l){if(!(l.parts||[]).length)return"";
+  return `<div class="lpused">${l.parts.map(x=>`<div>Part: ${esc([x.brand,x.number].filter(Boolean).join(" ")||x.name)}${x.name&&(x.brand||x.number)?` (${esc(x.name)})`:""} ×${esc(x.qty)}${x.warranty?` · <b>Warranty:</b> ${esc(x.warranty)}`:""}</div>`).join("")}</div>`}
+function drawLogParts(e){const box=$("#lParts");if(!box)return;
+  if(logParts.id!==e.id)logParts={id:e.id,rows:[]};
+  logParts.rows=logParts.rows.filter(r=>engines.some(p=>p.id===r.partId));
+  const fitsHere=p=>allFits(p).includes(e.id);
+  const pickable=partsOf().filter(p=>qtyN(p)>0&&!logParts.rows.some(r=>r.partId===p.id))
+    .sort((a,b)=>(fitsHere(b)-fitsHere(a))||byName(a,b));
+  box.innerHTML=`<label for="l-addpart">Parts used <small class="muted">from your inventory; their counts go down when you add this to the log</small></label>
+    ${logParts.rows.map((r,i)=>{const p=engines.find(x=>x.id===r.partId);return `<div class="lprow"><span class="lpname"><b>${esc(p.name||"Unnamed part")}</b> <span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))}</span>
+      <small>${qtyN(p)} on hand${(p.warranty||"").trim()?` · Warranty: ${esc(p.warranty)}`:""}</small></span>
+      <div class="stepper"><button type="button" aria-label="One less" data-lpn="-1" data-i="${i}" ${r.n<=1?"disabled":""}>−</button><span class="mono">${r.n}</span><button type="button" aria-label="One more" data-lpn="1" data-i="${i}" ${r.n>=qtyN(p)?"disabled":""}>+</button></div>
+      <button type="button" class="ghost" data-lpx="${i}" aria-label="Remove ${esc(p.name||"part")}">✕</button></div>`}).join("")}
+    ${partsOf().length?`<select id="l-addpart"><option value="">${pickable.length?"+ Add a part used…":"Every part in stock is already listed"}</option>${pickable.map(p=>`<option value="${esc(p.id)}">${esc(p.name||"Unnamed part")} · ${esc(partLabel(p))} · ${qtyN(p)} on hand${fitsHere(p)?" · fits this":""}</option>`).join("")}</select>`
+      :`<p class="muted" style="margin:0;font-size:.85rem">No parts in your inventory yet.</p>`}`;
+  const add=$("#l-addpart");if(add)add.onchange=()=>{if(add.value){logParts.rows.push({partId:add.value,n:1});drawLogParts(e);const n=$("#l-addpart");if(n)n.focus()}};
+  box.querySelectorAll("[data-lpn]").forEach(b=>b.onclick=()=>{const r=logParts.rows[+b.dataset.i],p=engines.find(x=>x.id===r.partId);
+    r.n=Math.max(1,Math.min(qtyN(p),r.n+parseInt(b.dataset.lpn,10)));drawLogParts(e)});
+  box.querySelectorAll("[data-lpx]").forEach(b=>b.onclick=()=>{logParts.rows.splice(+b.dataset.lpx,1);drawLogParts(e)});
+}
 function renderLog(e){
   const log=sortedLog(e);const k=K(e);
   /* work-done chips: the usual jobs plus any custom services tracked on this machine */
@@ -728,28 +758,40 @@ function renderLog(e){
         <label>Cost<input id="l-cost" class="pn" inputmode="decimal" placeholder="$ optional"></label>
       </div>
       <div><label>Work done</label><div class="chips" style="margin-top:6px">${tl.map((t,i)=>`<label class="chip"><input type="checkbox" id="t-${i}" value="${esc(t)}">${esc(t)}</label>`).join("")}</div></div>
-      <label>Notes / parts used<textarea id="l-notes" placeholder="${esc(k.logPh)}"></textarea></label>
+      <div class="lparts" id="lParts"></div>
+      <label>Notes<textarea id="l-notes" placeholder="${esc(k.logPh)}"></textarea></label>
       <div class="actions"><button class="primary" type="submit">Add to log</button><span id="logMsg" class="saved"></span></div>
     </form>
     <div><h3>History</h3>${log.length?`<div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>Date</th><th>${k.meterCol}</th><th>Work done</th><th>Notes</th><th>Cost</th><th></th></tr></thead><tbody>
-      ${log.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td class="n">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}</td><td class="n">${l.cost?"$"+esc(l.cost):""}</td>
+      ${log.map(l=>`<tr><td class="n">${fmtDate(l.date)}</td><td class="n">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}${usedParts(l)}</td><td class="n">${l.cost?"$"+esc(l.cost):""}</td>
         <td>${pendingLog===l.id?`<span class="confirm"><button class="danger" data-yes="${esc(l.id)}">Delete</button><button data-no>Keep</button></span>`:`<button class="ghost" data-del="${esc(l.id)}">Delete</button>`}</td></tr>`).join("")}
     </tbody></table></div>`:`<p class="muted">No services logged yet. Use the form above to record the first one.</p>`}</div>
   </section>`;
   $("#logForm").onsubmit=async ev=>{ev.preventDefault();
     const tasks=tl.filter((t,i)=>$("#t-"+i).checked);
     const notes=$("#l-notes").value.trim();
-    if(!tasks.length&&!notes){$("#logMsg").textContent="Tick at least one job or add a note.";$("#logMsg").style.color="var(--accent)";return}
+    const used=logParts.rows.map(r=>({r,p:engines.find(x=>x.id===r.partId)})).filter(x=>x.p&&x.r.n>0);
+    if(!tasks.length&&!notes&&!used.length){$("#logMsg").textContent="Tick at least one job, add a part used, or add a note.";$("#logMsg").style.color="var(--accent)";return}
+    const short=used.find(({r,p})=>r.n>qtyN(p));
+    if(short){$("#logMsg").textContent=`Only ${qtyN(short.p)} ${short.p.name||"of that part"} on hand.`;$("#logMsg").style.color="var(--accent)";return}
     const entry={id:uid(),date:$("#l-date").value||today(),hours:$("#l-hours").value.trim(),cost:$("#l-cost").value.replace(/^\$/,"").trim(),tasks,notes};
+    // Parts used: what they were and their warranty at the time (the entry's date is the install date).
+    if(used.length)entry.parts=used.map(({r,p})=>({partId:p.id,name:p.name||"",brand:p.brand||"",number:p.number||"",qty:r.n,warranty:(p.warranty||"").trim()}));
     const out={...e,log:[...(e.log||[]),entry]};
     const num=v=>parseFloat(String(v||"").replace(/,/g,""));
     if(entry.hours&&(!e.hours||num(entry.hours)>=num(e.hours))){out.hours=entry.hours;out.hoursAt=entry.date}
     if(Array.isArray(e.schedule))out.schedule=e.schedule.map(x=>{if(!tasks.includes(x.task)||!x.snooze)return x;const {snooze,...y}=x;return y}); // done: wake any snooze
-    try{await saveEngine(out);draft=null;const m=$("#logMsg");if(m){const bits=["Added."];
+    try{await saveEngine(out);draft=null;
+      // they came off the shelf: lower each part's count
+      for(const {r,p} of used)await saveEngine({...p,qty:String(Math.max(0,qtyN(p)-r.n))});
+      logParts={id:e.id,rows:[]};drawLogParts(e);
+      const m=$("#logMsg");if(m){const bits=["Added."];
+      if(used.length)bits.push(`${used.reduce((t,x)=>t+x.r.n,0)} part${used.reduce((t,x)=>t+x.r.n,0)===1?"":"s"} taken from inventory.`);
       if(out.hours!==e.hours&&milesN(out.hours)!=null)bits.push(`Mileage updated to ${fmtMi(milesN(out.hours))}.`);
       const n2=nextOil(out);if(tasks.includes("Oil & filter")&&n2)bits.push(`Next oil change at ${fmtMi(n2.at)}.`);
       m.style.color="";m.textContent=bits.join(" ")}}catch(err){$("#logMsg").textContent="Couldn't save: "+(err.message||err.code)}};
   wireMeter(e);
+  drawLogParts(e);
   $("#addSched").onclick=()=>openSheet(e,null);
   $("#panel").querySelectorAll("[data-sched]").forEach(b=>b.onclick=()=>openSheet(e,b.dataset.sched));
   if(logPrefill&&logPrefill.id===e.id){const i=tl.indexOf(logPrefill.task);logPrefill=null; // "Log it as done" from the Due tab
@@ -960,6 +1002,7 @@ function renderInventory(kt,wire){
         <div class="irow"><button class="iname" data-edit="${esc(p.id)}"><b>${esc(p.name||"Unnamed part")}</b><span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))||"No part #"}</span></button>
           <div class="stepper"><button aria-label="Use one" data-dq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>−</button><span class="mono">${qtyN(p)}</span><button aria-label="Add one" data-dq="1" data-id="${esc(p.id)}">+</button></div></div>
         <div class="imeta">${p.category?`<span class="tag">${esc(p.category)}</span>`:""}${p.location?`<span>${esc(p.location)}</span>`:""}${isLow(p)?`<span class="tag reorder">Reorder</span>`:""}</div>
+        ${(p.warranty||"").trim()?`<div class="iwarr">Warranty: <span>${esc(p.warranty)}</span></div>`:""}
         ${fits.length?`<div class="ifits">Fits: <span>${esc(fits.join(", "))}</span></div>`:""}
       </article>`}).join(""):`<p class="muted">No parts match. Try another search or filter.</p>`}</div></div>`;
   const qi=$("#invQ");qi.addEventListener("input",()=>{invQuery=qi.value;clearTimeout(qi._t);qi._t=setTimeout(()=>{render();const n=$("#invQ");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}},250)});
@@ -1002,6 +1045,7 @@ function renderPartEdit(){
       <label>Location<input id="p-location" value="${esc(d.location)}" placeholder="Shelf A · Bin 2"></label>
       <label>Cost each<input id="p-cost" class="pn" inputmode="decimal" value="${esc(d.cost)}" placeholder="$ optional"></label>
       <label>Where to buy<input id="p-source" value="${esc(d.source)}" placeholder="Store or website"></label>
+      <label class="span2">Warranty<input id="p-warranty" value="${esc(d.warranty||"")}" placeholder="e.g. 2 yr from install · keep the receipt" maxlength="200"></label>
     </div>
     <div class="parts"><h3>Barcodes</h3>${(d.barcodes||[]).length?`<div class="chips">${d.barcodes.map((b,i)=>`<span class="bcchip"><span class="mono">${esc(b)}</span><button class="ghost" data-rmbc="${i}" aria-label="Remove barcode ${esc(b)}">×</button></span>`).join("")}</div>`:""}
       <p class="muted" style="margin:0;font-size:.82rem">Store barcodes (UPC) from the packaging. Scanning one finds this part.</p>
@@ -1013,7 +1057,7 @@ function renderPartEdit(){
     <div class="actions"><button class="primary" id="pSave">Save part</button><button id="pCancel">Cancel</button><span id="pMsg" class="saved"></span><span style="flex:1"></span>
       ${pe.isNew?"":pe.confirmDel?`<span class="confirm">Delete this part? <button class="danger" id="pDelYes">Delete</button><button id="pDelNo">Keep</button></span>`:`<button class="danger" id="pDel">Delete part</button>`}</div>
   </section>`;
-  const pull=()=>{["name","brand","number","category","qty","reorderAt","location","cost","source","notes"].forEach(f=>{const el=$("#p-"+f);if(el)d[f]=el.value})};
+  const pull=()=>{["name","brand","number","category","qty","reorderAt","location","cost","source","warranty","notes"].forEach(f=>{const el=$("#p-"+f);if(el)d[f]=el.value})};
   app.querySelectorAll("[data-fit]").forEach(b=>b.onclick=()=>{pull();const id=b.dataset.fit;d.fits=d.fits||[];
     d.fits=d.fits.includes(id)?d.fits.filter(x=>x!==id):[...d.fits,id];renderPartEdit()});
   app.querySelectorAll("[data-rmbc]").forEach(b=>b.onclick=()=>{pull();d.barcodes=(d.barcodes||[]).filter((_,i)=>i!==+b.dataset.rmbc);renderPartEdit()});
@@ -1287,12 +1331,12 @@ function sheetBody(e){
   <div class="two"><div><h2>Specifications</h2><table class="kv">${rows||"<tr><td>No specs recorded</td></tr>"}</table></div>
   <div><h2>Part numbers</h2><table><thead><tr><th>Part</th><th>Brand</th><th>Part #</th></tr></thead><tbody>${parts.map(p=>`<tr><td>${esc(p[0])}</td><td>${esc(p[2])}</td><td class="m">${esc(p[1]||"")}</td></tr>`).join("")||"<tr><td colspan=3>None recorded</td></tr>"}</tbody></table></div></div>
   <h2>Service log</h2><table class="log"><thead><tr><th style="width:13%">Date</th><th style="width:10%">${k.meterCol}</th><th style="width:27%">Work done</th><th>Notes / parts used</th><th style="width:10%">Cost</th></tr></thead><tbody>
-  ${log.map(l=>`<tr><td class="m">${fmtDate(l.date)}</td><td class="m">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}</td><td class="m">${l.cost?"$"+esc(l.cost):""}</td></tr>`).join("")}${blanks}</tbody></table>
+  ${log.map(l=>`<tr><td class="m">${fmtDate(l.date)}</td><td class="m">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}${usedParts(l)}</td><td class="m">${l.cost?"$"+esc(l.cost):""}</td></tr>`).join("")}${blanks}</tbody></table>
   ${(e.torque||[]).length?`<h2>Torque specs &amp; bolt sizes</h2><table><thead><tr><th style="width:30%">Fastener</th><th style="width:16%">Socket / wrench</th><th style="width:15%">Torque</th><th>Notes</th></tr></thead><tbody>${tqSorted(e).map(t=>`<tr><td>${esc(t.item)}</td><td class="m">${esc(t.size||"")}</td><td class="m">${esc(t.value)} ${esc(t.value?t.unit||"ft-lb":"")}</td><td>${esc(t.notes||"")}</td></tr>`).join("")}</tbody></table>`:""}
   ${docsOf(e).length?`<h2>Manuals &amp; links</h2><table><tbody>${docsOf(e).map(d=>`<tr><th style="width:28%">${esc(d.label)}</th><td class="m url">${esc(safeUrl(d.url))}</td></tr>`).join("")}</tbody></table>`:""}
   ${e.notes?`<h2>Notes</h2><p class="notes">${esc(e.notes)}</p>`:""}`;
 }
-const SHEET_CSS=`td.lnotes{white-space:pre-line}body{font-family:"Helvetica Neue",Arial,sans-serif;color:#111;margin:0;padding:28px;font-size:12px;line-height:1.4}
+const SHEET_CSS=`td.lnotes{white-space:pre-line}.lpused{margin-top:3px;font-size:11px;white-space:normal}body{font-family:"Helvetica Neue",Arial,sans-serif;color:#111;margin:0;padding:28px;font-size:12px;line-height:1.4}
 .hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:8px;margin-bottom:14px;gap:12px}
 .eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#555;font-weight:700}
 h1{font-size:24px;margin:2px 0;text-transform:uppercase;letter-spacing:.02em}.subt{color:#444}.printed{font-size:10px;color:#555;white-space:nowrap}
