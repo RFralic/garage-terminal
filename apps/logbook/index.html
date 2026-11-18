@@ -185,7 +185,9 @@ body.sheet-open{overflow:hidden}
 .lparts{display:grid;gap:8px}.lparts>label small{text-transform:none;letter-spacing:0;font-weight:400}
 .lprow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
 .lpname{flex:1;min-width:0;display:grid;gap:2px;overflow-wrap:anywhere}.lpname small{color:var(--muted)}
-.lpused{margin-top:4px;font-size:.85rem;color:var(--muted)}.lpused b{color:var(--ink);font-weight:600}
+.lpused{margin-top:4px;font-size:.85rem;color:var(--muted)}
+.lpadd{display:flex;gap:8px;align-items:stretch}.lpadd select{flex:1;min-width:0}
+.lpmsg{margin:0;font-size:.85rem;color:var(--steel)}.lpmsg:empty{display:none}.lpused b{color:var(--ink);font-weight:600}
 .iwarr{font-size:.85rem;color:var(--muted)}.iwarr span{color:var(--ink)}
 /* Bulk scan review */
 .bulklist{display:grid;gap:8px}
@@ -721,7 +723,26 @@ const PH={warranty:"2 yr · ends May 2027 · keep the receipt",engineType:"Singl
 /* Parts used on a service: picked from the inventory on the Log a service form. The entry keeps
    each part's name, part # and warranty as they were (entry.parts); their counts go down on save.
    Kept outside the form's HTML so a live update of the page doesn't clear what's been picked. */
-let logParts={id:null,rows:[]}; // rows: [{ partId, n }]
+let logParts={id:null,rows:[],msg:""}; // rows: [{ partId, n }]
+/* Scan a part's barcode or part # to add it to Parts used (one more each scan, never more than
+   on hand). "Keep scanning" scans several in a row. */
+function addUsedByCode(e,code){
+  const hits=scanFind(code);
+  if(!hits.length)return `Not in your inventory: ${code}`;
+  const fits=p=>allFits(p).includes(e.id);
+  const p=[...hits].sort((a,b)=>((qtyN(b)>0)-(qtyN(a)>0))||(fits(b)-fits(a)))[0];
+  const row=logParts.rows.find(r=>r.partId===p.id);
+  const have=row?row.n:0;
+  if(qtyN(p)<=have)return qtyN(p)?`All ${qtyN(p)} ${p.name||"of that part"} are already listed`:`None on hand: ${p.name||partLabel(p)}`;
+  if(row)row.n++;else logParts.rows.push({partId:p.id,n:1});
+  return `${p.name||partLabel(p)}: ${have+1} used`;
+}
+function scanPartUsed(e){if(!window.GTScan)return;
+  if(logParts.id!==e.id)logParts={id:e.id,rows:[],msg:""};
+  GTScan.open({title:"Scan a part used",allowKeep:true,
+    onCode:(r,{keep})=>{const m=addUsedByCode(e,r.text);logParts.msg=m;drawLogParts(e);return keep?m:""},
+    onClose:()=>{const b=$("#l-scanpart");if(b)b.focus()}});
+}
 const partLabel=p=>[p.brand,p.number].filter(Boolean).join(" ")||p.name||"Part";
 function usedParts(l){if(!(l.parts||[]).length)return"";
   return `<div class="lpused">${l.parts.map(x=>`<div>Part: ${esc([x.brand,x.number].filter(Boolean).join(" ")||x.name)}${x.name&&(x.brand||x.number)?` (${esc(x.name)})`:""} ×${esc(x.qty)}${x.warranty?` · <b>Warranty:</b> ${esc(x.warranty)}`:""}</div>`).join("")}</div>`}
@@ -736,9 +757,11 @@ function drawLogParts(e){const box=$("#lParts");if(!box)return;
       <small>${qtyN(p)} on hand${(p.warranty||"").trim()?` · Warranty: ${esc(p.warranty)}`:""}</small></span>
       <div class="stepper"><button type="button" aria-label="One less" data-lpn="-1" data-i="${i}" ${r.n<=1?"disabled":""}>−</button><span class="mono">${r.n}</span><button type="button" aria-label="One more" data-lpn="1" data-i="${i}" ${r.n>=qtyN(p)?"disabled":""}>+</button></div>
       <button type="button" class="ghost" data-lpx="${i}" aria-label="Remove ${esc(p.name||"part")}">✕</button></div>`}).join("")}
-    ${partsOf().length?`<select id="l-addpart"><option value="">${pickable.length?"+ Add a part used…":"Every part in stock is already listed"}</option>${pickable.map(p=>`<option value="${esc(p.id)}">${esc(p.name||"Unnamed part")} · ${esc(partLabel(p))} · ${qtyN(p)} on hand${fitsHere(p)?" · fits this":""}</option>`).join("")}</select>`
+    ${partsOf().length?`<div class="lpadd"><select id="l-addpart"><option value="">${pickable.length?"+ Add a part used…":"Every part in stock is already listed"}</option>${pickable.map(p=>`<option value="${esc(p.id)}">${esc(p.name||"Unnamed part")} · ${esc(partLabel(p))} · ${qtyN(p)} on hand${fitsHere(p)?" · fits this":""}</option>`).join("")}</select>${scanBtn("l-scanpart","Scan",true)}</div>
+      <p class="lpmsg" id="lpMsg" role="status">${esc(logParts.msg||"")}</p>`
       :`<p class="muted" style="margin:0;font-size:.85rem">No parts in your inventory yet.</p>`}`;
-  const add=$("#l-addpart");if(add)add.onchange=()=>{if(add.value){logParts.rows.push({partId:add.value,n:1});drawLogParts(e);const n=$("#l-addpart");if(n)n.focus()}};
+  const sc=$("#l-scanpart");if(sc)sc.onclick=()=>scanPartUsed(e);
+  const add=$("#l-addpart");if(add)add.onchange=()=>{if(add.value){logParts.msg="";logParts.rows.push({partId:add.value,n:1});drawLogParts(e);const n=$("#l-addpart");if(n)n.focus()}};
   box.querySelectorAll("[data-lpn]").forEach(b=>b.onclick=()=>{const r=logParts.rows[+b.dataset.i],p=engines.find(x=>x.id===r.partId);
     r.n=Math.max(1,Math.min(qtyN(p),r.n+parseInt(b.dataset.lpn,10)));drawLogParts(e)});
   box.querySelectorAll("[data-lpx]").forEach(b=>b.onclick=()=>{logParts.rows.splice(+b.dataset.lpx,1);drawLogParts(e)});
@@ -1095,7 +1118,7 @@ function scanHits(p,code){const c=normPN(code);if(!c)return false;if(codeHit(p,c
   return partHits(p,code)}
 const scanFind=code=>partsOf().filter(p=>scanHits(p,code)).sort(byName);
 const invLine=p=>`In inventory: ${qtyN(p)}${p.location?" · "+p.location:""}`;
-function scanBtn(id,label,alt){return window.GTScan?`<button class="${alt?"invscan alt":"primary invscan"}" id="${id}">${GTScan.ICON}<span>${esc(label||"Scan")}</span></button>`:""}
+function scanBtn(id,label,alt){return window.GTScan?`<button type="button" class="${alt?"invscan alt":"primary invscan"}" id="${id}">${GTScan.ICON}<span>${esc(label||"Scan")}</span></button>`:""}
 function startScan(){if(!window.GTScan)return;
   GTScan.open({title:"Scan a part",allowKeep:true,onCode:(r,{keep})=>{const hits=scanFind(r.text);
     if(keep)return hits.length?hits.map(p=>`${p.name||p.number||"Part"}: ${invLine(p)}`).join(" · "):`Not in inventory: ${r.text}`;
