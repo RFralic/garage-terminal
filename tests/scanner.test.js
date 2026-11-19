@@ -114,7 +114,9 @@ describe('the pages load the scanner', () => {
   test('both apps use /apps/scanner.js', () => {
     for (const [name, html] of [['Logbook', logbook], ['Project Tracker', tracker]]) {
       assert.ok(html.includes('<script src="/apps/scanner.js"></script>'), `${name} doesn't load /apps/scanner.js`);
-      assert.ok(html.includes('data-scan'), `${name} has no scan buttons on its Part # fields`);
+      assert.ok(html.includes('GTScan'), `${name} doesn't use the scanner`);
+      // Part # boxes have no inline scan button: it only pasted barcode text (UPCs go on a part's barcode list instead).
+      assert.ok(!/<input[^>]*(aria-label="Part #"|id="p-number"|id="pnum-|class="pn")[^>]*data-scan/.test(html), `${name} has a scan button on a Part # field`);
     }
   });
 });
