@@ -509,7 +509,7 @@ let currentUser=null, signedOut=false, unsub=null, FB=null, authErr="";
 let linkTo=(()=>{try{return new URLSearchParams(location.search).get("m")}catch(e){return null}})();
 function openLinked(final){if(!linkTo)return;const e=engines.find(x=>x.id===linkTo&&kindOf(x)!=="part");
   if(e){view={id:e.id,tab:"log"};listKind=kindOf(e);draft=null;editing=false;pendingDelete=false}
-  if(e||final){linkTo=null;try{history.replaceState(null,"",location.pathname)}catch(x){}}}
+  if(e||final){linkTo=null;try{history.replaceState(history.state,"",location.pathname)}catch(x){}}}
 async function init(){
   try{FB=await window.fbReady}catch(e){FB=null}
   if(!FB){goOffline("Couldn't connect to sync. Changes are kept on this device only for now.");return}
@@ -570,7 +570,36 @@ function renderSignIn(){
 function goOffline(msg){if(!offline){offline=true;engines=lsLoad();showBanner(msg);render()}}
 
 /* ---------- render ---------- */
-function render(){
+/* Phone back button: each screen (a list, a machine, a part) gets its own browser history entry, so Back goes to the
+   previous screen instead of leaving the Logbook. Back also closes an open scanner or sheet first. Switching between the
+   top tabs (Engines, Vehicles, Inventory, Due) replaces the entry rather than adding one. */
+let navSkipPop=false, navRestoring=false, navReady=false;
+function navSnap(){return{gtl:1,k:partEdit?"p:"+partEdit.d.id:view.id?"m:"+view.id:"l:"+listKind,listKind,view:{id:view.id,tab:view.tab},invFor,
+  part:partEdit?{id:partEdit.d.id,returnTo:partEdit.returnTo}:null}}
+function navSync(){if(signedOut)return;try{const s=navSnap(),c=history.state,ours=c&&c.gtl;
+  if(!navReady||!ours||navRestoring){navReady=true;history.replaceState({...s,prevK:ours?c.prevK:null},"");return}
+  if(c.k===s.k||(c.k.startsWith("l:")&&s.k.startsWith("l:"))){history.replaceState({...s,prevK:c.prevK},"");return}
+  if(c.prevK===s.k){navSkipPop=true;history.back();return} /* an in-app "←" button: step back instead of stacking a new entry */
+  history.pushState({...s,prevK:c.k},"")}catch(e){}}
+window.addEventListener("popstate",ev=>{const s=ev.state;
+  if(navSkipPop){navSkipPop=false;try{history.replaceState({...navSnap(),prevK:s&&s.gtl?s.prevK:null},"")}catch(e){}return}
+  let closed=true;
+  if(window.GTScan&&GTScan.isOpen)GTScan.close();
+  else if(scanRes)closeScanSheet();
+  else if(bulk){bulk=null;closeBulk()}
+  else if(sheet)closeSheet();
+  else closed=false;
+  if(closed){try{history.pushState({...navSnap(),prevK:s&&s.gtl?s.k:null},"")}catch(e){}return}
+  if(!s||!s.gtl||signedOut)return;
+  listKind=s.listKind||listKind;try{localStorage.setItem("sel-kind",listKind)}catch(e){}
+  if(typeof s.invFor==="string"&&s.invFor!==invFor)setInvFor(s.invFor);
+  view={id:s.view&&s.view.id||null,tab:s.view&&s.view.tab||"specs"};draft=null;editing=false;pendingDelete=false;
+  if(s.part){const p=engines.find(x=>x.id===s.part.id);
+    if(!(partEdit&&partEdit.d.id===s.part.id))partEdit=p?{returnTo:s.part.returnTo||null,isNew:false,d:JSON.parse(JSON.stringify(p)),confirmDel:false,msg:"",note:""}:null}
+  else partEdit=null;
+  navRestoring=true;try{render()}finally{navRestoring=false}window.scrollTo(0,0)});
+function render(){renderScreen();navSync()}
+function renderScreen(){
   if(signedOut){renderSignIn();return}
   const top=$("#topActions");
   if(partEdit){const rt=partEdit.returnTo&&engines.find(x=>x.id===partEdit.returnTo);
