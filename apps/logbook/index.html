@@ -678,14 +678,14 @@ function renderSpecs(e){
       <label>Nickname (optional)<input id="f-name" value="${esc(d.name)}" placeholder="Leave blank to use make &amp; model"></label>
       <label>${k.typeLabel}${sel("f-equipment",k.types,d.equipment)}</label>
       ${k.spec.map(([k,l,m,pt])=>k==="cycle"?`<label>${l}${sel("f-cycle",["4-stroke","2-stroke"],d.cycle)}</label>`:
-        pt?`<label class="pnlabel">${l}<span class="pnpair"><input id="f-${k}Brand" aria-label="${esc(l.replace(/ part #$/,""))} brand" value="${esc(d[k+"Brand"])}" placeholder="Brand"><input id="f-${k}" class="pn" data-scan aria-label="${esc(l)}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"Part #")}"></span></label>`:
+        pt?`<label class="pnlabel">${l}<span class="pnpair"><input id="f-${k}Brand" aria-label="${esc(l.replace(/ part #$/,""))} brand" value="${esc(d[k+"Brand"])}" placeholder="Brand"><input id="f-${k}" class="pn" aria-label="${esc(l)}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"Part #")}"></span></label>`:
         `<label>${l}<input id="f-${k}" class="${m?"pn":""}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"")}"></label>`).join("")}
     </div>
     <div class="parts"><h3>Other part numbers</h3>
       <div id="partsList" class="parts">${(d.parts||[]).map((p,i)=>`<div class="partrow3">
         <input id="pn-${i}" aria-label="Part name" value="${esc(p.name)}" placeholder="${esc(k.partPh)}">
         <input id="pbr-${i}" aria-label="Brand" value="${esc(p.brand)}" placeholder="Brand">
-        <input id="pnum-${i}" class="pn" data-scan aria-label="Part number" value="${esc(p.number)}" placeholder="Part #">
+        <input id="pnum-${i}" class="pn" aria-label="Part number" value="${esc(p.number)}" placeholder="Part #">
         <button class="ghost" data-rm="${i}">Remove</button></div>`).join("")}</div>
       <div><button id="addPart">+ Add part</button></div>
     </div>
@@ -1109,7 +1109,7 @@ function renderPartEdit(){
     <div class="fields">
       <label class="span2">Part name<input id="p-name" value="${esc(d.name)}" placeholder="Oil filter"></label>
       <label>Brand<input id="p-brand" value="${esc(d.brand)}" placeholder="Motorcraft"></label>
-      <label>Part #<input id="p-number" class="pn" data-scan value="${esc(d.number)}" placeholder="FL-500S"></label>
+      <label>Part #<input id="p-number" class="pn" value="${esc(d.number)}" placeholder="FL-500S"></label>
       <label>Category${sel}</label>
       <label>On hand<input id="p-qty" class="pn" inputmode="numeric" value="${esc(d.qty)}"></label>
       <label>Reorder at<input id="p-reorderAt" class="pn" inputmode="numeric" value="${esc(d.reorderAt)}" placeholder="Optional"></label>
