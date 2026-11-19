@@ -487,7 +487,7 @@ function allParts(p){const out=[];(p.tasks||[]).forEach(t=>(t.parts||[]).forEach
 function brands(){const s=new Set();Object.values(projects).forEach(p=>allParts(p).forEach(x=>{if(x.brand&&x.brand.trim())s.add(x.brand.trim())}));return [...s].sort((a,b)=>a.localeCompare(b))}
 function partFields(x,sups,isNew){
   const p=projects[view.pid]||{};const fl=isFluid(x);
-  return `<div class="grid2"><label class="f">Brand<input type="text" name="brand" maxlength="60" list="brand-list" value="${esc(x.brand||'')}" placeholder="e.g. Kohler"></label><label class="f">Part #<input type="text" name="num" maxlength="60" class="mono" data-scan aria-label="Part #" value="${esc(x.num||'')}"></label></div>
+  return `<div class="grid2"><label class="f">Brand<input type="text" name="brand" maxlength="60" list="brand-list" value="${esc(x.brand||'')}" placeholder="e.g. Kohler"></label><label class="f">Part #<input type="text" name="num" maxlength="60" class="mono" aria-label="Part #" value="${esc(x.num||'')}"></label></div>
     <div class="grid2"><label class="f">Amount<input type="number" name="qty" min="${fl?'0.1':'1'}" max="9999" step="${fl?'0.1':'1'}" value="${esc(numStr(x.qty))}" inputmode="decimal" data-qtyfor="1"></label>
     <label class="f">Measured in<select name="unit" data-unitsel="1">${UNITS.map(([v,l])=>`<option value="${v}" ${(x.unit||'')===v?'selected':''}>${l}</option>`).join('')}</select></label></div>
     ${p.kind==='customer'&&isNew?`<label class="f"><span data-pricelabel="1">Price ${perText(x)} ($)</span><input type="number" name="price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" class="mono"></label>`:''}
@@ -533,7 +533,29 @@ async function signIn(){
 /* ---------- views ---------- */
 function go(patch){view={...view,editing:null,confirm:null,editPart:null,editTime:null,...patch};render();window.scrollTo(0,0)}
 
-function render(){
+/* Phone back button: each screen (the project list, a project, a task, the shop list, shop info, a new project) gets its
+   own browser history entry, so Back goes to the previous screen instead of leaving the Tracker. Back also closes an
+   open scanner or sheet first. Tabs and filters within a screen replace the entry rather than adding one. */
+let navSkipPop=false, navRestoring=false, navReady=false;
+function navSnap(){const v={name:view.name,tab:view.tab,q:view.q,pid:view.pid,tid:view.tid,kind:view.kind,shopJob:view.shopJob,shopStatus:view.shopStatus,shopSup:view.shopSup,backPid:view.backPid};
+  return{gtt:1,k:[view.name,view.name==='project'||view.name==='task'?view.pid:'',view.name==='task'?view.tid:''].join(':'),v}}
+function navSync(){if(signedOut||!ready)return;try{const s=navSnap(),c=history.state,ours=c&&c.gtt;
+  if(!navReady||!ours||navRestoring){navReady=true;history.replaceState({...s,prevK:ours?c.prevK:null},'');return}
+  if(c.k===s.k){history.replaceState({...s,prevK:c.prevK},'');return}
+  if(c.prevK===s.k){navSkipPop=true;history.back();return} /* an in-app back button: step back instead of stacking a new entry */
+  history.pushState({...s,prevK:c.k},'')}catch(e){}}
+window.addEventListener('popstate',ev=>{const s=ev.state;
+  if(navSkipPop){navSkipPop=false;try{history.replaceState({...navSnap(),prevK:s&&s.gtt?s.prevK:null},'')}catch(e){}return}
+  let closed=true;
+  if(window.GTScan&&GTScan.isOpen)GTScan.close();
+  else if(lsheet)closeLogSheet();
+  else closed=false;
+  if(closed){try{history.pushState({...navSnap(),prevK:s&&s.gtt?s.k:null},'')}catch(e){}return}
+  if(!s||!s.gtt||signedOut)return;
+  view={...view,...s.v,editing:null,confirm:null,editPart:null,editTime:null};
+  navRestoring=true;try{render()}finally{navRestoring=false}window.scrollTo(0,0)});
+function render(){renderScreen();navSync()}
+function renderScreen(){
   const a=document.activeElement;const keepId=a&&a.id&&(a.tagName==='TEXTAREA'||a.tagName==='INPUT')?a.id:null;const sel=keepId?[a.selectionStart,a.selectionEnd]:null;
   let html='';
   if(signedOut)html=renderSignIn();
