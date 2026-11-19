@@ -286,6 +286,7 @@ a.doc::after{content:"↗";font-weight:400}
 .sccard{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:grid;gap:4px}
 .sccard b{font-size:1.1rem}.sccard .mono{color:var(--muted);font-size:.9rem}
 .sccount{font:500 1.05rem var(--f-mono);margin-top:2px}.sccount.out{color:var(--accent)}
+.scfits{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:2px}.scfits .scfl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:2px}.scfits button{min-height:36px;padding:4px 12px;font-size:14px}.scfits .muted{font-size:14px}
 .scacts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}.scacts button{min-height:48px;justify-content:center}
 /* pop-up sheets: keep the app's colors (the print preview's .sheet style was turning them white) */
 .sheetwrap>.sheet{background:var(--surface);color:var(--ink);max-width:none;margin:0;font-size:15px;border:0;border-top:1px solid var(--line);border-radius:14px 14px 0 0;
@@ -1028,6 +1029,9 @@ function xref(e){const inv=partsOf();
   return {rows,tagged}}
 const autoFits=p=>machines().filter(m=>machineParts(m).some(mp=>partHits(p,mp.number))).map(m=>m.id);
 const allFits=p=>[...new Set([...(p.fits||[]),...autoFits(p)])];
+// Machines a scanned part goes with (tagged to it, or listed in that machine's specs), shown on the scan sheet.
+function scFits(p){const ms=allFits(p).map(id=>engines.find(e=>e.id===id)).filter(m=>m&&!isPart(m)).sort(byName);
+  return `<div class="scfits"><span class="scfl">Fits</span>${ms.length?ms.map(m=>`<button type="button" data-mach="${esc(m.id)}">${esc(dname(m))}</button>`).join(""):`<span class="muted">Not linked to a machine yet</span>`}</div>`}
 const qtyN=p=>{const n=parseInt(p.qty,10);return isNaN(n)?0:n};
 const isLow=p=>p.reorderAt!==""&&p.reorderAt!=null&&!isNaN(parseInt(p.reorderAt,10))&&qtyN(p)<=parseInt(p.reorderAt,10);
 const money=n=>"$"+(Math.round(n*100)/100).toLocaleString(undefined,{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2});
@@ -1276,6 +1280,7 @@ function renderScanSheet(focusSel){const old=$("#scanWrap");if(old)old.remove();
     html=head("Found")+`<div class="scres">${hits.map(p=>`<div class="sccard"><b>${esc(p.name||"Unnamed part")}</b>
         <span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>
         <span class="sccount${qtyN(p)<=0?" out":""}">${esc(invLine(p))}</span>
+        ${scFits(p)}
         <div class="scacts"><button type="button" data-sdq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>− Used 1</button><button type="button" data-sdq="1" data-id="${esc(p.id)}">+ Got 1</button><button type="button" data-open="${esc(p.id)}">Open</button>${forName()&&!allFits(p).includes(invFor)?`<button type="button" data-tagfor="${esc(p.id)}">Tag to ${esc(forName())}</button>`:""}</div></div>`).join("")}</div>
       <p class="smsg" id="sc-msg" role="alert"></p>
       <div class="sbtns"><button type="button" id="sc-done">Done</button><button type="button" class="primary" id="sc-again">Scan another</button></div>`;
@@ -1313,6 +1318,7 @@ function renderScanSheet(focusSel){const old=$("#scanWrap");if(old)old.remove();
     b.disabled=true;const n=Math.max(0,qtyN(p)+parseInt(b.dataset.sdq,10));
     try{await saveEngine({...p,qty:String(n)});renderScanSheet()}catch(err){b.disabled=false;msg("Couldn't update the count: "+(err.message||err.code))}});
   w.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{const p=engines.find(e=>e.id===b.dataset.open);closeScanSheet();if(p)openPart(p)});
+  w.querySelectorAll("[data-mach]").forEach(b=>b.onclick=()=>{closeScanSheet();view={id:b.dataset.mach,tab:"log"};draft=null;editing=false;pendingDelete=false;render();window.scrollTo(0,0)});
   w.querySelectorAll("[data-tagfor]").forEach(b=>b.onclick=async()=>{const p=engines.find(e=>e.id===b.dataset.tagfor);if(!p)return;const n=forName();
     b.disabled=true;try{await saveEngine(tagFor(p));renderScanSheet();showToast(`Tagged ${p.name||p.number||"the part"} to ${n}.`)}catch(err){b.disabled=false;msg("Couldn't save: "+(err.message||err.code))}});
   const f=w.querySelector(focusSel||"#sc-again")||w.querySelector("#scClose");if(f)f.focus();
