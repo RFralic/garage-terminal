@@ -124,6 +124,42 @@ Moving records over from the old project is a one-time GitHub action, "Copy Logb
 (`scripts/copy-logbook-data.mjs`). It needs a second secret, `LOGBOOK_SERVICE_ACCOUNT`: the old project's
 service account key. Run it as a dry run first; it never changes the old project.
 
+### Receipts (photos and PDFs on parts)
+
+Each receipt is one Firestore doc, `logbook/{uid}/receipts/{id}`:
+`{ partId, name, type: 'image' | 'pdf', data, size, createdAt }`, where `data` is the file as a data: URL.
+Photos are shrunk to JPEG in the browser; PDFs must be under 680 KB, because a Firestore doc holds at
+most 1 MiB (the rules cap `data` at 1,000,000 characters). Parts and log entries never hold the file,
+only a short list `receipts: [{ id, name, type, at }]`, so the files can move without touching them.
+The page reads a file only when it's opened or printed (`receipts(uid).get(id)` in
+`src/apps/logbook-backend.js`). Storage cost: the first 1 GiB of Firestore is free (roughly
+3,000–5,000 receipts across all members), then billed per GiB per month.
+
+#### Moving receipt files to Firebase Storage later
+
+Do this if receipts get large or numerous (bigger PDFs, email forwarding). Keep every receipt's **id**:
+parts and log entries point at receipts by id, so nothing else changes. Members shouldn't notice.
+
+1. **Read from both places first.** Ship a Logbook update where `receipts(uid).get(id)` returns the
+   file from Storage when the doc has a `path`, and otherwise the `data` field as today. Add Storage rules
+   so only the member can read and write `logbook/{uid}/receipts/*`, plus a rules test. Deploy this
+   before moving anything, so a half-finished move never breaks a receipt.
+2. **Send new receipts to Storage.** Uploads go to `logbook/{uid}/receipts/{id}.jpg` or `.pdf`; the doc
+   keeps `partId, name, type, size, createdAt` and gets `path` instead of `data`.
+3. **Back up.** Export Firestore (`gcloud firestore export`) before the copy.
+4. **Copy the old ones** with a one-time admin script (a GitHub action like "Copy Logbook data", dry run
+   first): for each doc that has `data` and no `path`, upload the decoded file to Storage, then set
+   `path` on the doc. Leave `data` in place for now. Re-running it must skip docs already done.
+5. **Check every copy:** the Storage file's size matches the decoded `data`, and a few open in the Logbook.
+6. **Wait about a week**, so phones still running the old page (which only reads `data`) have reloaded.
+   A receipt someone viewed offline before the move needs a connection once afterward.
+7. **Remove the old copies:** a second run of the script deletes the `data` field from docs that have
+   a verified `path`. Then tighten the Firestore rule so new receipt docs can't carry `data`.
+
+The standalone Logbook site (`vehicle-logbook-c7e27`, `users/{uid}/receipts`) is a separate Firebase
+project and needs its own run of these steps. While both copies exist the cost is doubled briefly
+(pennies).
+
 ## Morning Brief
 
 A daily or weekly email for any signed-in member, set up at `/apps/morning-brief`. Daily: today's
