@@ -173,6 +173,10 @@ body.sheet-open{overflow:hidden}
 .formnote{margin:0;padding:10px 12px;border:1px solid var(--warn);border-left-width:4px;border-radius:6px;font-size:.9rem}
 .addinv{min-height:32px;padding:3px 10px;font-size:.8rem;color:var(--steel);border-color:var(--steel);background:transparent}
 .stkcell{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+/* inventory status next to a part number (Specifications, Other part numbers, Also on the shelf) */
+.pnline{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}.pnline>span:first-child{min-width:0;overflow-wrap:anywhere}
+button.stk{flex:none;background:transparent;min-height:32px;padding:3px 9px;cursor:pointer;font:600 .72rem var(--f-display)}button.stk.none{color:var(--steel);border-color:var(--steel)}
+.prows{border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:8px}.prow{padding:9px 12px;border-bottom:1px solid var(--line)}.prow:last-child{border-bottom:0}.prow .pn2{display:block;font-family:var(--f-mono,monospace);font-size:.85rem;color:var(--muted);overflow-wrap:anywhere}.prow .loc{display:block;font-size:.78rem;color:var(--muted)}
 .sparesline{padding:0 14px 10px;font-size:.82rem;color:var(--muted);display:flex;gap:6px;align-items:center}
 .inv{display:grid;gap:14px}
 .invstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
@@ -505,7 +509,7 @@ let currentUser=null, signedOut=false, unsub=null, FB=null, authErr="";
 let linkTo=(()=>{try{return new URLSearchParams(location.search).get("m")}catch(e){return null}})();
 function openLinked(final){if(!linkTo)return;const e=engines.find(x=>x.id===linkTo&&kindOf(x)!=="part");
   if(e){view={id:e.id,tab:"log"};listKind=kindOf(e);draft=null;editing=false;pendingDelete=false}
-  if(e||final){linkTo=null;try{history.replaceState(null,"",location.pathname)}catch(x){}}}
+  if(e||final){linkTo=null;try{history.replaceState(history.state,"",location.pathname)}catch(x){}}}
 async function init(){
   try{FB=await window.fbReady}catch(e){FB=null}
   if(!FB){goOffline("Couldn't connect to sync. Changes are kept on this device only for now.");return}
@@ -566,7 +570,36 @@ function renderSignIn(){
 function goOffline(msg){if(!offline){offline=true;engines=lsLoad();showBanner(msg);render()}}
 
 /* ---------- render ---------- */
-function render(){
+/* Phone back button: each screen (a list, a machine, a part) gets its own browser history entry, so Back goes to the
+   previous screen instead of leaving the Logbook. Back also closes an open scanner or sheet first. Switching between the
+   top tabs (Engines, Vehicles, Inventory, Due) replaces the entry rather than adding one. */
+let navSkipPop=false, navRestoring=false, navReady=false;
+function navSnap(){return{gtl:1,k:partEdit?"p:"+partEdit.d.id:view.id?"m:"+view.id:"l:"+listKind,listKind,view:{id:view.id,tab:view.tab},invFor,
+  part:partEdit?{id:partEdit.d.id,returnTo:partEdit.returnTo}:null}}
+function navSync(){if(signedOut)return;try{const s=navSnap(),c=history.state,ours=c&&c.gtl;
+  if(!navReady||!ours||navRestoring){navReady=true;history.replaceState({...s,prevK:ours?c.prevK:null},"");return}
+  if(c.k===s.k||(c.k.startsWith("l:")&&s.k.startsWith("l:"))){history.replaceState({...s,prevK:c.prevK},"");return}
+  if(c.prevK===s.k){navSkipPop=true;history.back();return} /* an in-app "←" button: step back instead of stacking a new entry */
+  history.pushState({...s,prevK:c.k},"")}catch(e){}}
+window.addEventListener("popstate",ev=>{const s=ev.state;
+  if(navSkipPop){navSkipPop=false;try{history.replaceState({...navSnap(),prevK:s&&s.gtl?s.prevK:null},"")}catch(e){}return}
+  let closed=true;
+  if(window.GTScan&&GTScan.isOpen)GTScan.close();
+  else if(scanRes)closeScanSheet();
+  else if(bulk){bulk=null;closeBulk()}
+  else if(sheet)closeSheet();
+  else closed=false;
+  if(closed){try{history.pushState({...navSnap(),prevK:s&&s.gtl?s.k:null},"")}catch(e){}return}
+  if(!s||!s.gtl||signedOut)return;
+  listKind=s.listKind||listKind;try{localStorage.setItem("sel-kind",listKind)}catch(e){}
+  if(typeof s.invFor==="string"&&s.invFor!==invFor)setInvFor(s.invFor);
+  view={id:s.view&&s.view.id||null,tab:s.view&&s.view.tab||"specs"};draft=null;editing=false;pendingDelete=false;
+  if(s.part){const p=engines.find(x=>x.id===s.part.id);
+    if(!(partEdit&&partEdit.d.id===s.part.id))partEdit=p?{returnTo:s.part.returnTo||null,isNew:false,d:JSON.parse(JSON.stringify(p)),confirmDel:false,msg:"",note:""}:null}
+  else partEdit=null;
+  navRestoring=true;try{render()}finally{navRestoring=false}window.scrollTo(0,0)});
+function render(){renderScreen();navSync()}
+function renderScreen(){
   if(signedOut){renderSignIn();return}
   const top=$("#topActions");
   if(partEdit){const rt=partEdit.returnTo&&engines.find(x=>x.id===partEdit.returnTo);
@@ -641,24 +674,26 @@ function renderSpecView(e){
   const parts=(e.parts||[]).filter(p=>p.name||p.number);
   const tq=tqSorted(e);const docs=docsOf(e);
   const sect=(t,body)=>`<div class="vsec"><h3>${t}</h3>${body}</div>`;
+  /* inventory status shown right next to each part number (no separate shelf table) */
+  const inv=partsOf();const stockFor=num=>inv.filter(p=>partHits(p,num));
+  const badge=(st,lab,num,br)=>{if(!st.length)return`<button type="button" class="stk none" data-addinv="1" data-label="${esc(lab)}" data-brand="${esc(br||"")}" data-number="${esc(num)}" aria-label="Not in inventory. Add ${esc(lab)} to inventory">+ Add</button>`;
+    const q=st.reduce((n,p)=>n+qtyN(p),0);return `<button type="button" class="stk ${q===0?"out":st.some(isLow)?"low":"ok"}" data-openpart="${esc(st[0].id)}" aria-label="${q} on hand. Open in inventory">${q} on hand</button>`};
+  const locOf=st=>[...new Set(st.map(p=>p.location).filter(Boolean))].join(", ");
+  const x=xref(e);
   $("#panel").innerHTML=`<section class="panel">
     <div class="actions" style="justify-content:space-between"><span class="muted" style="font-size:.85rem">${e.updatedAt?"Updated "+fmtDate(String(e.updatedAt).slice(0,10)):""}</span><button class="primary" id="editBtn">Edit ${k.one}</button></div>
-    ${sect("Specifications",spec.length||e.equipment?`<dl class="specview"><div><dt>${k.typeLabel}</dt><dd>${esc(e.equipment||"—")}</dd></div>${nextOil(e)?`<div class="nextoil ${nextOil(e).state}"><dt>Next oil change</dt><dd class="mono">${esc(nextOilText(nextOil(e)))}</dd></div>`:""}${spec.map(([f,l,m,pt])=>`<div><dt>${l}</dt><dd class="${m?"mono":""}">${esc(pt?withBrand(e[f+"Brand"],e[f]):e[f])}</dd></div>`).join("")}</dl>`:`<p class="muted">No specs yet. Tap Edit to add them.</p>`)}
-    ${parts.length?sect("Other part numbers",`<div class="tablewrap"><table><thead><tr><th>Part</th><th>Brand</th><th>Part #</th></tr></thead><tbody>${parts.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.brand||"")}</td><td class="n">${esc(p.number)}</td></tr>`).join("")}</tbody></table></div>`):""}
+    ${sect("Specifications",spec.length||e.equipment?`<dl class="specview"><div><dt>${k.typeLabel}</dt><dd>${esc(e.equipment||"—")}</dd></div>${nextOil(e)?`<div class="nextoil ${nextOil(e).state}"><dt>Next oil change</dt><dd class="mono">${esc(nextOilText(nextOil(e)))}</dd></div>`:""}${spec.map(([f,l,m,pt])=>{if(!pt)return`<div><dt>${l}</dt><dd class="${m?"mono":""}">${esc(e[f])}</dd></div>`;const num=String(e[f]).trim(),br=String(e[f+"Brand"]||"").trim(),lab=l.replace(/ part #$/,""),st=stockFor(num),loc=locOf(st);
+      return `<div><dt>${l}</dt><dd class="${m?"mono":""}"><span class="pnline"><span>${esc(withBrand(e[f+"Brand"],e[f]))}</span>${badge(st,lab,num,br)}</span>${loc?`<span class="muted" style="display:block;font-size:.78rem;font-family:inherit">${esc(loc)}</span>`:""}</dd></div>`}).join("")}</dl>`:`<p class="muted">No specs yet. Tap Edit to add them.</p>`)}
+    ${parts.length?sect("Other part numbers",`<div class="prows">${parts.map(p=>{const num=String(p.number||"").trim(),st=num?stockFor(num):[],loc=locOf(st);
+      return `<div class="prow"><span class="pnline"><span><b style="font-weight:500">${esc(p.name||"Part")}</b><span class="pn2">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>${loc?`<span class="loc">${esc(loc)}</span>`:""}</span>${num?badge(st,p.name||"Part",num,p.brand):""}</span></div>`}).join("")}</div>`):""}
     ${isV?sect("Torque specs &amp; bolt sizes",tq.length?`<div class="tablewrap"><table><thead><tr><th>Fastener</th><th>Socket / wrench</th><th>Torque</th><th>Notes</th></tr></thead><tbody>${tq.map(t=>`<tr><td>${esc(t.item)}</td><td class="n">${esc(t.size||"")}</td><td class="n">${t.value?esc(t.value)+" "+esc(t.unit||"ft-lb"):""}</td><td>${esc(t.notes||"")}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted">None yet. Tap Edit to add bolt sizes and torque specs.</p>`):""}
-    ${(()=>{const x=xref(e);
-      const addBtn=(lab,num,br)=>`<button class="addinv" data-addinv="1" data-label="${esc(lab)}" data-brand="${esc(br||"")}" data-number="${esc(num)}">+ Add to inventory</button>`;
-      const stockCell=(st,lab,num,br)=>{if(!st.length)return`<span class="stk none">Not in inventory</span>${addBtn(lab,num,br)}`;const q=st.reduce((n,p)=>n+qtyN(p),0);
-        return `<span class="stk ${q===0?"out":st.some(isLow)?"low":"ok"}">${q} on hand</span><span class="muted" style="font-size:.82rem">${esc([...new Set(st.map(p=>p.location).filter(Boolean))].join(", "))}</span>`};
-      const addMore=`<div class="actions"><button id="goInv">Go to inventory for this ${kindOf(e)==="vehicle"?"vehicle":"engine"} →</button></div>`;
-      if(!x.rows.length&&!x.tagged.length)return sect("Parts &amp; spares on the shelf",`<p class="muted" style="margin:0;font-size:.85rem">No part numbers yet. Add them with Edit.</p>${addMore}`);
-      return sect("Parts &amp; spares on the shelf",`<p class="muted" style="margin:0;font-size:.85rem">Matched by part number against your inventory.</p><div class="tablewrap"><table><thead><tr><th>Part</th><th>Part #</th><th>On the shelf</th></tr></thead><tbody>
-        ${x.rows.map(r=>`<tr><td>${esc(r.label)}</td><td class="n">${r.brand?`<span class="pbrand">${esc(r.brand)}</span> `:""}${esc(r.number)}</td><td><div class="stkcell">${stockCell(r.stock,r.label,r.number,r.brand)}</div></td></tr>`).join("")}
-        ${x.tagged.map(p=>`<tr><td>${esc(p.name||"Part")} <span class="tag">Tagged</span></td><td class="n">${p.brand?`<span class="pbrand">${esc(p.brand)}</span> `:""}${esc(p.number||"")}</td><td><div class="stkcell">${stockCell([p])}</div></td></tr>`).join("")}
-      </tbody></table></div>${addMore}`)})()}
+    ${x.tagged.length?sect(`Also on the shelf for this ${kindOf(e)==="vehicle"?"vehicle":"engine"}`,`<p class="muted" style="margin:0;font-size:.85rem">Parts tagged to it that aren't in its specs.</p><div class="prows">${x.tagged.map(p=>{const loc=locOf([p]);
+      return `<div class="prow"><span class="pnline"><span><b style="font-weight:500">${esc(p.name||"Part")}</b><span class="pn2">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>${loc?`<span class="loc">${esc(loc)}</span>`:""}</span>${badge([p],p.name||"Part",p.number||"",p.brand)}</span></div>`}).join("")}</div>`):""}
+    <div class="actions"><button id="goInv">Go to inventory for this ${kindOf(e)==="vehicle"?"vehicle":"engine"} →</button></div>
     ${sect("Manuals &amp; links",docs.length?`<div class="doclinks">${docs.map(x=>`<a class="doc" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">Open ${esc(x.label||"link")}</a>`).join("")}</div>`:`<p class="muted">No manuals linked. Tap Edit to add a link.</p>`)}
     ${e.notes?sect("Notes",`<p class="vnotes">${esc(e.notes)}</p>`):""}
   </section>`;
+  $("#panel").querySelectorAll("[data-openpart]").forEach(b=>b.onclick=()=>{const p=engines.find(x=>x.id===b.dataset.openpart);if(p)openPart(p,{returnTo:e.id})});
   $("#panel").querySelectorAll("[data-addinv]").forEach(b=>b.onclick=()=>openPart(null,{returnTo:e.id,prefill:{name:b.dataset.label,brand:b.dataset.brand||"",number:b.dataset.number,category:guessCat(b.dataset.label),qty:"0",reorderAt:"0",fits:[e.id]},msg:"This part starts at 0 on hand and is marked Reorder. Update the count once you have it."}));
   if($("#goInv"))$("#goInv").onclick=()=>{setInvFor(e.id);invFilter="All";invQuery="";view={id:null,tab:"specs"};draft=null;editing=false;pendingDelete=false;listKind="part";try{localStorage.setItem("sel-kind","part")}catch(x){}render();window.scrollTo(0,0)};
   $("#editBtn").onclick=()=>{editing=true;draft=JSON.parse(JSON.stringify(e));pendingDelete=false;renderSpecs(e)};
@@ -672,14 +707,14 @@ function renderSpecs(e){
       <label>Nickname (optional)<input id="f-name" value="${esc(d.name)}" placeholder="Leave blank to use make &amp; model"></label>
       <label>${k.typeLabel}${sel("f-equipment",k.types,d.equipment)}</label>
       ${k.spec.map(([k,l,m,pt])=>k==="cycle"?`<label>${l}${sel("f-cycle",["4-stroke","2-stroke"],d.cycle)}</label>`:
-        pt?`<label class="pnlabel">${l}<span class="pnpair"><input id="f-${k}Brand" aria-label="${esc(l.replace(/ part #$/,""))} brand" value="${esc(d[k+"Brand"])}" placeholder="Brand"><input id="f-${k}" class="pn" data-scan aria-label="${esc(l)}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"Part #")}"></span></label>`:
+        pt?`<label class="pnlabel">${l}<span class="pnpair"><input id="f-${k}Brand" aria-label="${esc(l.replace(/ part #$/,""))} brand" value="${esc(d[k+"Brand"])}" placeholder="Brand"><input id="f-${k}" class="pn" aria-label="${esc(l)}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"Part #")}"></span></label>`:
         `<label>${l}<input id="f-${k}" class="${m?"pn":""}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"")}"></label>`).join("")}
     </div>
     <div class="parts"><h3>Other part numbers</h3>
       <div id="partsList" class="parts">${(d.parts||[]).map((p,i)=>`<div class="partrow3">
         <input id="pn-${i}" aria-label="Part name" value="${esc(p.name)}" placeholder="${esc(k.partPh)}">
         <input id="pbr-${i}" aria-label="Brand" value="${esc(p.brand)}" placeholder="Brand">
-        <input id="pnum-${i}" class="pn" data-scan aria-label="Part number" value="${esc(p.number)}" placeholder="Part #">
+        <input id="pnum-${i}" class="pn" aria-label="Part number" value="${esc(p.number)}" placeholder="Part #">
         <button class="ghost" data-rm="${i}">Remove</button></div>`).join("")}</div>
       <div><button id="addPart">+ Add part</button></div>
     </div>
@@ -1103,7 +1138,7 @@ function renderPartEdit(){
     <div class="fields">
       <label class="span2">Part name<input id="p-name" value="${esc(d.name)}" placeholder="Oil filter"></label>
       <label>Brand<input id="p-brand" value="${esc(d.brand)}" placeholder="Motorcraft"></label>
-      <label>Part #<input id="p-number" class="pn" data-scan value="${esc(d.number)}" placeholder="FL-500S"></label>
+      <label>Part #<input id="p-number" class="pn" value="${esc(d.number)}" placeholder="FL-500S"></label>
       <label>Category${sel}</label>
       <label>On hand<input id="p-qty" class="pn" inputmode="numeric" value="${esc(d.qty)}"></label>
       <label>Reorder at<input id="p-reorderAt" class="pn" inputmode="numeric" value="${esc(d.reorderAt)}" placeholder="Optional"></label>
