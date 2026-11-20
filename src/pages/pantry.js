@@ -42,6 +42,12 @@ const errText = (e) => (e && e.code === 'permission-denied' ? "you don't have pe
 
 // ---------- small UI pieces ---------------------------------------------------------
 
+// No signal: say so, so nobody wonders why a change hasn't reached the rest of the household yet.
+const showOffline = () => { const b = $('pt-offline'); if (b) b.hidden = !St.isOffline(); };
+window.addEventListener('online', () => { showOffline(); toast('Back online. Your changes are syncing.'); });
+window.addEventListener('offline', showOffline);
+showOffline();
+
 let toastTimer;
 function toast(msg) {
   const t = $('pt-toast');
