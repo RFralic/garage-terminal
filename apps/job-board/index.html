@@ -504,6 +504,29 @@ function setPartStatus(x,s){x.status=s;if(s==='Ordered'){if(!x.orderedOn)x.order
 const hostOf=u=>{try{return new URL(u).hostname.replace(/^www\./,'')}catch(e){return ''}};
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.hidden=false;clearTimeout(timers.toast);timers.toast=setTimeout(()=>{t.hidden=true},2200)}
 
+/* ---------- Customers (customer jobs only) ----------
+   One list on the account: settings/customers = {list:[{id,name,phone,email,address,notes,createdAt}], built}.
+   A job links to its customer with customer.id and keeps its own copy of the name and phone, so invoices
+   and work reports print what was true for that job. The first time, the list is built from existing jobs. */
+let customers=[],customersLoaded=false,customersBuilt=false;
+const normName=v=>String(v||'').trim().toLowerCase().replace(/\s+/g,' ');
+const digitsOf=v=>String(v||'').replace(/\D/g,'');
+const custById=id=>id?customers.find(c=>c.id===id):null;
+const custOfJob=p=>p&&p.kind==='customer'&&p.customer?custById(p.customer.id):null;
+const jobsOf=cu=>Object.entries(projects).filter(([,p])=>p.kind==='customer'&&p.customer&&p.customer.id===cu.id).sort((a,b)=>(b[1].createdAt||0)>(a[1].createdAt||0)?1:-1);
+function findCustomer(name,phone){const n=normName(name),d=digitsOf(phone);if(!n&&!d)return null;
+  return (d&&customers.find(c=>digitsOf(c.phone)===d))||(n&&customers.find(c=>normName(c.name)===n&&(!d||!digitsOf(c.phone))))||null}
+function newCustomer(name,phone){const c={id:uid(),name:String(name||'').trim(),phone:String(phone||'').trim(),email:'',address:'',notes:'',createdAt:today()};customers.push(c);return c}
+function saveCustomers(){if(db)db.doc('settings/customers').set({list:JSON.parse(JSON.stringify(customers)),built:true}).catch(()=>toast('Could not save the customer list'))}
+/* Make sure a customer job points at a customer (finding or adding one by name / phone). Returns true if anything changed. */
+function linkJob(p){if(!p||p.kind!=='customer')return false;const c=p.customer||(p.customer={name:'',phone:'',dropOff:'',promised:'',complaint:''});
+  const have=custById(c.id);if(have){let ch=false;if(!have.phone&&c.phone){have.phone=c.phone;ch=true}return ch}
+  if(!String(c.name||'').trim()&&!digitsOf(c.phone))return false;
+  const cu=findCustomer(c.name,c.phone)||newCustomer(c.name,c.phone);if(!cu.phone&&c.phone)cu.phone=c.phone;c.id=cu.id;return true}
+function buildCustomers(){if(customersBuilt||!customersLoaded||!projectsLoaded||!db)return;customersBuilt=true;
+  Object.entries(projects).forEach(([id,p])=>{if(p.kind==='customer'&&!custById(p.customer&&p.customer.id)&&linkJob(p))save(id)});saveCustomers()}
+const jobTotal=p=>partsCost(p).total+laborCost(p).total;
+
 function blankProject(kind){return{title:'',kind:kind||'mine',status:'Not started',logbook:'',machine:'',customer:{name:'',phone:'',dropOff:'',promised:'',complaint:''},notes:'',tasks:[],createdAt:Date.now(),updatedAt:Date.now()}}
 function progress(p){const t=p.tasks||[];const d=t.filter(x=>x.done).length;return{d,n:t.length,pct:t.length?Math.round(d/t.length*100):0}}
 function allParts(p){const out=[];(p.tasks||[]).forEach(t=>(t.parts||[]).forEach(x=>out.push({...x,taskId:t.id,taskTitle:t.title})));return out}
@@ -560,8 +583,8 @@ function go(patch){view={...view,editing:null,confirm:null,editPart:null,editTim
    own browser history entry, so Back goes to the previous screen instead of leaving the Tracker. Back also closes an
    open scanner or sheet first. Tabs and filters within a screen replace the entry rather than adding one. */
 let navSkipPop=false, navRestoring=false, navReady=false;
-function navSnap(){const v={name:view.name,tab:view.tab,q:view.q,pid:view.pid,tid:view.tid,kind:view.kind,shopJob:view.shopJob,shopStatus:view.shopStatus,shopSup:view.shopSup,backPid:view.backPid};
-  return{gtt:1,k:[view.name,view.name==='project'||view.name==='task'?view.pid:'',view.name==='task'?view.tid:''].join(':'),v}}
+function navSnap(){const v={name:view.name,tab:view.tab,q:view.q,pid:view.pid,tid:view.tid,kind:view.kind,shopJob:view.shopJob,shopStatus:view.shopStatus,shopSup:view.shopSup,backPid:view.backPid,cid:view.cid,cview:view.cview};
+  return{gtt:1,k:[view.name,view.name==='project'||view.name==='task'?view.pid:view.name==='customer'?view.cid:'',view.name==='task'?view.tid:''].join(':'),v}}
 function navSync(){if(signedOut||!ready)return;try{const s=navSnap(),c=history.state,ours=c&&c.gtt;
   if(!navReady||!ours||navRestoring){navReady=true;history.replaceState({...s,prevK:ours?c.prevK:null},'');return}
   if(c.k===s.k){history.replaceState({...s,prevK:c.prevK},'');return}
@@ -588,6 +611,7 @@ function renderScreen(){
   else if(view.name==='shop')html=renderShop();
   else if(view.name==='new')html=renderNew();
   else if(view.name==='shopinfo')html=renderShopInfo();
+  else if(view.name==='customer'&&custOn)html=renderCustomer();
   else {view.name='list';html=renderList()}
   app.innerHTML=html;
   if(keepId){const el=document.getElementById(keepId);if(el){el.focus();try{el.setSelectionRange(sel[0],sel[1])}catch(e){}}}
@@ -619,6 +643,9 @@ function renderList(){
   ${custOn?`<div class="tabs" role="tablist" aria-label="Filter projects">
     ${[['all','All'],['mine','My equipment'],['customer','Customers']].map(([k,l])=>`<button role="tab" aria-selected="${view.tab===k}" data-act="tab" data-tab="${k}">${l}<span class="cnt">${c[k]}</span></button>`).join('')}
   </div>`:''}`;
+  if(custOn&&view.tab==='customer')h+=`<div class="seg" style="grid-template-columns:repeat(2,minmax(0,1fr))" role="group" aria-label="Show">
+    <button aria-pressed="${view.cview!=='people'}" data-act="cview" data-v="jobs">Jobs</button><button aria-pressed="${view.cview==='people'}" data-act="cview" data-v="people">Customer list <span class="cnt">${customers.length}</span></button></div>`;
+  if(custOn&&view.tab==='customer'&&view.cview==='people')return h+renderCustomerList(q);
   if(!all.length){h+=`<div class="empty"><b style="color:var(--ink)">No projects yet</b><span>${custOn?'Start one for your own machine, or a customer job.':'Start one for your own machine or anything else you\'re working on.'}</span><div class="row"><button class="btn primary" data-act="new" data-kind="mine">+ ${custOn?'My equipment':'New project'}</button>${custOn?'<button class="btn" data-act="new" data-kind="customer">+ Customer job</button>':''}</div>${importButton()}</div>`}
   else if(!shown.length){h+=`<div class="empty">Nothing matches. Try another search or filter.</div>`}
   else h+=shown.map(([id,p])=>{const pr=progress(p);const next=(p.tasks||[]).find(t=>!t.done);const parts=allParts(p);const to=parts.filter(x=>x.status==='To order').length;const od=parts.filter(x=>x.status==='Ordered').length;
@@ -634,6 +661,45 @@ function renderList(){
   return h;
 }
 
+function renderCustomerList(q){
+  const list=customers.filter(c=>!q||[c.name,c.phone,c.email,c.address,c.notes].join(' ').toLowerCase().includes(q)).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  let h=`<div class="row" style="justify-content:flex-end"><button class="btn sm" data-act="newcust">+ New customer</button></div>`;
+  if(!customers.length)return h+`<div class="empty"><b style="color:var(--ink)">No customers yet</b><span>Customers are added here when you start a customer job, or with + New customer.</span></div>`;
+  if(!list.length)return h+`<div class="empty">No customer matches that search.</div>`;
+  return h+list.map(c=>{const js=jobsOf(c);const open=js.filter(([,p])=>p.status!=='Done').length;const last=js[0]&&js[0][1];
+    return `<button class="card" data-act="opencust" data-cid="${esc(c.id)}"><div class="plate customer"><b>${esc(c.name||'No name')}</b><span>${js.length} job${js.length===1?'':'s'}</span></div>
+      <div class="body"><span class="small">${esc(c.phone||'No phone')}${c.email?' · '+esc(c.email):''}</span>
+      <div class="foot"><span>${open?`<b style="color:var(--accent)">${open} open</b>`:'No open jobs'}</span><span class="muted">${last?'Last: '+esc(jobLabel(last)||last.title||''):''}</span></div></div></button>`}).join('');
+}
+function renderCustomer(){
+  const c=custById(view.cid);if(!c)return `<div class="top"><button class="btn ghost" data-act="custlist">← Customers</button></div><div class="empty">That customer was removed.</div>`;
+  const js=jobsOf(c);const total=js.reduce((n,[,p])=>n+jobTotal(p),0);const machinesSeen=[...new Set(js.map(([,p])=>(p.machine||'').trim()).filter(Boolean))];
+  let h=`<div class="top"><button class="btn ghost" data-act="custlist">← Customers</button>${view.editing==='cust'?'':`<button class="btn sm" data-act="editcust">Edit</button>`}</div>`;
+  if(view.editing==='cust'){
+    h+=`<form class="panel" data-form="cust">
+      <label class="f">Name<input type="text" name="name" maxlength="80" value="${esc(c.name)}" required></label>
+      <div class="grid2"><label class="f">Phone<input type="tel" name="phone" maxlength="40" inputmode="tel" value="${esc(c.phone)}"></label><label class="f">Email<input type="email" name="email" maxlength="100" value="${esc(c.email)}"></label></div>
+      <label class="f">Address<input type="text" name="address" maxlength="160" value="${esc(c.address)}"></label>
+      <label class="f">Notes<textarea name="notes" maxlength="2000" style="min-height:70px" placeholder="Gate code, pays cash, prefers texts…">${esc(c.notes)}</textarea></label>
+      <span class="note">Changes here go on new jobs. Past jobs keep the name and phone they were made with, so old invoices don't change.</span>
+      <div class="row"><button class="btn primary" type="submit" style="flex:1">Save</button><button class="btn" type="button" data-act="canceledit">Cancel</button></div>
+      ${view.confirm==='delcust'?`<div class="panel" style="border-color:var(--warn)"><b>Remove ${esc(c.name||'this customer')} from the list?</b><span class="small muted">Their ${js.length} job${js.length===1?'':'s'} stay${js.length===1?'s':''}, just not linked to a customer.</span><div class="row"><button class="btn" type="button" data-act="delcustyes" style="border-color:var(--warn);color:var(--warn)">Remove</button><button class="btn" type="button" data-act="delcustno">Keep</button></div></div>`:`<button class="btn ghost sm" type="button" data-act="delcust" style="align-self:flex-start;color:var(--warn)">Remove customer</button>`}
+    </form>`;
+  }else{
+    h+=`<div class="card" style="cursor:default"><div class="plate customer"><b>${esc(c.name||'No name')}</b><span>Customer</span></div><div class="body">
+      ${c.phone?`<a class="btn sm" href="tel:${esc(digitsOf(c.phone))}" style="align-self:flex-start">📞 ${esc(c.phone)}</a>`:''}
+      ${c.email?`<a class="small" href="mailto:${esc(c.email)}">${esc(c.email)}</a>`:''}${c.address?`<span class="small">${esc(c.address)}</span>`:''}
+      ${c.notes?`<span class="small muted" style="white-space:pre-wrap">${esc(c.notes)}</span>`:''}
+      ${machinesSeen.length?`<span class="small"><span class="muted">Machines:</span> ${esc(machinesSeen.join(', '))}</span>`:''}
+      ${!c.phone&&!c.email&&!c.address&&!c.notes?`<span class="small muted">No contact details yet. Tap Edit to add them.</span>`:''}</div></div>`;
+  }
+  h+=`<section><div class="between"><h2>Jobs</h2><button class="btn primary sm" data-act="newforcust">+ New job</button></div>`;
+  h+=js.length?js.map(([id,p])=>`<button class="card" data-act="open" data-pid="${id}"><div class="plate customer"><b>${esc(p.title||'Untitled job')}</b><span class="mono" style="font-size:14px;letter-spacing:0">${esc(jobLabel(p)||'')}</span></div>
+      <div class="body">${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}<div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(p.status)}</span><span class="price">${jobTotal(p)?money(jobTotal(p)):''}</span></div></div></button>`).join('')
+    +`<div class="between small"><span class="muted">${js.length} job${js.length===1?'':'s'}</span><span>Total billed: <span class="price">${money(total)}</span></span></div>`
+    :`<div class="empty">No jobs for ${esc(c.name||'this customer')} yet.</div>`;
+  return h+'</section>';
+}
 function renderNew(){
   const k=custOn&&view.kind==='customer'?'customer':'mine';
   return `<div class="top"><button class="btn ghost" data-act="home">← Projects</button></div>
@@ -646,7 +712,8 @@ function renderNew(){
     <label class="f">Project name<input id="n-title" type="text" name="title" required maxlength="120" placeholder="${k==='mine'?'e.g. Ford 8N restoration':'e.g. Craftsman mower: no start'}"></label>
     <label class="f">Machine<input type="text" name="machine" maxlength="120" placeholder="Make, model, serial"></label>
     ${k==='mine'?logbookSelect():
-    `<div class="grid2"><label class="f">Customer<input type="text" name="cname" maxlength="80"></label><label class="f">Phone<input type="tel" name="cphone" maxlength="40"></label></div>
+    `${customers.length?`<label class="f">Customer<select name="cid" data-input="pickcust"><option value="">New customer</option>${[...customers].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).map(c=>`<option value="${esc(c.id)}" ${view.cid===c.id?'selected':''}>${esc(c.name||'No name')}${c.phone?' · '+esc(c.phone):''}</option>`).join('')}</select></label>`:''}
+    <div class="grid2"><label class="f">${customers.length?'Name':'Customer'}<input type="text" name="cname" id="n-cname" maxlength="80" value="${esc((custById(view.cid)||{}).name||'')}"></label><label class="f">Phone<input type="tel" name="cphone" id="n-cphone" maxlength="40" value="${esc((custById(view.cid)||{}).phone||'')}"></label></div>
     <div class="grid2"><label class="f">Dropped off<input type="date" name="drop"></label><label class="f">Promised by<input type="date" name="promised"></label></div>
     <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px"></textarea></label>`}
     <button class="btn primary" type="submit">Create project</button>
@@ -674,7 +741,7 @@ function renderProject(){
   if(p.kind==='customer')h+=renderClock(id,p);
   if(p.kind==='customer'){
     const hasInfo=(c.name||'').trim()||(c.phone||'').trim();
-    h+=`<section><div class="between"><h2>Customer info</h2>${hasInfo&&view.editing!=='c'?`<button class="btn sm" data-act="editc">Edit</button>`:''}</div>`;
+    h+=`<section><div class="between"><h2>Customer info</h2><div class="row">${custOfJob(p)&&view.editing!=='c'?`<button class="btn ghost sm" data-act="opencust" data-cid="${esc(custOfJob(p).id)}">All their jobs</button>`:''}${hasInfo&&view.editing!=='c'?`<button class="btn sm" data-act="editc">Edit</button>`:''}</div></div>`;
     if(jobLabel(p))h+=`<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px;border-color:var(--tan)">
         <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="eyebrow">Job number</span><span class="mono" style="font-size:28px;font-weight:500;line-height:1.1;user-select:all">${esc(jobLabel(p))}</span><span class="note">Write this on tags for the machine and its parts.</span></div>
         <button class="btn sm" data-act="copyjob" style="flex:none">Copy</button></div>`;
@@ -1032,6 +1099,16 @@ app.addEventListener('click',async e=>{
   else if(a==='edittask'){view.editing=view.editing==='t'?null:'t';view.confirm=null;render()}
   else if(a==='editc'){view.editing='c';render();const el=document.getElementById('c-name');if(el)el.focus()}
   else if(a==='cancelc'){view.editing=null;render()}
+  else if(a==='cview'){view.cview=b.dataset.v;render()}
+  else if(a==='opencust')go({name:'customer',cid:b.dataset.cid});
+  else if(a==='custlist')go({name:'list',tab:'customer',cview:'people'});
+  else if(a==='newcust'){const c=newCustomer('','');saveCustomers();go({name:'customer',cid:c.id,editing:'cust'})}
+  else if(a==='editcust'){view.editing='cust';view.confirm=null;render()}
+  else if(a==='canceledit'){const c=custById(view.cid);if(c&&!c.name&&!c.phone&&!jobsOf(c).length){customers=customers.filter(x=>x!==c);saveCustomers();go({name:'list',tab:'customer',cview:'people'})}else{view.editing=null;view.confirm=null;render()}}
+  else if(a==='delcust'){view.confirm='delcust';render()}
+  else if(a==='delcustno'){view.confirm=null;render()}
+  else if(a==='delcustyes'){const c=custById(view.cid);if(c){jobsOf(c).forEach(([id,p])=>{delete p.customer.id;save(id)});customers=customers.filter(x=>x!==c);saveCustomers();toast('Customer removed')}go({name:'list',tab:'customer',cview:'people'})}
+  else if(a==='newforcust')go({name:'new',kind:'customer',cid:view.cid});
   else if(a==='invadd'){view.confirm=b.dataset.key;render()}
   else if(a==='print'){printDoc(p,b.dataset.kind)}
   else if(a==='receipt'){printReceipt(p,b.dataset.kind)}
@@ -1078,12 +1155,14 @@ app.addEventListener('click',async e=>{
 app.addEventListener('submit',e=>{
   const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));const k=f.dataset.form;const p=projects[view.pid];
   if(k==='new'){if(!d.title.trim())return;const id=uid();const np=blankProject(view.kind||'mine');np.title=d.title.trim();np.machine=(d.machine||'').trim();if(np.kind==='mine')applyLogbook(np,d.logbookSel||'');
-    if(np.kind==='customer'){np.customer={name:(d.cname||'').trim(),phone:(d.cphone||'').trim(),dropOff:d.drop||'',promised:d.promised||'',complaint:(d.complaint||'').trim()};np.jobNo=nextJobNo();toast('Job '+fmtJob(np.jobNo)+' created')}
+    if(np.kind==='customer'){np.customer={name:(d.cname||'').trim(),phone:(d.cphone||'').trim(),dropOff:d.drop||'',promised:d.promised||'',complaint:(d.complaint||'').trim()};np.jobNo=nextJobNo();toast('Job '+fmtJob(np.jobNo)+' created');
+      const picked=custById(d.cid);if(picked){np.customer.id=picked.id;if(!picked.phone&&np.customer.phone)picked.phone=np.customer.phone;if(!np.customer.name)np.customer.name=picked.name;saveCustomers()}else if(linkJob(np))saveCustomers()}
     projects[id]=np;save(id);go({name:'project',pid:id})}
   else if(k==='editp'){const was=p.kind;p.title=d.title.trim()||p.title;p.machine=(d.machine||'').trim();p.customer=p.customer||{name:'',phone:'',dropOff:'',promised:'',complaint:''};
     if(was==='mine')applyLogbook(p,d.logbookSel||'');else p.customer={...p.customer,dropOff:d.drop||'',promised:d.promised||'',complaint:(d.complaint||'').trim()};
     if(d.kind==='mine'||d.kind==='customer')p.kind=d.kind;
     if(p.kind==='customer'&&!p.jobNo)p.jobNo=nextJobNo();
+    if(p.kind==='customer'&&linkJob(p))saveCustomers();
     save(view.pid);view.editing=null;toast(p.kind!==was?(p.kind==='customer'?'Now a customer job: add their info':'Now in My equipment'):'Saved');render()}
   else if(k==='invadd'){addToInventory(f.dataset.pid,f.dataset.tid,f.dataset.xid,Math.max(1,Math.min(9999,parseInt(d.n,10)||1)));return}
   else if(k==='addtime'){const mins=(Math.max(0,parseInt(d.h,10)||0))*60+Math.min(59,Math.max(0,parseInt(d.m,10)||0));if(!mins){toast('Enter hours or minutes');return}
@@ -1094,9 +1173,10 @@ app.addEventListener('submit',e=>{
       if(e.end){let en=atLocal(d.date,d.end);if(en<=st)en+=86400000;e.end=en}}
     if(d.note&&d.note.trim())e.note=d.note.trim();else delete e.note;
     p.time={log:[...timeLog(p)]};view.editTime=null;save(view.pid);toast('Time saved');render()}
+  else if(k==='cust'){const c=custById(view.cid);if(!c)return;Object.assign(c,{name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),notes:(d.notes||'').trim()});saveCustomers();view.editing=null;toast('Customer saved');render()}
   else if(k==='shop'){shop={name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),footer:(d.footer||'').trim(),rate:d.rate!==''&&isFinite(+d.rate)&&+d.rate>0?Math.round(+d.rate*100)/100:'',receiptWidth:d.receiptWidth==='58'?'58':'80'};
     if(db)db.doc('settings/shop').set({...shop}).catch(()=>toast('Could not save shop info'));view.editing=null;toast('Shop info saved');if(view.name==='shopinfo')go({name:'list'});else render()}
-  else if(k==='editc'){p.customer={...(p.customer||{}),name:(d.cname||'').trim(),phone:(d.cphone||'').trim()};save(view.pid);view.editing=null;toast('Customer info saved');render()}
+  else if(k==='editc'){p.customer={...(p.customer||{}),name:(d.cname||'').trim(),phone:(d.cphone||'').trim()};{const cu=custOfJob(p);if(cu){if(p.customer.name)cu.name=p.customer.name;cu.phone=p.customer.phone;saveCustomers()}else if(linkJob(p))saveCustomers()}save(view.pid);view.editing=null;toast('Customer info saved');render()}
   else if(k==='addtask'){const t=(d.title||'').trim();if(!t)return;p.tasks.push({id:uid(),title:t,done:false,notes:'',parts:[],links:[]});save(view.pid);render();const el=document.getElementById('newtask');if(el)el.focus()}
   else if(k==='edittask'){const t=p.tasks.find(x=>x.id===view.tid);t.title=d.title.trim()||t.title;save(view.pid);view.editing=null;render()}
   else if(k==='editpart'){const t=p.tasks.find(x=>x.id===view.tid);const x=t&&(t.parts||[]).find(y=>y.id===f.dataset.xid);if(!x||!d.name.trim())return;
@@ -1112,7 +1192,8 @@ app.addEventListener('input',e=>{
   else if(k==='pnotes'){p.notes=el.value;save(view.pid)}
   else if(k==='tnotes'){const t=p.tasks.find(x=>x.id===view.tid);t.notes=el.value;save(view.pid)}
 });
-app.addEventListener('change',e=>{const el=e.target;if(el.dataset.input==='status'){projects[view.pid].status=el.value;save(view.pid);render()}
+app.addEventListener('change',e=>{const el=e.target;if(el.dataset.input==='pickcust'){const c=custById(el.value);view.cid=el.value||null;const n=document.getElementById('n-cname'),ph=document.getElementById('n-cphone');if(n)n.value=c?c.name:'';if(ph)ph.value=c?c.phone:'';return}
+  if(el.dataset.input==='status'){projects[view.pid].status=el.value;save(view.pid);render()}
   else if(el.dataset.price){const t=projects[view.pid].tasks.find(x=>x.id===view.tid);const x=t&&t.parts.find(y=>y.id===el.dataset.xid);if(x){const v=el.value.trim();if(v===''||!isFinite(+v)||+v<0)delete x.price;else x.price=Math.round(+v*100)/100;save(view.pid);el.blur();render()}}
   else if(el.dataset.exp){const {x}=findPart(el.dataset.pid,el.dataset.tid,el.dataset.xid);if(x){if(el.value)x.expected=el.value;else delete x.expected;save(el.dataset.pid);el.blur();render()}}});
 
@@ -1132,6 +1213,7 @@ function connect(u){
   stopAll();user=u;signedOut=false;db=FB.forUser(u.uid);
   projects={};ready=false;inv=null;machines=[];machineRecs={};counterLast=0;counterLoaded=false;projectsLoaded=false;backfilled=false;render();
   unsubs.push(db.doc('settings/shop').onSnapshot(s=>{if(s.exists){const v=s.data()||{};shop={name:v.name||'',phone:v.phone||'',email:v.email||'',address:v.address||'',footer:v.footer||'',rate:v.rate||'',receiptWidth:v.receiptWidth==='58'?'58':'80'};if(view.editing!=='shop'&&view.name!=='shopinfo')render()}},()=>{}));
+  unsubs.push(db.doc('settings/customers').onSnapshot(s=>{const v=s.exists?(s.data()||{}):null;customers=v&&Array.isArray(v.list)?v.list.filter(c=>c&&c.id):[];customersBuilt=customersBuilt||!!(v&&v.built);customersLoaded=true;buildCustomers();if(ready)render()},()=>{customersLoaded=true}));
   unsubs.push(db.doc('settings/counter').onSnapshot(s=>{const v=s.exists?Number((s.data()||{}).lastJobNo)||0:0;counterLast=Math.max(counterLast,v);counterLoaded=true;backfillJobNos()},()=>{counterLoaded=true;backfillJobNos()}));
   /* The Logbook's records: parts for the inventory check, engines/vehicles for "Logbook entry" */
   unsubs.push(db.records.onSnapshot(rs=>{
@@ -1144,7 +1226,7 @@ function connect(u){
     const editing=document.activeElement&&(document.activeElement.tagName==='TEXTAREA'||(document.activeElement.tagName==='INPUT'&&document.activeElement.type!=='search'));
     const next={};snap.docs.forEach(d=>{if(d.exists){const local=projects[d.id];next[d.id]=(timers['s'+d.id]&&local)?local:JSON.parse(JSON.stringify(d.data()))}});
     Object.keys(projects).forEach(id=>{if(!next[id]&&timers['s'+id]&&projects[id])next[id]=projects[id]});
-    projects=next;ready=true;projectsLoaded=true;offline=false;backfillJobNos();if(!editing)render();
+    projects=next;ready=true;projectsLoaded=true;offline=false;backfillJobNos();buildCustomers();if(!editing)render();
   },err=>{offline=true;ready=true;render()}));
 }
 (async()=>{
