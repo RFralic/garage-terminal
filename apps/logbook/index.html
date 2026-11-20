@@ -174,6 +174,7 @@ body.sheet-open{overflow:hidden}
 .addinv{min-height:32px;padding:3px 10px;font-size:.8rem;color:var(--steel);border-color:var(--steel);background:transparent}
 .stkcell{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 /* inventory status next to a part number (Specifications, Other part numbers, Also on the shelf) */
+.altadd{display:flex;gap:8px}.altadd input{flex:1;min-width:0}
 .qtyrow{display:flex;gap:6px;align-items:stretch}.qtyrow input{flex:1;min-width:0}.qtyrow select{flex:none;width:auto}.qtyrow select[hidden]{display:none}
 .pnline{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}.pnline>span:first-child{min-width:0;overflow-wrap:anywhere}
 button.stk{flex:none;background:transparent;min-height:32px;padding:3px 9px;cursor:pointer;font:600 .72rem var(--f-display)}button.stk.none{color:var(--steel);border-color:var(--steel)}
@@ -684,8 +685,9 @@ function renderSpecView(e){
   $("#panel").innerHTML=`<section class="panel">
     <div class="actions" style="justify-content:space-between"><span class="muted" style="font-size:.85rem">${e.updatedAt?"Updated "+fmtDate(String(e.updatedAt).slice(0,10)):""}</span><button class="primary" id="editBtn">Edit ${k.one}</button></div>
     ${sect("Specifications",spec.length||e.equipment?`<dl class="specview"><div><dt>${k.typeLabel}</dt><dd>${esc(e.equipment||"—")}</dd></div>${nextOil(e)?`<div class="nextoil ${nextOil(e).state}"><dt>Next oil change</dt><dd class="mono">${esc(nextOilText(nextOil(e)))}</dd></div>`:""}${spec.map(([f,l,m,pt])=>{if(!pt)return`<div><dt>${l}</dt><dd class="${m?"mono":""}">${esc(e[f])}</dd></div>`;const num=String(e[f]).trim(),br=String(e[f+"Brand"]||"").trim(),lab=l.replace(/ part #$/,""),st=stockFor(num),loc=locOf(st);
-      return `<div><dt>${l}</dt><dd class="${m?"mono":""}"><span class="pnline"><span>${esc(withBrand(e[f+"Brand"],e[f]))}</span>${badge(st,lab,num,br)}</span>${loc?`<span class="muted" style="display:block;font-size:.78rem;font-family:inherit">${esc(loc)}</span>`:""}</dd></div>`}).join("")}</dl>`:`<p class="muted">No specs yet. Tap Edit to add them.</p>`)}
-    ${parts.length?sect("Other part numbers",`<div class="prows">${parts.map(p=>{const num=String(p.number||"").trim(),st=num?stockFor(num):[],loc=locOf(st);
+      const sub=shelfLine(st,num);
+      return `<div><dt>${l}</dt><dd class="${m?"mono":""}"><span class="pnline"><span>${esc(withBrand(e[f+"Brand"],e[f]))}</span>${badge(st,lab,num,br)}</span>${sub?`<span class="muted" style="display:block;font-size:.78rem;font-family:inherit">${esc(sub)}</span>`:""}</dd></div>`}).join("")}</dl>`:`<p class="muted">No specs yet. Tap Edit to add them.</p>`)}
+    ${parts.length?sect("Other part numbers",`<div class="prows">${parts.map(p=>{const num=String(p.number||"").trim(),st=num?stockFor(num):[],loc=num?shelfLine(st,num):"";
       return `<div class="prow"><span class="pnline"><span><b style="font-weight:500">${esc(p.name||"Part")}</b><span class="pn2">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>${loc?`<span class="loc">${esc(loc)}</span>`:""}</span>${num?badge(st,p.name||"Part",num,p.brand):""}</span></div>`}).join("")}</div>`):""}
     ${isV?sect("Torque specs &amp; bolt sizes",tq.length?`<div class="tablewrap"><table><thead><tr><th>Fastener</th><th>Socket / wrench</th><th>Torque</th><th>Notes</th></tr></thead><tbody>${tq.map(t=>`<tr><td>${esc(t.item)}</td><td class="n">${esc(t.size||"")}</td><td class="n">${t.value?esc(t.value)+" "+esc(t.unit||"ft-lb"):""}</td><td>${esc(t.notes||"")}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted">None yet. Tap Edit to add bolt sizes and torque specs.</p>`):""}
     ${x.tagged.length?sect(`Also on the shelf for this ${kindOf(e)==="vehicle"?"vehicle":"engine"}`,`<p class="muted" style="margin:0;font-size:.85rem">Parts tagged to it that aren't in its specs.</p><div class="prows">${x.tagged.map(p=>{const loc=locOf([p]);
@@ -1052,7 +1054,19 @@ const nameOf=id=>{const m=engines.find(e=>e.id===id&&!isPart(e));return m?dname(
 const normPN=v=>String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
 function pnMatch(a,b){const x=normPN(a),y=normPN(b);if(!x||!y)return false;if(x===y)return true;
   const [sh,lo]=x.length<=y.length?[x,y]:[y,x];return sh.length>=5&&/\d/.test(sh)&&lo.includes(sh)}
-const partHits=(p,num)=>pnMatch(p.number,num)||(p.brand&&pnMatch((p.brand||"")+(p.number||""),num))||codeHit(p,num);
+const ownHit=(p,num)=>pnMatch(p.number,num)||(p.brand&&pnMatch((p.brand||"")+(p.number||""),num))||codeHit(p,num);
+/* cross-reference: other brands' numbers for the same part ("Also sold as", part.alts) count as a match too */
+/* an entry is usually "Brand number" (Wix 51515); also try it without the first word so short numbers like PH8A match exactly */
+const altNums=a=>{const t=String(a||"").trim();const rest=t.replace(/^\S+\s+/,"");return rest&&rest!==t?[t,rest]:[t]};
+const altOf=(p,num)=>(p.alts||[]).find(a=>altNums(a).some(x=>pnMatch(x,num)))||"";
+const partHits=(p,num)=>ownHit(p,num)||!!altOf(p,num);
+/* "as Wix 51515" when a part only matches through its cross-reference */
+/* Under a part # on a machine page: what's on the shelf. One exact match shows just its location (the badge
+   has the count); several matches, or a match through "Also sold as", list each part with its own count,
+   e.g. "1 Fram PH8A (Shelf B) · 1 Wix 51515", so two brands never read as two of the same filter. */
+const shelfLine=(st,num)=>{if(!st.length)return"";
+  if(st.length===1&&ownHit(st[0],num))return st[0].location||"";
+  return st.map(p=>`${qtyTxt(p)} ${withBrand(p.brand,p.number)||p.name||"part"}${p.location?` (${p.location})`:""}`).join(" · ")};
 /* barcodes saved on a part (from scanning its packaging) match exactly */
 const codeHit=(p,num)=>{const c=normPN(num);return !!c&&(p.barcodes||[]).some(b=>normPN(b)===c)};
 function machineParts(e){const k=K(e);if(!k)return[];
@@ -1093,7 +1107,7 @@ function renderInventory(kt,wire){
   const low=all.filter(isLow).length, value=all.reduce((s,p)=>s+costN(p)*qtyN(p),0);
   const q=invQuery.trim().toLowerCase();
   const shown=all.filter(p=>(invFilter==="All"||(invFilter==="Low stock"?isLow(p):p.category===invFilter))&&
-    (!q||[p.name,p.number,p.brand,p.location,(p.barcodes||[]).join(" "),allFits(p).map(nameOf).join(" ")].join(" ").toLowerCase().includes(q)))
+    (!q||[p.name,p.number,p.brand,p.location,(p.barcodes||[]).join(" "),(p.alts||[]).join(" "),allFits(p).map(nameOf).join(" ")].join(" ").toLowerCase().includes(q)))
     .sort((a,b)=>(a.location||"~").localeCompare(b.location||"~")||(a.name||"").localeCompare(b.name||""));
   const cats=["All","Low stock",...PCATS.filter(c=>all.some(p=>p.category===c))];
   app.innerHTML=kt+`<div class="inv">
@@ -1157,6 +1171,9 @@ function renderPartEdit(){
     <div class="parts"><h3>Barcodes</h3>${(d.barcodes||[]).length?`<div class="chips">${d.barcodes.map((b,i)=>`<span class="bcchip"><span class="mono">${esc(b)}</span><button class="ghost" data-rmbc="${i}" aria-label="Remove barcode ${esc(b)}">×</button></span>`).join("")}</div>`:""}
       <p class="muted" style="margin:0;font-size:.82rem">Store barcodes (UPC) from the packaging. Scanning one finds this part.</p>
       ${window.GTScan?`<div><button id="pAddBc">+ Scan a barcode</button></div>`:""}</div>
+    <div class="parts"><h3>Also sold as</h3>${(d.alts||[]).length?`<div class="chips">${d.alts.map((a,i)=>`<span class="bcchip"><span class="mono">${esc(a)}</span><button class="ghost" data-rmalt="${i}" aria-label="Remove ${esc(a)}">×</button></span>`).join("")}</div>`:""}
+      <p class="muted" style="margin:0;font-size:.82rem">The same part from other brands, e.g. Wix 51515 for a Fram PH8A. A spec, search or Job_Board part # that uses one of these finds this part.</p>
+      <div class="altadd"><input id="p-altnew" placeholder="Brand and part #, e.g. Wix 51515" maxlength="60" aria-label="Another brand's part number"><button type="button" id="pAddAlt">Add</button></div></div>
     <div class="parts"><h3>Fits</h3>${ms.length?`<div class="chips">${ms.map(m=>`<button class="fchip" data-fit="${esc(m.id)}" aria-pressed="${(d.fits||[]).includes(m.id)}">${esc(dname(m))}</button>`).join("")}</div>
       ${(()=>{const am=autoFits(d).map(nameOf).filter(Boolean);return am.length?`<p style="margin:0;font-size:.85rem">Matches by part # on: <b style="color:var(--steel)">${esc(am.join(", "))}</b></p>`:""})()}
       <p class="muted" style="margin:0;font-size:.82rem">Tap the engines and vehicles this part goes on. It also shows on their Specs tab.</p>`:`<p class="muted" style="margin:0">Add an engine or vehicle first to tag what this part fits.</p>`}</div>
@@ -1177,6 +1194,12 @@ function renderPartEdit(){
   app.querySelectorAll("[data-fit]").forEach(b=>b.onclick=()=>{pull();const id=b.dataset.fit;d.fits=d.fits||[];
     d.fits=d.fits.includes(id)?d.fits.filter(x=>x!==id):[...d.fits,id];renderPartEdit()});
   app.querySelectorAll("[data-rmbc]").forEach(b=>b.onclick=()=>{pull();d.barcodes=(d.barcodes||[]).filter((_,i)=>i!==+b.dataset.rmbc);renderPartEdit()});
+  app.querySelectorAll("[data-rmalt]").forEach(b=>b.onclick=()=>{pull();d.alts=(d.alts||[]).filter((_,i)=>i!==+b.dataset.rmalt);renderPartEdit()});
+  {const inp=$("#p-altnew"),add=()=>{const v=inp.value.trim().replace(/\s+/g," ").slice(0,60);if(!v)return;pull();
+     if(!(d.alts||[]).some(a=>normPN(a)===normPN(v))&&normPN(v)!==normPN(withBrand(d.brand,d.number))&&normPN(v)!==normPN(d.number))d.alts=[...(d.alts||[]),v].slice(0,20);
+     const other=partsOf().find(p=>p.id!==d.id&&partHits(p,v));renderPartEdit();const n=$("#p-altnew");if(n)n.focus();
+     if(other)showToast(`Heads up: ${v} also finds ${other.name||other.number||"another part"}.`)};
+   if(inp){$("#pAddAlt").onclick=add;inp.addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();add()}})}}
   if($("#pAddBc"))$("#pAddBc").onclick=()=>{pull();GTScan.open({title:"Scan this part's barcode",onCode:r=>{
     if(!partEdit||partEdit.d!==d)return;const c=normPN(r.text);
     if(!(d.barcodes||[]).some(b=>normPN(b)===c))d.barcodes=[...(d.barcodes||[]),r.text];
