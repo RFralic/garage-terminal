@@ -86,8 +86,10 @@ function addDaysKey(key, n) {
 const kindOf = (e) => (e && e.kind === 'vehicle' ? 'vehicle' : e && e.kind === 'part' ? 'part' : 'engine');
 const milesN = (v) => { const n = parseFloat(String(v ?? '').replace(/[^0-9.]/g, '')); return Number.isNaN(n) ? null : n; };
 const fmtMi = (n) => `${Math.round(n).toLocaleString('en-US')} mi`;
-const qtyN = (p) => { const n = parseInt(p.qty, 10); return Number.isNaN(n) ? 0 : n; };
-const isLow = (p) => p.reorderAt !== '' && p.reorderAt != null && !Number.isNaN(parseInt(p.reorderAt, 10)) && qtyN(p) <= parseInt(p.reorderAt, 10);
+const qtyN = (p) => { const n = parseFloat(p.qty); return Number.isNaN(n) ? 0 : Math.round(n * 100) / 100; };
+const isLow = (p) => p.reorderAt !== '' && p.reorderAt != null && !Number.isNaN(parseFloat(p.reorderAt)) && qtyN(p) <= parseFloat(p.reorderAt);
+// Fluids can be measured in quarts or gallons (same rule as the Logbook's unitOf).
+const unitOf = (p) => (p.category === 'Fluids' && (p.unit === 'qt' || p.unit === 'gal') ? p.unit : '');
 const sortedLog = (e) => [...(Array.isArray(e.log) ? e.log : [])].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
 // Copied word for word from the Logbook (vehicle_logbook/public/index.html).
@@ -265,7 +267,8 @@ export function buildBrief({ records = [], projects = [], upkeep = [], pantries 
         name: [p.brand, p.name].map((x) => String(x || '').trim()).filter(Boolean).join(' ') || 'Unnamed part',
         number: String(p.number || '').trim(),
         qty: qtyN(p),
-        reorderAt: parseInt(p.reorderAt, 10),
+        reorderAt: parseFloat(p.reorderAt),
+        unit: unitOf(p),
         out: qtyN(p) <= 0,
         location: String(p.location || '').trim(),
       }));
@@ -444,7 +447,7 @@ export function renderBrief(brief, { siteUrl = 'https://garageterminal.com' } = 
   }
   if (s.lowStock) {
     parts.push(section(SECTIONS.lowStock, s.lowStock.length ? rows(s.lowStock, (p) => row('', p.name,
-      [p.number && `#${p.number}`, `${p.qty} on hand · reorder at ${p.reorderAt}`, p.location].filter(Boolean).join(' · '),
+      [p.number && `#${p.number}`, `${p.qty}${p.unit ? ` ${p.unit}` : ''} on hand · reorder at ${p.reorderAt}${p.unit ? ` ${p.unit}` : ''}`, p.location].filter(Boolean).join(' · '),
       pill(p.out ? 'Out' : 'Low', p.out ? 'over' : 'soon'))) : '', 'Nothing below its reorder level.'));
   }
   if (s.maintenance) {
@@ -492,7 +495,7 @@ ${brief.alert ? 'From your Garage Terminal Logbook and Home Projects. You get th
   };
   if (s.today) add(heading(brief, 'today'), s.today, (e) => `${e.when}  ${e.title}${e.detail ? ` (${e.detail})` : ''}`, calNote || (brief.weekly ? 'Nothing on the calendar this week.' : 'Nothing on the calendar today.'));
   if (s.upcoming) add(heading(brief, 'upcoming'), s.upcoming, (e) => `${e.title}: ${e.when}, ${e.detail}`, calNote || `Nothing ${brief.weekly ? `in the ${brief.aheadDays} days after this week` : `in the next ${brief.aheadDays} days`}.`);
-  if (s.lowStock) add(SECTIONS.lowStock, s.lowStock, (p) => `${p.name}${p.number ? ` #${p.number}` : ''}: ${p.qty} on hand (reorder at ${p.reorderAt})`, 'Nothing below its reorder level.');
+  if (s.lowStock) add(SECTIONS.lowStock, s.lowStock, (p) => `${p.name}${p.number ? ` #${p.number}` : ''}: ${p.qty}${p.unit ? ` ${p.unit}` : ''} on hand (reorder at ${p.reorderAt}${p.unit ? ` ${p.unit}` : ''})`, 'Nothing below its reorder level.');
   if (s.maintenance) add(SECTIONS.maintenance, s.maintenance, (m) => `${m.machine}: ${m.item}, ${m.detail}`, 'Everything is on schedule.');
   if (s.projects) add(SECTIONS.projects, s.projects, (p) => `${p.title}: ${p.detail}`, 'No open projects.');
   const andMore = (n) => (n ? [{ more: n }] : []);

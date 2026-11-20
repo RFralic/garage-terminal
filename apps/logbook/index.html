@@ -174,6 +174,7 @@ body.sheet-open{overflow:hidden}
 .addinv{min-height:32px;padding:3px 10px;font-size:.8rem;color:var(--steel);border-color:var(--steel);background:transparent}
 .stkcell{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 /* inventory status next to a part number (Specifications, Other part numbers, Also on the shelf) */
+.qtyrow{display:flex;gap:6px;align-items:stretch}.qtyrow input{flex:1;min-width:0}.qtyrow select{flex:none;width:auto}.qtyrow select[hidden]{display:none}
 .pnline{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}.pnline>span:first-child{min-width:0;overflow-wrap:anywhere}
 button.stk{flex:none;background:transparent;min-height:32px;padding:3px 9px;cursor:pointer;font:600 .72rem var(--f-display)}button.stk.none{color:var(--steel);border-color:var(--steel)}
 .prows{border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:8px}.prow{padding:9px 12px;border-bottom:1px solid var(--line)}.prow:last-child{border-bottom:0}.prow .pn2{display:block;font-family:var(--f-mono,monospace);font-size:.85rem;color:var(--muted);overflow-wrap:anywhere}.prow .loc{display:block;font-size:.78rem;color:var(--muted)}
@@ -677,7 +678,7 @@ function renderSpecView(e){
   /* inventory status shown right next to each part number (no separate shelf table) */
   const inv=partsOf();const stockFor=num=>inv.filter(p=>partHits(p,num));
   const badge=(st,lab,num,br)=>{if(!st.length)return`<button type="button" class="stk none" data-addinv="1" data-label="${esc(lab)}" data-brand="${esc(br||"")}" data-number="${esc(num)}" aria-label="Not in inventory. Add ${esc(lab)} to inventory">+ Add</button>`;
-    const q=st.reduce((n,p)=>n+qtyN(p),0);return `<button type="button" class="stk ${q===0?"out":st.some(isLow)?"low":"ok"}" data-openpart="${esc(st[0].id)}" aria-label="${q} on hand. Open in inventory">${q} on hand</button>`};
+    const q=Math.round(st.reduce((n,p)=>n+qtyN(p),0)*100)/100,u=sameUnit(st),qt=q+(u?" "+u:"");return `<button type="button" class="stk ${q===0?"out":st.some(isLow)?"low":"ok"}" data-openpart="${esc(st[0].id)}" aria-label="${qt} on hand. Open in inventory">${qt} on hand</button>`};
   const locOf=st=>[...new Set(st.map(p=>p.location).filter(Boolean))].join(", ");
   const x=xref(e);
   $("#panel").innerHTML=`<section class="panel">
@@ -805,7 +806,7 @@ function drawLogParts(e){const box=$("#lParts");if(!box)return;
     .sort((a,b)=>(fitsHere(b)-fitsHere(a))||byName(a,b));
   box.innerHTML=`<label for="l-addpart">Parts used <small class="muted">from your inventory; their counts go down when you add this to the log</small></label>
     ${logParts.rows.map((r,i)=>{const p=engines.find(x=>x.id===r.partId);return `<div class="lprow"><span class="lpname"><b>${esc(p.name||"Unnamed part")}</b> <span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))}</span>
-      <small>${qtyN(p)} on hand${(p.warranty||"").trim()?` · Warranty: ${esc(p.warranty)}`:""}</small></span>
+      <small>${esc(qtyTxt(p))} on hand${(p.warranty||"").trim()?` · Warranty: ${esc(p.warranty)}`:""}</small></span>
       <div class="stepper"><button type="button" aria-label="One less" data-lpn="-1" data-i="${i}" ${r.n<=1?"disabled":""}>−</button><span class="mono">${r.n}</span><button type="button" aria-label="One more" data-lpn="1" data-i="${i}" ${r.n>=qtyN(p)?"disabled":""}>+</button></div>
       <button type="button" class="ghost" data-lpx="${i}" aria-label="Remove ${esc(p.name||"part")}">✕</button></div>`}).join("")}
     ${partsOf().length?`<div class="lpadd"><select id="l-addpart"><option value="">${pickable.length?"+ Add a part used…":"Every part in stock is already listed"}</option>${pickable.map(p=>`<option value="${esc(p.id)}">${esc(p.name||"Unnamed part")} · ${esc(partLabel(p))} · ${qtyN(p)} on hand${fitsHere(p)?" · fits this":""}</option>`).join("")}</select>${scanBtn("l-scanpart","Scan",true)}</div>
@@ -862,7 +863,7 @@ function renderLog(e){
     if(Array.isArray(e.schedule))out.schedule=e.schedule.map(x=>{if(!tasks.includes(x.task)||!x.snooze)return x;const {snooze,...y}=x;return y}); // done: wake any snooze
     try{await saveEngine(out);draft=null;
       // they came off the shelf: lower each part's count
-      for(const {r,p} of used)await saveEngine({...p,qty:String(Math.max(0,qtyN(p)-r.n))});
+      for(const {r,p} of used)await saveEngine({...p,qty:qtyStr(qtyN(p)-r.n)});
       logParts={id:e.id,rows:[]};drawLogParts(e);
       const m=$("#logMsg");if(m){const bits=["Added."];
       if(used.length)bits.push(`${used.reduce((t,x)=>t+x.r.n,0)} part${used.reduce((t,x)=>t+x.r.n,0)===1?"":"s"} taken from inventory.`);
@@ -1004,7 +1005,7 @@ function renderSheet(){const old=$("#sheetWrap");if(old)old.remove();if(!sheet)r
     const inv=n.part?partsOf().filter(p=>partHits(p,n.part)||pnMatch(withBrand(p.brand,p.number),n.part)):[];
     const q=inv.reduce((a,p)=>a+qtyN(p),0),locs=[...new Set(inv.map(p=>p.location).filter(Boolean))].join(", ");
     $("#s-inv").className="sinv "+(!n.part?"":inv.length?(q>0?"ok":"out"):"none");
-    $("#s-inv").textContent=!n.part?"":inv.length?`In inventory: ${q}${locs?" · "+locs:""}`:"Not in your inventory";
+    $("#s-inv").textContent=!n.part?"":inv.length?`In inventory: ${Math.round(q*100)/100}${sameUnit(inv)?" "+sameUnit(inv):""}${locs?" · "+locs:""}`:"Not in your inventory";
     const probe={...e,oilInterval:isOil?n.every:e.oilInterval};const d=n.task?dueOf(probe,n,today()):null;
     const at=d&&d.m?dueMeter(kd,d.m.at):"",when=d&&d.t?dueMonth(d.t.due):"";
     $("#s-next").innerHTML=!n.task?"":!d.last?`<span class="muted">${esc(n.task)} hasn't been logged on this ${esc(k.one)} yet. Log it once and the next due date is worked out from there.</span>`
@@ -1067,8 +1068,14 @@ const allFits=p=>[...new Set([...(p.fits||[]),...autoFits(p)])];
 // Machines a scanned part goes with (tagged to it, or listed in that machine's specs), shown on the scan sheet.
 function scFits(p){const ms=allFits(p).map(id=>engines.find(e=>e.id===id)).filter(m=>m&&!isPart(m)).sort(byName);
   return `<div class="scfits"><span class="scfl">Fits</span>${ms.length?ms.map(m=>`<button type="button" data-mach="${esc(m.id)}">${esc(dname(m))}</button>`).join(""):`<span class="muted">Not linked to a machine yet</span>`}</div>`}
-const qtyN=p=>{const n=parseInt(p.qty,10);return isNaN(n)?0:n};
-const isLow=p=>p.reorderAt!==""&&p.reorderAt!=null&&!isNaN(parseInt(p.reorderAt,10))&&qtyN(p)<=parseInt(p.reorderAt,10);
+const qtyN=p=>{const n=parseFloat(p.qty);return isNaN(n)?0:Math.round(n*100)/100};
+/* Fluids can be measured in quarts or gallons (part.unit "qt" | "gal"); everything else is a count. */
+const UNIT_WORD={qt:"quart",gal:"gallon"};
+const unitOf=p=>p&&p.category==="Fluids"&&UNIT_WORD[p.unit]?p.unit:"";
+const qtyTxt=(p,n=qtyN(p))=>`${Math.round(n*100)/100}${unitOf(p)?" "+unitOf(p):""}`;
+const sameUnit=ps=>{const u=[...new Set(ps.map(unitOf))];return u.length===1?u[0]:""};
+const qtyStr=n=>String(Math.round(Math.max(0,n)*100)/100);
+const isLow=p=>p.reorderAt!==""&&p.reorderAt!=null&&!isNaN(parseFloat(p.reorderAt))&&qtyN(p)<=parseFloat(p.reorderAt);
 const money=n=>"$"+(Math.round(n*100)/100).toLocaleString(undefined,{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2});
 const costN=p=>{const n=parseFloat(String(p.cost||"").replace(/[^0-9.]/g,""));return isNaN(n)?0:n};
 
@@ -1099,7 +1106,7 @@ function renderInventory(kt,wire){
     <div class="ilist">${shown.length?shown.map(p=>{const fits=allFits(p).map(nameOf).filter(Boolean);
       return `<article class="iitem ${isLow(p)?"low":""}">
         <div class="irow"><button class="iname" data-edit="${esc(p.id)}"><b>${esc(p.name||"Unnamed part")}</b><span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))||"No part #"}</span></button>
-          <div class="stepper"><button aria-label="Use one" data-dq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>−</button><span class="mono">${qtyN(p)}</span><button aria-label="Add one" data-dq="1" data-id="${esc(p.id)}">+</button></div></div>
+          <div class="stepper"><button aria-label="Use one" data-dq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>−</button><span class="mono">${esc(qtyTxt(p))}</span><button aria-label="Add one" data-dq="1" data-id="${esc(p.id)}">+</button></div></div>
         <div class="imeta">${p.category?`<span class="tag">${esc(p.category)}</span>`:""}${p.location?`<span>${esc(p.location)}</span>`:""}${isLow(p)?`<span class="tag reorder">Reorder</span>`:""}${(p.receipts||[]).length?`<span>${p.receipts.length} receipt${p.receipts.length>1?"s":""}</span>`:""}</div>
         ${(p.warranty||"").trim()?`<div class="iwarr">Warranty: <span>${esc(p.warranty)}</span></div>`:""}
         ${fits.length?`<div class="ifits">Fits: <span>${esc(fits.join(", "))}</span></div>`:""}
@@ -1111,7 +1118,7 @@ function renderInventory(kt,wire){
   app.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{invFilter=b.dataset.cat;render()});
   app.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openPart(engines.find(e=>e.id===b.dataset.edit)));
   app.querySelectorAll("[data-dq]").forEach(b=>b.onclick=async()=>{const p=engines.find(e=>e.id===b.dataset.id);if(!p)return;
-    b.disabled=true;const n=Math.max(0,qtyN(p)+parseInt(b.dataset.dq,10));
+    b.disabled=true;const n=Math.max(0,Math.round((qtyN(p)+parseInt(b.dataset.dq,10))*100)/100);
     try{await saveEngine({...p,qty:String(n)})}catch(err){showBanner("Couldn't update the count: "+(err.message||err.code))}});
   wire();
 }
@@ -1140,10 +1147,10 @@ function renderPartEdit(){
       <label>Brand<input id="p-brand" value="${esc(d.brand)}" placeholder="Motorcraft"></label>
       <label>Part #<input id="p-number" class="pn" value="${esc(d.number)}" placeholder="FL-500S"></label>
       <label>Category${sel}</label>
-      <label>On hand<input id="p-qty" class="pn" inputmode="numeric" value="${esc(d.qty)}"></label>
+      <label>On hand<span class="qtyrow"><input id="p-qty" class="pn" inputmode="${d.category==="Fluids"?"decimal":"numeric"}" value="${esc(d.qty)}"><select id="p-unit" aria-label="Measured in" ${d.category==="Fluids"?"":"hidden"}><option value="" ${unitOf(d)?"":"selected"}>Each</option><option value="qt" ${unitOf(d)==="qt"?"selected":""}>Quarts</option><option value="gal" ${unitOf(d)==="gal"?"selected":""}>Gallons</option></select></span></label>
       <label>Reorder at<input id="p-reorderAt" class="pn" inputmode="numeric" value="${esc(d.reorderAt)}" placeholder="Optional"></label>
       <label>Location<input id="p-location" value="${esc(d.location)}" placeholder="Shelf A · Bin 2"></label>
-      <label>Cost each<input id="p-cost" class="pn" inputmode="decimal" value="${esc(d.cost)}" placeholder="$ optional"></label>
+      <label><span id="p-costlbl">${unitOf(d)?"Cost per "+UNIT_WORD[unitOf(d)]:"Cost each"}</span><input id="p-cost" class="pn" inputmode="decimal" value="${esc(d.cost)}" placeholder="$ optional"></label>
       <label>Where to buy<input id="p-source" value="${esc(d.source)}" placeholder="Store or website"></label>
       <label class="span2">Warranty<input id="p-warranty" value="${esc(d.warranty||"")}" placeholder="e.g. 2 yr from install · keep the receipt" maxlength="200"></label>
     </div>
@@ -1163,7 +1170,10 @@ function renderPartEdit(){
     <div class="actions"><button class="primary" id="pSave">Save part</button><button id="pCancel">Cancel</button><span id="pMsg" class="saved"></span><span style="flex:1"></span>
       ${pe.isNew?"":pe.confirmDel?`<span class="confirm">Delete this part? <button class="danger" id="pDelYes">Delete</button><button id="pDelNo">Keep</button></span>`:`<button class="danger" id="pDel">Delete part</button>`}</div>
   </section>`;
-  const pull=()=>{["name","brand","number","category","qty","reorderAt","location","cost","source","warranty","notes"].forEach(f=>{const el=$("#p-"+f);if(el)d[f]=el.value})};
+  const pull=()=>{["name","brand","number","category","qty","reorderAt","location","cost","source","warranty","notes","unit"].forEach(f=>{const el=$("#p-"+f);if(el)d[f]=el.value});if(d.category!=="Fluids")d.unit=""};
+  {const cat=$("#p-category"),un=$("#p-unit"),q=$("#p-qty"),cl=$("#p-costlbl");
+   const sync=()=>{const fl=cat.value==="Fluids";un.hidden=!fl;q.inputMode=fl?"decimal":"numeric";const u=fl?un.value:"";cl.textContent=u?"Cost per "+UNIT_WORD[u]:"Cost each"};
+   if(cat&&un){cat.addEventListener("change",sync);un.addEventListener("change",sync)}}
   app.querySelectorAll("[data-fit]").forEach(b=>b.onclick=()=>{pull();const id=b.dataset.fit;d.fits=d.fits||[];
     d.fits=d.fits.includes(id)?d.fits.filter(x=>x!==id):[...d.fits,id];renderPartEdit()});
   app.querySelectorAll("[data-rmbc]").forEach(b=>b.onclick=()=>{pull();d.barcodes=(d.barcodes||[]).filter((_,i)=>i!==+b.dataset.rmbc);renderPartEdit()});
@@ -1196,7 +1206,8 @@ function renderPartEdit(){
     if(partEdit===pe)renderPartEdit()});
   $("#pCancel").onclick=()=>closePart();
   $("#pSave").onclick=async()=>{pull();if(!d.name.trim()&&!d.number.trim()){const m=$("#pMsg");m.style.color="var(--accent)";m.textContent="Add a part name or part number.";return}
-    d.qty=String(Math.max(0,parseInt(d.qty,10)||0));d.reorderAt=d.reorderAt===""?"":String(Math.max(0,parseInt(d.reorderAt,10)||0));
+    {const num=v=>d.category==="Fluids"?Math.round(Math.max(0,parseFloat(v)||0)*100)/100:Math.max(0,parseInt(v,10)||0); /* fluids can be 1.5 gal; counts stay whole */
+     d.qty=String(num(d.qty));d.reorderAt=String(d.reorderAt).trim()===""?"":String(num(d.reorderAt))}
     d.fits=(d.fits||[]).filter(nameOf);const b=$("#pSave");b.disabled=true;
     try{await saveEngine({...d});const back=pe.returnTo;if(!back)listKind="part";closePart(back?`Added ${d.name||d.number} to your inventory.`:"")}catch(err){b.disabled=false;$("#pMsg").textContent="Couldn't save: "+(err.message||err.code)}};
   if($("#pDel"))$("#pDel").onclick=()=>{pull();pe.confirmDel=true;renderPartEdit()};
@@ -1222,7 +1233,7 @@ function scanHits(p,code){const c=normPN(code);if(!c)return false;if(codeHit(p,c
   if(window.GTScan&&GTScan.util.isRetail(code))return normPN(p.number)===c||normPN((p.brand||"")+(p.number||""))===c;
   return partHits(p,code)}
 const scanFind=code=>partsOf().filter(p=>scanHits(p,code)).sort(byName);
-const invLine=p=>`In inventory: ${qtyN(p)}${p.location?" · "+p.location:""}`;
+const invLine=p=>`In inventory: ${qtyTxt(p)}${p.location?" · "+p.location:""}`;
 function scanBtn(id,label,alt){return window.GTScan?`<button type="button" class="${alt?"invscan alt":"primary invscan"}" id="${id}">${GTScan.ICON}<span>${esc(label||"Scan")}</span></button>`:""}
 function startScan(){if(!window.GTScan)return;
   GTScan.open({title:"Scan a part",allowKeep:true,onCode:(r,{keep})=>{const hits=scanFind(r.text);
@@ -1254,7 +1265,7 @@ function renderBulk(focusSel){closeBulk();if(!bulk)return;
     const step=`<div class="stepper"><button type="button" aria-label="One less" data-bn="-1" data-i="${i}">−</button><span class="mono">${r.n}</span><button type="button" aria-label="One more" data-bn="1" data-i="${i}">+</button></div>`;
     const x=`<button type="button" class="ghost bulkx" data-bx="${i}" aria-label="Remove this line">✕</button>`;
     if(p)return `<div class="bulkrow"><div class="bulkmain"><b>${esc(p.name||"Unnamed part")}</b><span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" ")||"No part #")}</span>
-      <small>${qtyN(p)} on hand → ${qtyN(p)+r.n}${p.location?" · "+esc(p.location):""}</small></div>${step}${x}</div>`;
+      <small>${esc(qtyTxt(p))} on hand → ${esc(qtyTxt(p,qtyN(p)+r.n))}${p.location?" · "+esc(p.location):""}</small></div>${step}${x}</div>`;
     return `<div class="bulkrow new"><div class="bulkmain"><label>New part<input data-bname="${i}" value="${esc(r.name)}" placeholder="What is it? e.g. Oil filter" maxlength="120"></label>
       <small>${r.retail?"Barcode":"Part #"} <span class="mono">${esc(r.code)}</span></small></div>${step}${x}</div>`}).join("");
   const w=document.createElement("div");w.id="bulkWrap";w.className="sheetwrap";
@@ -1285,7 +1296,7 @@ function renderBulk(focusSel){closeBulk();if(!bulk)return;
     try{
       for(const r of bulk.rows){
         const p=r.id&&engines.find(e=>e.id===r.id);
-        if(p){await saveEngine({...tagFor(p),qty:String(qtyN(p)+r.n)});added+=r.n;continue}
+        if(p){await saveEngine({...tagFor(p),qty:qtyStr(qtyN(p)+r.n)});added+=r.n;continue}
         await saveEngine({id:uid(),kind:"part",name:r.name.trim(),brand:"",number:r.retail?"":r.code,barcodes:r.retail?[r.code]:[],
           category:guessCat(r.name),qty:String(r.n),reorderAt:"",location:place,cost:"",source:"",fits:forName()?[invFor]:[],notes:"",createdAt:now});
         made++;added+=r.n}
@@ -1350,7 +1361,7 @@ function renderScanSheet(focusSel){const old=$("#scanWrap");if(old)old.remove();
     b.disabled=true;try{await saveEngine({...p,barcodes:codes});r.step="result";r.linkQ="";renderScanSheet();showToast(`Linked ${r.text} to ${p.name||p.number||"the part"}.`)}
     catch(err){b.disabled=false;showBanner("Couldn't save: "+(err.message||err.code))}});
   w.querySelectorAll("[data-sdq]").forEach(b=>b.onclick=async()=>{const p=engines.find(e=>e.id===b.dataset.id);if(!p)return;
-    b.disabled=true;const n=Math.max(0,qtyN(p)+parseInt(b.dataset.sdq,10));
+    b.disabled=true;const n=Math.max(0,Math.round((qtyN(p)+parseInt(b.dataset.sdq,10))*100)/100);
     try{await saveEngine({...p,qty:String(n)});renderScanSheet()}catch(err){b.disabled=false;msg("Couldn't update the count: "+(err.message||err.code))}});
   w.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>{const p=engines.find(e=>e.id===b.dataset.open);closeScanSheet();if(p)openPart(p)});
   w.querySelectorAll("[data-mach]").forEach(b=>b.onclick=()=>{closeScanSheet();view={id:b.dataset.mach,tab:"log"};draft=null;editing=false;pendingDelete=false;render();window.scrollTo(0,0)});
