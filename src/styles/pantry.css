@@ -51,6 +51,11 @@
 .pt-chips .chip{flex:none}
 .pt-chips .chip[aria-pressed="true"]{border-color:var(--green);color:var(--green)}
 .pt-adds{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+#tab-pantry > .pt-adds{margin:12px 0 4px}
+.pt-recipe{display:flex;flex-direction:column;gap:6px}
+.pt-recipe a{overflow-wrap:anywhere}
+.pt-dirs{white-space:pre-wrap;margin:0;font-size:.9rem}
+.pt-pages{display:flex;flex-direction:column;gap:12px}
 
 /* item list */
 .pt-list{display:flex;flex-direction:column;margin-top:4px}

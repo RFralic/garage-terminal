@@ -200,7 +200,7 @@ export async function addBatch(pid, me, b) {
         name: b.name, brand: '', size: b.size || '', location: b.location || 'Pantry',
         keepAtLeast: null, barcodes: [code], lots: [{ qty: b.qty, expires: b.useBy || '' }],
         photo: '', notes: b.notes || '',
-        homemade: { batch: n, method: b.method, made: b.made, useBy: b.useBy || '' },
+        homemade: { batch: n, method: b.method, made: b.made, useBy: b.useBy || '', ...(b.recipeUrl ? { recipeUrl: b.recipeUrl } : {}), ...(b.directions ? { directions: b.directions } : {}) },
       }, me),
       createdAt: serverTimestamp(),
     });
