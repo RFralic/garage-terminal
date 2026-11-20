@@ -22,7 +22,7 @@ Live site: https://garageterminal.com (also https://garage-terminal-15499.web.ap
 | `src/apps/repclock-sync.js` | Saves RepClock workouts and settings to the signed-in member's account |
 | `apps/home-projects/index.html` | Home Projects, built from its Claude artifact by `scripts/import-home-projects.mjs` (don't edit by hand) |
 | `src/apps/homeprojects-backend.js` | Home Projects storage on this site: sign-in, projects (Firestore) and photos (Storage) |
-| `apps/logbook/index.html`, `apps/project-tracker/index.html` | Engine & Vehicle Logbook and Job_Board (renamed from Project Tracker, Nov 2026; still at `/apps/project-tracker`), built from the Logbook repo by `scripts/import-logbook.mjs` (don't edit by hand) |
+| `apps/logbook/index.html`, `apps/job-board/index.html` | Engine & Vehicle Logbook and Job_Board (renamed from Project Tracker, Nov 2026; moved from `/apps/project-tracker`, which now redirects), built from the Logbook repo by `scripts/import-logbook.mjs` (don't edit by hand) |
 | `src/apps/logbook-backend.js` | Logbook and Job_Board sign-in and storage on this site (Firestore) |
 | `public/apps/sw.js` | Keeps the Logbook and Job_Board pages for offline use |
 | `apps/morning-brief/index.html`, `src/pages/morning-brief.js` | Morning Brief settings and preview |
@@ -110,7 +110,7 @@ artifact: `node scripts/import-home-projects.mjs path/to/file.html`.
 
 ## Engine & Vehicle Logbook and Job_Board
 
-The Logbook (`/apps/logbook`) and Job_Board (`/apps/project-tracker`; called the Project Tracker until Nov 2026) were first built in their own
+The Logbook (`/apps/logbook`) and Job_Board (`/apps/job-board`; called the Project Tracker at `/apps/project-tracker` until Nov 2026, and that address redirects) were first built in their own
 Firebase project (`vehicle-logbook-c7e27`, code in github.com/RFralic/vehicle_logbook). Here they use this
 site's Google sign-in (`src/apps/logbook-backend.js`), with data in Firestore at
 `logbook/{uid}/records/{id}` (engines, vehicles, parts), `logbook/{uid}/projects/{id}` and

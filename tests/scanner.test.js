@@ -11,7 +11,7 @@ import vm from 'node:vm';
 
 const scannerSrc = readFileSync(new URL('../public/apps/scanner.js', import.meta.url), 'utf8');
 const logbook = readFileSync(new URL('../apps/logbook/index.html', import.meta.url), 'utf8');
-const tracker = readFileSync(new URL('../apps/project-tracker/index.html', import.meta.url), 'utf8');
+const tracker = readFileSync(new URL('../apps/job-board/index.html', import.meta.url), 'utf8');
 
 // scanner.js with no page around it: it only sets GTScan.util.
 const sandbox = {};

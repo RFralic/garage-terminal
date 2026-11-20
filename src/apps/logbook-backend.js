@@ -1,5 +1,5 @@
 // logbook-backend.js: gives the Engine & Vehicle Logbook (apps/logbook) and the
-// Project Tracker (apps/project-tracker) their sign-in and storage on this site.
+// Job_Board (apps/job-board, was the Project Tracker) their sign-in and storage on this site.
 //
 // Both pages were first built for their own Firebase project. They wait for
 // window.fbReady, which this module fills with the same small API they had
