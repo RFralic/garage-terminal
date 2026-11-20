@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <!--
-  Project Tracker, served at /apps/project-tracker. Built by scripts/import-logbook.mjs from the
+  Job_Board, served at /apps/project-tracker. Built by scripts/import-logbook.mjs from the
   Logbook repo (github.com/RFralic/vehicle_logbook, public/).
   Don't edit by hand: re-run the script with the newer Logbook files instead.
   Sign-in and storage: src/apps/logbook-backend.js.
@@ -9,7 +9,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Project Tracker · Garage Terminal</title>
+<title>Job_Board · Garage Terminal</title>
 <meta name="theme-color" content="#151a17">
 <link rel="icon" href="/img/logbook-192.png" type="image/png"><link rel="apple-touch-icon" href="/img/logbook-192.png"><link rel="manifest" href="/logbook.webmanifest">
 <style>
@@ -377,7 +377,7 @@ function prefill(){const p=projects[lsheet.pid],r=machineRecs[lsheet.mid];if(!p|
   if(!lsheet.countsEdited)lsheet.counts=new Set(picked.flatMap(t=>matchNames(t.title,names)));
   if(!lsheet.hoursEdited)lsheet.hours=String(r.hours||'');
   if(!lsheet.notesEdited){const parts=picked.flatMap(t=>t.parts||[]).map(partLine).filter(Boolean);
-    lsheet.notes=[...picked.map(t=>t.title),...(parts.length?['Parts: '+parts.join(', ')]:[]),'From Project Tracker: '+(p.title||'Untitled project')].join('\n')}}
+    lsheet.notes=[...picked.map(t=>t.title),...(parts.length?['Parts: '+parts.join(', ')]:[]),'From Job_Board: '+(p.title||'Untitled project')].join('\n')}}
 function drawLogSheet(){const old=document.getElementById('lsWrap');if(old)old.remove();if(!lsheet)return;
   const p=projects[lsheet.pid];if(!p){closeLogSheet();return}
   const w=document.createElement('div');w.id='lsWrap';w.className='sheetwrap';
@@ -513,7 +513,7 @@ async function removeProject(pid){delete projects[pid];if(db){try{await db.doc('
 const GLOGO='<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.2l7.8 6C12.3 13.4 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.8c-.5-1.4-.8-3-.8-4.8s.3-3.3.8-4.8l-7.8-6C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.8l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.7-3.9-13.6-9.7l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg>';
 function renderSignIn(){
   return `<div class="top"><a class="btn ghost" href="/apps/logbook">← Logbook</a></div>
-  <section class="signin"><h1>Project Tracker</h1>
+  <section class="signin"><h1>Job_Board</h1>
     <p class="muted" style="margin:0">Sign in with the same Google account as your Logbook. Your projects are saved to your account, and the tracker checks your Logbook inventory. Nobody else can see them.</p>
     <button class="btn primary gbtn" data-act="signin">${GLOGO}<span>Sign in with Google</span></button>
     ${authErr?`<p style="color:var(--danger);margin:0">${esc(authErr)}</p>`:''}</section>`;
@@ -580,7 +580,7 @@ function renderList(){
   const toOrder=all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='To order').length,0);
   let h=`<header class="app">
     <div class="between" style="align-items:center"><a class="btn ghost sm" href="/apps/logbook" style="padding:0">← Logbook</a><button class="btn ghost sm" data-act="shopinfo" aria-label="Shop info: name and contact" style="flex:none">⚙ Shop info</button></div>
-    <div class="between"><div style="min-width:0"><div class="eyebrow">Garage Terminal${offline?' · not syncing':' · saved to your account'}</div><h1>Project Tracker</h1></div>
+    <div class="between"><div style="min-width:0"><div class="eyebrow">Garage Terminal${offline?' · not syncing':' · saved to your account'}</div><h1>Job_Board</h1></div>
     <div class="row" style="flex:none"><button class="btn" data-act="shop" data-job="all">Parts${toOrder?` <span class="mono">${toOrder}</span>`:''}</button><button class="btn primary" data-act="new">+ New</button></div></div>
     <label for="q" class="f" style="position:absolute;left:-9999px">Search projects</label>
     <input id="q" type="search" placeholder="Search projects, parts, notes…" value="${esc(view.q)}" data-input="q">
@@ -1069,7 +1069,7 @@ function connect(u){
   },err=>{offline=true;ready=true;render()}));
 }
 (async()=>{
-  try{FB=await window.fbReady}catch(e){offline=true;ready=true;app.innerHTML='<p class="muted">Couldn\'t load the Project Tracker. Check your connection and reload.</p>';return}
+  try{FB=await window.fbReady}catch(e){offline=true;ready=true;app.innerHTML='<p class="muted">Couldn\'t load Job_Board. Check your connection and reload.</p>';return}
   FB.onAuth(u=>{
     if(!u){stopAll();user=null;db=null;projects={};signedOut=true;ready=true;go({name:'list'});return}
     if(user&&user.uid===u.uid)return;

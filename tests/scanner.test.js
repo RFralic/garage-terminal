@@ -112,7 +112,7 @@ describe('a scan finds the right part', () => {
 
 describe('the pages load the scanner', () => {
   test('both apps use /apps/scanner.js', () => {
-    for (const [name, html] of [['Logbook', logbook], ['Project Tracker', tracker]]) {
+    for (const [name, html] of [['Logbook', logbook], ['Job_Board', tracker]]) {
       assert.ok(html.includes('<script src="/apps/scanner.js"></script>'), `${name} doesn't load /apps/scanner.js`);
       assert.ok(html.includes('GTScan'), `${name} doesn't use the scanner`);
       // Part # boxes have no inline scan button: it only pasted barcode text (UPCs go on a part's barcode list instead).

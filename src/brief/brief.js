@@ -479,7 +479,7 @@ ${brief.summary ? `<div style="margin-top:8px;font-size:15px;color:#d6dce5">${es
 </td></tr>
 ${parts.join('\n')}
 <tr><td style="padding:24px 28px 28px;${FONT}font-size:12px;color:${C.muted};line-height:1.6">
-${brief.alert ? 'From your Garage Terminal Logbook and Home Projects. You get this when maintenance comes due, and once a week while it stays due.' : `From your Garage Terminal Logbook, Project Tracker, Home Projects, ${s.pantryExpiring || s.pantryShopping ? 'Pantry ' : ''}and calendar.`}<br>
+${brief.alert ? 'From your Garage Terminal Logbook and Home Projects. You get this when maintenance comes due, and once a week while it stays due.' : `From your Garage Terminal Logbook, Job_Board, Home Projects, ${s.pantryExpiring || s.pantryShopping ? 'Pantry ' : ''}and calendar.`}<br>
 <a href="${esc(siteUrl)}/apps/logbook" style="color:${C.accent}">Open the Logbook</a> · ${(s.maintenance || []).some((m) => m.home) ? `<a href="${esc(siteUrl)}/apps/home-projects" style="color:${C.accent}">Open Home Projects</a> · ` : ''}${s.pantryExpiring || s.pantryShopping ? `<a href="${esc(siteUrl)}/apps/pantry" style="color:${C.accent}">Open the Pantry</a> · ` : ''}<a href="${esc(siteUrl)}/apps/morning-brief" style="color:${C.accent}">Change or stop this email</a>
 </td></tr>
 </table></td></tr></table></body></html>`;

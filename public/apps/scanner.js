@@ -1,6 +1,6 @@
 // Served at /apps/scanner.js. Copied unchanged from the Logbook repo (public/scanner.js)
 // by scripts/import-logbook.mjs. Don't edit by hand: re-run the script instead.
-/* scanner.js: barcode scanning for the Logbook and the Project Tracker.
+/* scanner.js: barcode scanning for the Logbook and Job_Board.
  *
  * Two ways to scan, picked on the scanner screen (the choice is remembered on this device):
  *   - Camera: the phone's back camera. Uses the browser's own barcode reader

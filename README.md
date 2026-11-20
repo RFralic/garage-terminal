@@ -22,9 +22,9 @@ Live site: https://garageterminal.com (also https://garage-terminal-15499.web.ap
 | `src/apps/repclock-sync.js` | Saves RepClock workouts and settings to the signed-in member's account |
 | `apps/home-projects/index.html` | Home Projects, built from its Claude artifact by `scripts/import-home-projects.mjs` (don't edit by hand) |
 | `src/apps/homeprojects-backend.js` | Home Projects storage on this site: sign-in, projects (Firestore) and photos (Storage) |
-| `apps/logbook/index.html`, `apps/project-tracker/index.html` | Engine & Vehicle Logbook and Project Tracker, built from the Logbook repo by `scripts/import-logbook.mjs` (don't edit by hand) |
-| `src/apps/logbook-backend.js` | Logbook and Project Tracker sign-in and storage on this site (Firestore) |
-| `public/apps/sw.js` | Keeps the Logbook and Project Tracker pages for offline use |
+| `apps/logbook/index.html`, `apps/project-tracker/index.html` | Engine & Vehicle Logbook and Job_Board (renamed from Project Tracker, Nov 2026; still at `/apps/project-tracker`), built from the Logbook repo by `scripts/import-logbook.mjs` (don't edit by hand) |
+| `src/apps/logbook-backend.js` | Logbook and Job_Board sign-in and storage on this site (Firestore) |
+| `public/apps/sw.js` | Keeps the Logbook and Job_Board pages for offline use |
 | `apps/morning-brief/index.html`, `src/pages/morning-brief.js` | Morning Brief settings and preview |
 | `src/brief/` | Builds the Morning Brief (shared by the page and the sender): `brief.js`, `ics.js` (calendar feeds), `time.js` |
 | `scripts/send-briefs.mjs`, `scripts/lib/resend.mjs` | Sends the Morning Brief emails (GitHub action "Morning Brief", every 30 minutes) |
@@ -108,9 +108,9 @@ to the member (see the HOME PROJECTS sections of `firestore.rules` and `storage.
 keeps projects in the browser; the first sign-in adds them to the account. To update from a newer
 artifact: `node scripts/import-home-projects.mjs path/to/file.html`.
 
-## Engine & Vehicle Logbook and Project Tracker
+## Engine & Vehicle Logbook and Job_Board
 
-The Logbook (`/apps/logbook`) and Project Tracker (`/apps/project-tracker`) were first built in their own
+The Logbook (`/apps/logbook`) and Job_Board (`/apps/project-tracker`; called the Project Tracker until Nov 2026) were first built in their own
 Firebase project (`vehicle-logbook-c7e27`, code in github.com/RFralic/vehicle_logbook). Here they use this
 site's Google sign-in (`src/apps/logbook-backend.js`), with data in Firestore at
 `logbook/{uid}/records/{id}` (engines, vehicles, parts), `logbook/{uid}/projects/{id}` and
@@ -164,7 +164,7 @@ project and needs its own run of these steps. While both copies exist the cost i
 
 A daily or weekly email for any signed-in member, set up at `/apps/morning-brief`. Daily: today's
 calendar and the next 14 days; weekly (on the member's chosen day): the 7 days ahead and the week after. Plus parts at or below their reorder level, maintenance coming due (the Logbook's own rules, plus Home Projects upkeep reminders that are overdue or due soon by that app's rules) and open
-Project Tracker jobs. Members in a pantry also get **Pantry: expiring soon** (within 7 days, or expired) and
+Job_Board jobs. Members in a pantry also get **Pantry: expiring soon** (within 7 days, or expired) and
 **Pantry: shopping list** (below "keep at least", plus things added by hand), by the Pantry's own rules
 (`src/pantry/logic.js`; left out for anyone not in a pantry). Members can instead choose "Only maintenance alerts" (`mode: 'maintenance'`): checked
 daily at their time and emailed only when something new or worse comes due, or weekly while it stays due
