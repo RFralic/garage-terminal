@@ -100,6 +100,7 @@ label.exp{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;
 label.exp>span:first-child{font-family:var(--f-display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 label.exp input{width:auto;min-height:40px;padding:0 10px}
 .price{font-family:var(--f-mono);color:var(--tan)}
+.switch{flex:none;width:52px;height:30px;border-radius:15px;border:2px solid var(--line);background:var(--bg);position:relative;cursor:pointer;padding:0}.switch span{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--muted);transition:left .15s}.switch.on{background:var(--ok);border-color:var(--ok)}.switch.on span{left:25px;background:#fff}.switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button.chip{background:transparent;min-height:32px}
 .tag{display:inline-block;padding:1px 8px;border-radius:4px;font-family:var(--f-display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#151a17}
 .tag.mine{background:var(--steel)}.tag.customer{background:var(--tan)}
@@ -258,7 +259,12 @@ const clockT=ms=>new Date(ms).toLocaleTimeString('en-US',{hour:'numeric',minute:
 const dayOf=ms=>{const d=new Date(ms);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const hhmm=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
 const atLocal=(date,hm)=>new Date(date+'T'+(hm||'00:00')+':00').getTime();
-const runningJob=()=>Object.entries(projects).find(([,p])=>p.kind==='customer'&&running(p));
+/* Customer jobs can be switched off in Settings (saved on this device only; on by default). Off hides customer jobs
+   and everything that goes with them (job numbers, time clock, labor, invoices, Shop info); nothing is deleted. */
+let custOn=(()=>{try{return localStorage.getItem('jb-customers')!=='off'}catch(e){return true}})();
+function setCustOn(on){custOn=!!on;try{localStorage.setItem('jb-customers',custOn?'on':'off')}catch(e){}}
+const visible=([,p])=>custOn||p.kind!=='customer';
+const runningJob=()=>custOn?Object.entries(projects).find(([,p])=>p.kind==='customer'&&running(p)):null;
 setInterval(()=>{document.querySelectorAll('[data-tick]').forEach(el=>{const v=Date.now()-(+el.dataset.tick)+(+el.dataset.base||0);el.textContent=el.dataset.fmt==='dur'?fmtDur(v):fmtClock(v)})},1000);
 function renderClock(id,p){
   const r=running(p),log=timeLog(p).slice().sort((a,b)=>entryStart(b)-entryStart(a)),base=doneMs(p);
@@ -490,7 +496,7 @@ function partFields(x,sups,isNew){
   return `<div class="grid2"><label class="f">Brand<input type="text" name="brand" maxlength="60" list="brand-list" value="${esc(x.brand||'')}" placeholder="e.g. Kohler"></label><label class="f">Part #<input type="text" name="num" maxlength="60" class="mono" aria-label="Part #" value="${esc(x.num||'')}"></label></div>
     <div class="grid2"><label class="f">Amount<input type="number" name="qty" min="${fl?'0.1':'1'}" max="9999" step="${fl?'0.1':'1'}" value="${esc(numStr(x.qty))}" inputmode="decimal" data-qtyfor="1"></label>
     <label class="f">Measured in<select name="unit" data-unitsel="1">${UNITS.map(([v,l])=>`<option value="${v}" ${(x.unit||'')===v?'selected':''}>${l}</option>`).join('')}</select></label></div>
-    ${p.kind==='customer'&&isNew?`<label class="f"><span data-pricelabel="1">Price ${perText(x)} ($)</span><input type="number" name="price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" class="mono"></label>`:''}
+    ${isNew?`<label class="f"><span data-pricelabel="1">Price ${perText(x)} ($)${p.kind==='customer'?'':' · optional'}</span><input type="number" name="price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" class="mono"></label>`:''}
     <div class="grid2"><label class="f">Supplier<input type="text" name="supplier" maxlength="60" list="sup-list" value="${esc(x.supplier||'')}" placeholder="e.g. Tractor Supply"></label>
     ${isNew?`<label class="f">Status<select name="status">${PART_ST.map(s=>`<option>${s}</option>`).join('')}</select></label>`:'<span></span>'}</div>
     <span class="note">For fluids, pick Quarts or Gallons and enter the amount (decimals OK, like 4.5).</span>`;
@@ -571,7 +577,8 @@ function renderScreen(){
 }
 
 function renderList(){
-  const all=Object.entries(projects).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));
+  if(!custOn&&view.tab==='customer')view.tab='all';
+  const all=Object.entries(projects).filter(visible).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));
   const q=view.q.trim().toLowerCase();
   const match=([id,p])=>{if(view.tab!=='all'&&p.kind!==view.tab)return false;if(!q)return true;
     const hay=[jobLabel(p),p.jobNo,p.title,p.machine,p.logbook,p.notes,p.customer&&p.customer.name,...(p.tasks||[]).flatMap(t=>[t.title,t.notes,...(t.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier])])].join(' ').toLowerCase();return hay.includes(q)};
@@ -579,7 +586,7 @@ function renderList(){
   const c={all:all.length,mine:all.filter(x=>x[1].kind==='mine').length,customer:all.filter(x=>x[1].kind==='customer').length};
   const toOrder=all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='To order').length,0);
   let h=`<header class="app">
-    <div class="between" style="align-items:center"><a class="btn ghost sm" href="/apps/logbook" style="padding:0">← Logbook</a><button class="btn ghost sm" data-act="shopinfo" aria-label="Shop info: name and contact" style="flex:none">⚙ Shop info</button></div>
+    <div class="between" style="align-items:center"><a class="btn ghost sm" href="/apps/logbook" style="padding:0">← Logbook</a><button class="btn ghost sm" data-act="shopinfo" style="flex:none">⚙ Settings</button></div>
     <div class="between"><div style="min-width:0"><div class="eyebrow">Garage Terminal${offline?' · not syncing':' · saved to your account'}</div><h1>Job_Board</h1></div>
     <div class="row" style="flex:none"><button class="btn" data-act="shop" data-job="all">Parts${toOrder?` <span class="mono">${toOrder}</span>`:''}</button><button class="btn primary" data-act="new">+ New</button></div></div>
     <label for="q" class="f" style="position:absolute;left:-9999px">Search projects</label>
@@ -588,10 +595,10 @@ function renderList(){
   ${(()=>{const rj=runningJob();if(!rj)return '';const [rid,rp]=rj;const r=running(rp);return `<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:10px;border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--surface))">
     <button class="btn ghost" data-act="open" data-pid="${rid}" style="flex:1;min-width:0;justify-content:flex-start;text-align:left;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0"><span class="eyebrow" style="color:var(--ok)">● On the clock</span><span style="font-weight:600;overflow-wrap:anywhere">${esc((jobLabel(rp)?jobLabel(rp)+' · ':'')+(rp.title||''))}</span><span class="mono" data-tick="${r.start}">${fmtClock(Date.now()-r.start)}</span></button>
     <button class="btn primary sm" data-act="clockout" data-pid="${rid}" style="flex:none">■ Clock out</button></div>`})()}
-  <div class="tabs" role="tablist" aria-label="Filter projects">
+  ${custOn?`<div class="tabs" role="tablist" aria-label="Filter projects">
     ${[['all','All'],['mine','My equipment'],['customer','Customers']].map(([k,l])=>`<button role="tab" aria-selected="${view.tab===k}" data-act="tab" data-tab="${k}">${l}<span class="cnt">${c[k]}</span></button>`).join('')}
-  </div>`;
-  if(!all.length){h+=`<div class="empty"><b style="color:var(--ink)">No projects yet</b><span>Start one for your own machine, or a customer job.</span><div class="row"><button class="btn primary" data-act="new" data-kind="mine">+ My equipment</button><button class="btn" data-act="new" data-kind="customer">+ Customer job</button></div>${importButton()}</div>`}
+  </div>`:''}`;
+  if(!all.length){h+=`<div class="empty"><b style="color:var(--ink)">No projects yet</b><span>${custOn?'Start one for your own machine, or a customer job.':'Start one for your own machine or anything else you\'re working on.'}</span><div class="row"><button class="btn primary" data-act="new" data-kind="mine">+ ${custOn?'My equipment':'New project'}</button>${custOn?'<button class="btn" data-act="new" data-kind="customer">+ Customer job</button>':''}</div>${importButton()}</div>`}
   else if(!shown.length){h+=`<div class="empty">Nothing matches. Try another search or filter.</div>`}
   else h+=shown.map(([id,p])=>{const pr=progress(p);const next=(p.tasks||[]).find(t=>!t.done);const parts=allParts(p);const to=parts.filter(x=>x.status==='To order').length;const od=parts.filter(x=>x.status==='Ordered').length;
     const sub=p.kind==='customer'?`Customer: ${esc((p.customer&&p.customer.name)||'—')}${p.machine?' · '+esc(p.machine):''}`:(lbName(p)||p.machine?`${lbName(p)?'Logbook: ':''}${esc(lbName(p)||p.machine)}`:'My equipment');
@@ -600,19 +607,20 @@ function renderList(){
       <div class="body"><span class="small muted">${sub}</span>
       <div class="row"><div class="bar"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n}</span></div>
       <span class="small"><span class="muted">Next:</span> ${next?esc(next.title):(pr.n?'All tasks done':'Add the first task')}</span>${p.kind==='mine'&&inv?(()=>{const ps=allParts(p).filter(x=>x.num);if(!ps.length)return '';const n=ps.filter(x=>{const r=invLookup(x);return r&&r.found}).length;return `<span class="small" style="color:${n?'var(--ok)':'var(--muted)'}">${n} of ${ps.length} part${ps.length===1?'':'s'} in inventory</span>`})():''}</div>
+      ${p.kind==='mine'&&partsCost(p).count?`<span class="small"><span class="muted">Parts so far:</span> <span class="price">${money(partsCost(p).total)}</span></span>`:''}
       <div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(p.status)}${running(p)?' <span style="color:var(--ok)">· ● on the clock</span>':''}</span><span>${to?to+' to order':od?od+' ordered':parts.length?'Parts in':'No parts yet'}</span></div>
     </button>`}).join('');
   return h;
 }
 
 function renderNew(){
-  const k=view.kind||'mine';
+  const k=custOn&&view.kind==='customer'?'customer':'mine';
   return `<div class="top"><button class="btn ghost" data-act="home">← Projects</button></div>
   <h1>New project</h1>
-  <div class="seg" style="grid-template-columns:repeat(2,minmax(0,1fr))" role="group" aria-label="Project type">
+  ${custOn?`<div class="seg" style="grid-template-columns:repeat(2,minmax(0,1fr))" role="group" aria-label="Project type">
     <button aria-pressed="${k==='mine'}" data-act="newkind" data-kind="mine">My equipment</button>
     <button aria-pressed="${k==='customer'}" data-act="newkind" data-kind="customer">Customer job</button>
-  </div>
+  </div>`:''}
   <form class="panel" data-form="new">
     <label class="f">Project name<input id="n-title" type="text" name="title" required maxlength="120" placeholder="${k==='mine'?'e.g. Ford 8N restoration':'e.g. Craftsman mower: no start'}"></label>
     <label class="f">Machine<input type="text" name="machine" maxlength="120" placeholder="Make, model, serial"></label>
@@ -667,7 +675,7 @@ function renderProject(){
   if(view.editing==='p'){
     h+=`<form class="panel" data-form="editp">
       <label class="f">Project name<input type="text" name="title" required maxlength="120" value="${esc(p.title)}"></label>
-      <label class="f">Project type<select name="kind"><option value="mine" ${p.kind==='mine'?'selected':''}>My equipment</option><option value="customer" ${p.kind==='customer'?'selected':''}>Customer job</option></select></label>
+      <label class="f">Project type<select name="kind"><option value="mine" ${p.kind==='mine'?'selected':''}>My equipment</option>${custOn||p.kind==='customer'?`<option value="customer" ${p.kind==='customer'?'selected':''}>Customer job</option>`:''}</select></label>
       <label class="f">Machine<input type="text" name="machine" maxlength="120" value="${esc(p.machine)}"></label>
       ${p.kind==='mine'?logbookSelect(p):
       `<div class="grid2"><label class="f">Dropped off<input type="date" name="drop" value="${esc(c.dropOff)}"></label><label class="f">Promised by<input type="date" name="promised" value="${esc(c.promised)}"></label></div>
@@ -686,6 +694,9 @@ function renderProject(){
   ${p.kind==='customer'?(()=>{const pc=partsCost(p);return `<div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;gap:12px;border-color:var(--tan)">
     <div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Parts total</span><span class="mono" style="font-size:24px">${money(pc.total)}</span></div>
     <span class="small ${pc.missing?'':'muted'}" style="text-align:right;${pc.missing?'color:var(--warn)':''}">${pc.missing?`${pc.missing} part${pc.missing>1?'s':''} without a price`:pc.count?`${pc.count} part${pc.count>1?'s':''} priced`:'No parts yet'}</span></div>`})():''}
+  ${p.kind==='mine'?(()=>{const pc=partsCost(p);const n=pc.count+pc.missing;return pc.count?`<div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;gap:12px">
+    <div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Spent on parts</span><span class="mono price" style="font-size:24px">${money(pc.total)}</span></div>
+    <span class="small muted" style="text-align:right">${pc.count} of ${n} part${n>1?'s':''} priced</span></div>`:(n?`<span class="small muted">Add a price to any part to keep track of what this project costs. Optional.</span>`:'')})():''}
   ${p.kind==='customer'?renderLabor(p):''}
   <div class="stats"><div class="stat ${to?'hot':''}"><small>To order</small><b>${to}</b></div><div class="stat"><small>Ordered</small><b>${od}</b></div><div class="stat"><small>In stock</small><b>${st}</b></div></div>
   <button class="btn" data-act="shop" data-job="${id}">Shopping list, filtered to this project →</button></section>
@@ -715,9 +726,14 @@ function shopForm(){return `<form class="panel" data-form="shop">
       <button class="btn primary" type="submit">Save shop info</button>
     </form>`}
 function renderShopInfo(){
+  const hidden=Object.values(projects).filter(p=>p.kind==='customer').length;
   return `<div class="top"><button class="btn ghost" data-act="home">← Projects</button></div>
-  <div><span class="eyebrow">Settings</span><h1>Shop info</h1><span class="small muted">Your shop's name and contact details for customer invoices and work reports.</span></div>
-  ${shopForm()}
+  <h1>Settings</h1>
+  <section><div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px">
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><b>Customer jobs</b><span class="small muted">Job numbers, customer info, time clock, labor, invoices and work reports. Turn off to use Job_Board for your own projects only.</span></div>
+    <button class="switch ${custOn?'on':''}" role="switch" aria-checked="${custOn}" aria-label="Customer jobs" data-act="custtoggle"><span></span></button></div>
+    <span class="note">${custOn?'Saved on this device.':`Off on this device.${hidden===1?' 1 customer job is hidden, not deleted, and comes back when you turn this on.':hidden?` ${hidden} customer jobs are hidden, not deleted, and come back when you turn this on.`:''}`}</span></section>
+  ${custOn?`<section><h2>Shop info</h2><span class="small muted">Your shop's name and contact details for customer invoices and work reports.</span>${shopForm()}</section>`:''}
   <section><h2>Import from test version</h2><div class="panel" style="gap:10px"><span class="small muted">Bring in the projects, job numbers and shop info from the claude.ai test version: in the test version, save your backup file, then pick it here. Projects you already have are skipped.</span>${importButton()}</div></section>
   ${user?`<p class="small muted">Signed in as ${esc(user.email||user.displayName||'')}. <button class="btn ghost sm" data-act="signout">Sign out</button></p>`:''}`;
 }
@@ -887,7 +903,7 @@ function renderTask(){
   </form>`:`<div class="item" style="padding:10px 12px;gap:10px;align-items:flex-start">
     <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><span style="font-weight:500;overflow-wrap:anywhere">${esc(x.name)}</span>
     <span class="mono small muted">${x.brand?`<span style="color:var(--text)">${esc(x.brand)}</span> · `:''}${esc(x.num||'no part #')} · ${esc(qtyText(x))}</span>${invChip(p,x)}${x.supplier?`<span><span class="tag sup">${esc(x.supplier)}</span></span>`:''}
-    ${p.kind==='customer'?`<label class="exp" for="pr-${x.id}"><span>Price ${perText(x)}</span><span class="row" style="gap:4px"><span class="mono">$</span><input id="pr-${x.id}" class="mono" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${hasPrice(x)?Number(x.price).toFixed(2):''}" data-price="1" data-xid="${x.id}" style="width:96px"></span>${hasPrice(x)&&(x.qty||1)!==1?`<span class="mono muted">= ${money(x.price*(x.qty||1))}</span>`:''}</label>`:''}
+    <label class="exp" for="pr-${x.id}"><span>Price ${perText(x)}</span><span class="row" style="gap:4px"><span class="mono">$</span><input id="pr-${x.id}" class="mono" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${hasPrice(x)?Number(x.price).toFixed(2):''}" data-price="1" data-xid="${x.id}" style="width:96px"></span>${hasPrice(x)&&(x.qty||1)!==1?`<span class="mono muted">= ${money(x.price*(x.qty||1))}</span></label>`:''}
     ${x.status==='Ordered'?`<span class="small ${x.expected&&x.expected<today()?'':'muted'}" style="${x.expected&&x.expected<today()?'color:var(--danger);font-weight:600':''}">${x.expected?(x.expected<today()?'Late: expected ':'Expected ')+esc(fmtDate(x.expected)):'No expected date yet'}</span>`:''}${x.status==='In stock'&&x.receivedOn?`<span class="small muted">Received ${esc(fmtDate(x.receivedOn))}</span>`:''}${p.kind==='mine'&&x.status==='In stock'?invAddUI(view.pid,view.tid,x):''}</div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><button class="chip ${PART_CLASS[x.status]}" data-act="cyclepart" data-xid="${x.id}" aria-label="Status ${esc(x.status)}, tap to change">${esc(x.status)}</button><div class="row" style="gap:4px"><button class="btn ghost sm" data-act="editpart" data-xid="${x.id}" aria-label="Edit ${esc(x.name)}">Edit</button><button class="btn ghost sm" data-act="delpart" data-xid="${x.id}" aria-label="Remove ${esc(x.name)}">Remove</button></div></div></div>`).join('')}</div>`:''}
   <datalist id="sup-list">${sups.map(s=>`<option value="${esc(s)}"></option>`).join('')}</datalist>
@@ -905,8 +921,8 @@ function renderTask(){
 }
 
 function renderShop(){
-  const rows=[];Object.entries(projects).forEach(([pid,p])=>allParts(p).forEach(x=>rows.push({...x,pid,ptitle:(jobLabel(p)?jobLabel(p)+' · ':'')+(p.title||'Untitled'),kind:p.kind})));
-  const jobs=Object.entries(projects).filter(([pid,p])=>allParts(p).length).map(([pid,p])=>({pid,label:(jobLabel(p)?jobLabel(p)+' · ':'')+(p.title||'Untitled'),kind:p.kind}));
+  const rows=[];Object.entries(projects).filter(visible).forEach(([pid,p])=>allParts(p).forEach(x=>rows.push({...x,pid,ptitle:(jobLabel(p)?jobLabel(p)+' · ':'')+(p.title||'Untitled'),kind:p.kind})));
+  const jobs=Object.entries(projects).filter(visible).filter(([pid,p])=>allParts(p).length).map(([pid,p])=>({pid,label:(jobLabel(p)?jobLabel(p)+' · ':'')+(p.title||'Untitled'),kind:p.kind}));
   const sups=suppliers();const hasNoSup=rows.some(r=>!(r.supplier||'').trim());
   if(view.shopJob!=='all'&&!projects[view.shopJob])view.shopJob='all';
   const f=rows.filter(r=>(view.shopJob==='all'||r.pid===view.shopJob)&&(view.shopStatus==='all'||(view.shopStatus==='order'?r.status==='To order':r.status==='Ordered'))&&(view.shopSup==='all'||(view.shopSup==='none'?!(r.supplier||'').trim():(r.supplier||'').trim()===view.shopSup)));
@@ -932,7 +948,7 @@ function renderShop(){
     const ids=`data-pid="${r.pid}" data-tid="${r.taskId}" data-xid="${r.id}"`;
     return `<div class="item" style="align-items:flex-start"><button class="check cap" data-act="shoptick" ${ids} aria-label="${lab}: ${esc(r.name)}"><span class="box ${isStock?'on':isOrd&&view.shopStatus!=='ordered'?'ordered':''}">✓</span><small>${cap}</small></button>
   <div class="main" style="cursor:default"><div class="between" style="align-items:baseline"><span class="t ${isStock?'done':''}">${esc(r.name)}</span><span class="mono small muted" style="flex:none">${esc(qtyShort(r))}</span></div>
-  ${r.kind==='customer'&&hasPrice(r)?`<span class="price small">${money(r.price)} ${perText(r)}${(r.qty||1)!==1?` · ${money(r.price*(r.qty||1))}`:''}</span>`:''}
+  ${hasPrice(r)?`<span class="price small">${money(r.price)} ${perText(r)}${(r.qty||1)!==1?` · ${money(r.price*(r.qty||1))}`:''}</span>`:''}
   <span class="mono small muted">${esc(r.brand?r.brand+' · '+(r.num||'no part #'):(r.num||'no part #'))}</span>${r.kind==='mine'?invChip(projects[r.pid],r):''}
   <span class="row" style="flex-wrap:wrap;gap:6px"><span class="tag ${r.kind}">${esc(r.ptitle)}</span>${r.supplier?`<span class="tag sup">${esc(r.supplier)}</span>`:''}<button class="chip ${PART_CLASS[r.status]}" data-act="shopcycle" ${ids}>${esc(r.status)}</button>${isLate?`<span class="chip late">Late</span>`:''}</span>
   ${isOrd?`<label class="exp" for="exp-${r.id}"><span>Expected</span><input id="exp-${r.id}" type="date" value="${esc(r.expected||'')}" data-exp="1" ${ids}>${r.orderedOn?`<span class="muted">ordered ${esc(fmtDate(r.orderedOn))}</span>`:''}</label>`:''}
@@ -968,6 +984,7 @@ app.addEventListener('click',async e=>{
   else if(a==='deltime'){view.confirm='deltime';render()}
   else if(a==='deltime-yes'){p.time={log:timeLog(p).filter(e=>e.id!==b.dataset.tid)};view.editTime=null;view.confirm=null;save(view.pid);toast('Time entry deleted');render()}
   else if(a==='usetime'){p.labor={...(p.labor||{}),hours:hrsQ(totalMs(p))};if(p.labor.rate===undefined&&shop.rate)p.labor.rate=+shop.rate;save(view.pid);toast('Labor hours updated');render()}
+  else if(a==='custtoggle'){setCustOn(!custOn);render();toast(custOn?'Customer jobs on':'Customer jobs off on this device')}
   else if(a==='shopinfo'){go({name:'shopinfo'});const el=document.getElementById('s-name');if(el)el.focus()}
   else if(a==='editshop'){view.editing=view.editing==='shop'?null:'shop';render();const el=document.getElementById('s-name');if(el&&view.editing==='shop')el.focus()}
   else if(a==='pdf'){b.disabled=true;await savePdf(p,b.dataset.kind);b.disabled=false}
@@ -1023,7 +1040,7 @@ app.addEventListener('submit',e=>{
   else if(k==='editpart'){const t=p.tasks.find(x=>x.id===view.tid);const x=t&&(t.parts||[]).find(y=>y.id===f.dataset.xid);if(!x||!d.name.trim())return;
     const unit=['qt','gal'].includes(d.unit)?d.unit:'';Object.assign(x,{name:d.name.trim(),brand:(d.brand||'').trim(),num:(d.num||'').trim(),unit,qty:parseQty(d.qty,unit),supplier:(d.supplier||'').trim()});
     if(!x.unit)delete x.unit;if(!x.brand)delete x.brand;save(view.pid);view.editPart=null;toast('Part saved');render()}
-  else if(k==='addpart'){const t=p.tasks.find(x=>x.id===view.tid);if(!d.name.trim())return;const unit=['qt','gal'].includes(d.unit)?d.unit:'';(t.parts=t.parts||[]).push({id:uid(),name:d.name.trim(),...(d.brand&&d.brand.trim()?{brand:d.brand.trim()}:{}),...(unit?{unit}:{}),num:(d.num||'').trim(),qty:parseQty(d.qty,unit),supplier:(d.supplier||'').trim(),status:PART_ST.includes(d.status)?d.status:'To order',...(p.kind==='customer'&&d.price!==undefined&&d.price!==''&&isFinite(+d.price)&&+d.price>=0?{price:Math.round(+d.price*100)/100}:{})});
+  else if(k==='addpart'){const t=p.tasks.find(x=>x.id===view.tid);if(!d.name.trim())return;const unit=['qt','gal'].includes(d.unit)?d.unit:'';(t.parts=t.parts||[]).push({id:uid(),name:d.name.trim(),...(d.brand&&d.brand.trim()?{brand:d.brand.trim()}:{}),...(unit?{unit}:{}),num:(d.num||'').trim(),qty:parseQty(d.qty,unit),supplier:(d.supplier||'').trim(),status:PART_ST.includes(d.status)?d.status:'To order',...(d.price!==undefined&&d.price!==''&&isFinite(+d.price)&&+d.price>=0?{price:Math.round(+d.price*100)/100}:{})});
     save(view.pid);toast('Part added');render()}
   else if(k==='addlink'){const t=p.tasks.find(x=>x.id===view.tid);const u=safeUrl((d.url||'').trim());if(!u){toast('Enter a full link starting with https://');return}(t.links=t.links||[]).push({id:uid(),url:u,title:(d.title||'').trim()});save(view.pid);render()}
 });
