@@ -28,6 +28,9 @@ function logbookMatching(parts) {
   const code = [
     grab(/const normPN=.*\n/, 'normPN'),
     grab(/function pnMatch\(a,b\)\{[\s\S]*?\}\n/, 'pnMatch'),
+    grab(/const ownHit=.*\n/, 'ownHit'),
+    grab(/const altNums=.*\n/, 'altNums'),
+    grab(/const altOf=.*\n/, 'altOf'),
     grab(/const partHits=.*\n/, 'partHits'),
     grab(/const codeHit=.*\n/, 'codeHit'),
     grab(/function scanHits\(p,code\)\{[\s\S]*?return partHits\(p,code\)\}\n/, 'scanHits'),
@@ -93,6 +96,7 @@ describe('a scan finds the right part', () => {
     { id: 'fl', name: 'Oil filter', brand: 'Motorcraft', number: 'FL-500S' },
     { id: 'plug', name: 'Spark plug', brand: 'Champion', number: 'RJ19LM', barcodes: ['037551000586'] },
     { id: 'short', name: 'Air filter', number: '21123' },
+    { id: 'wix', name: 'Oil filter', brand: 'Wix', number: '51515', alts: ['Fram PH8A', 'Motorcraft FL-1A'] },
   ];
   const find = logbookMatching(parts);
   test('by part #, ignoring dashes, spaces and capitals', () => {
@@ -104,6 +108,12 @@ describe('a scan finds the right part', () => {
   });
   test('a UPC never matches a short part # it happens to contain', () => {
     assert.deepEqual(find('024721123456'), []); // contains "21123"
+  });
+  test('by a cross-reference ("Also sold as"), with or without the brand', () => {
+    assert.deepEqual(find('PH8A'), ['wix']);
+    assert.deepEqual(find('Fram PH8A'), ['wix']);
+    assert.deepEqual(find('fl-1a'), ['wix']);
+    assert.deepEqual(find('51515'), ['wix']);
   });
   test('an unknown code finds nothing', () => {
     assert.deepEqual(find('ZZ-0000'), []);
