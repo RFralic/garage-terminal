@@ -312,9 +312,9 @@ function pnMatch(a,b){const x=normPN(a),y=normPN(b);if(!x||!y)return false;if(x=
   const [sh,lo]=x.length<=y.length?[x,y]:[y,x];return sh.length>=5&&/\d/.test(sh)&&lo.includes(sh)}
 const partHits=(p,num)=>pnMatch(p.number,num)||(p.brand&&pnMatch((p.brand||"")+(p.number||""),num));;
 function invLookup(x){if(!inv||!x||!x.num)return null;const hits=inv.parts.filter(ip=>partHits(ip,x.num)||(x.brand&&partHits(ip,x.brand+x.num)));
-  if(!hits.length)return{found:false,hits:[]};const qty=hits.reduce((n,h)=>n+(parseFloat(h.qty)||0),0);const locs=[...new Set(hits.map(h=>(h.location||'').trim()).filter(Boolean))];return{found:true,qty:Math.round(qty*100)/100,locs,hits}}
+  if(!hits.length)return{found:false,hits:[]};const qty=hits.reduce((n,h)=>n+(parseFloat(h.qty)||0),0);const locs=[...new Set(hits.map(h=>(h.location||'').trim()).filter(Boolean))];const us=[...new Set(hits.map(h=>h.unit||''))];return{found:true,qty:Math.round(qty*100)/100,unit:us.length===1?us[0]:'',locs,hits}}
 function invChip(p,x){if(!p||p.kind!=='mine'||!inv)return '';const r=invLookup(x);if(!r)return x.num?'':`<span class="small muted">Add a part # to check inventory</span>`;
-  return r.found?`<span class="small" style="color:var(--ok);font-weight:600">In inventory: ${esc(numStr(r.qty))}${r.locs.length?' · '+esc(r.locs.join(', ')):''}</span>`:`<span class="small muted">Not in inventory</span>`}
+  return r.found?`<span class="small" style="color:var(--ok);font-weight:600">In inventory: ${esc(numStr(r.qty))}${r.unit?' '+r.unit:''}${r.locs.length?' · '+esc(r.locs.join(', ')):''}</span>`:`<span class="small muted">Not in inventory</span>`}
 /* Logbook machine names and record ids: copied from the Logbook (index.html) */
 const kindOf=e=>e&&e.kind==="vehicle"?"vehicle":e&&e.kind==="part"?"part":"engine";;
 const K=e=>({engine:{one:'engine'},vehicle:{one:'vehicle'},part:{one:'part'}})[kindOf(e)];
@@ -473,7 +473,7 @@ function invAddUI(pid,tid,x){
   return `<span class="row" style="gap:8px;flex-wrap:wrap">${x.invAddedOn?`<span class="small" style="color:var(--ok)">Added to inventory ${esc(fmtDate(x.invAddedOn))}</span>`:''}<button class="btn sm" data-act="invadd" data-key="${key}">${x.invAddedOn?'Add again':'Add to inventory'}</button></span>`}
 function addToInventory(pid,tid,xid,n){
   const {p,x}=findPart(pid,tid,xid);if(!p||!x||!db)return;const now=new Date().toISOString();const r=invLookup(x);let msg;
-  if(r&&r.found){const hit=r.hits[0];const cur=Math.max(0,parseInt(hit.qty,10)||0);
+  if(r&&r.found){const hit=r.hits[0];const cur=Math.max(0,Math.round((parseFloat(hit.qty)||0)*100)/100);
     db.records.merge(hit.id,{qty:String(cur+n),updatedAt:now}).catch(()=>toast('Could not update your inventory'));
     msg=`Inventory: ${hit.name||hit.number} now ${cur+n}`}
   else{/* same record shape as the Logbook's Add part form (openPart in index.html) */
@@ -1074,7 +1074,7 @@ function connect(u){
   /* The Logbook's records: parts for the inventory check, engines/vehicles for "Logbook entry" */
   unsubs.push(db.records.onSnapshot(rs=>{
     const live=rs.filter(r=>r&&!r.example);
-    inv={parts:live.filter(r=>r.kind==='part').map(r=>({id:r.id,name:String(r.name||''),brand:String(r.brand||''),number:String(r.number||''),qty:r.qty??'',location:String(r.location||'')}))};
+    inv={parts:live.filter(r=>r.kind==='part').map(r=>({id:r.id,name:String(r.name||''),brand:String(r.brand||''),number:String(r.number||''),qty:r.qty??'',location:String(r.location||''),unit:r.category==='Fluids'&&(r.unit==='qt'||r.unit==='gal')?r.unit:''}))};
     machines=live.filter(r=>kindOf(r)!=='part').map(r=>({id:r.id,name:dname(r)})).sort((a,b)=>a.name.localeCompare(b.name));
     machineRecs=Object.fromEntries(live.filter(r=>kindOf(r)!=='part').map(r=>[r.id,r]));
     const ae=document.activeElement;const editing=ae&&(ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||(ae.tagName==='INPUT'&&ae.type!=='search'));if(!editing&&ready)render()},()=>{}));
