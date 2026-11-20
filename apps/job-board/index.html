@@ -52,6 +52,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 a{color:var(--steel)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:600;text-decoration:none}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.cartbtn{position:relative;gap:7px}.cartbtn svg{width:20px;height:20px;flex:none}
+.cbadge{background:var(--accent);color:var(--on-accent);font:600 .72rem var(--f-mono);border-radius:10px;min-width:20px;height:20px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+@media (max-width:440px){.cartbtn .cartlbl{display:none}.cartbtn{padding-left:12px;padding-right:12px}.cartbtn .cbadge{position:absolute;top:-8px;right:-8px;border:2px solid var(--bg)}}
+.orderbar{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;cursor:pointer;background:color-mix(in srgb,var(--accent) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:8px;padding:11px 14px;color:var(--ink);font:inherit;min-height:44px}
+.orderbar b{color:var(--accent)}.orderbar .go{color:var(--accent);white-space:nowrap;font-weight:600}
 .btn.ok{background:var(--ok);border-color:var(--ok);color:#151a17}
 .btn.ghost{background:transparent;border-color:transparent;color:var(--steel);padding:0 6px}
 .btn.dashed{border-style:dashed;background:transparent;color:var(--muted);font-weight:500;width:100%}
@@ -585,12 +590,16 @@ function renderList(){
   const shown=all.filter(match);
   const c={all:all.length,mine:all.filter(x=>x[1].kind==='mine').length,customer:all.filter(x=>x[1].kind==='customer').length};
   const toOrder=all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='To order').length,0);
+  const ordProj=all.filter(([,p])=>allParts(p).some(x=>x.status==='To order'));
+  const lateN=(()=>{const td=today();return all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='Ordered'&&x.expected&&x.expected<td).length,0)})();
+  const CART='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2.6l2.4 11.2a1.6 1.6 0 0 0 1.6 1.3h8.6a1.6 1.6 0 0 0 1.6-1.2L21 7.5H6"/></svg>';
   let h=`<header class="app">
     <div class="between" style="align-items:center"><a class="btn ghost sm" href="/apps/logbook" style="padding:0">← Logbook</a><button class="btn ghost sm" data-act="shopinfo" style="flex:none">⚙ Settings</button></div>
     <div class="between"><div style="min-width:0"><div class="eyebrow">Garage Terminal${offline?' · not syncing':' · saved to your account'}</div><h1>Job_Board</h1></div>
-    <div class="row" style="flex:none"><button class="btn" data-act="shop" data-job="all">Parts${toOrder?` <span class="mono">${toOrder}</span>`:''}</button><button class="btn primary" data-act="new">+ New</button></div></div>
+    <div class="row" style="flex:none"><button class="btn cartbtn" data-act="shop" data-job="all" aria-label="Shopping list${toOrder?`, ${toOrder} to order`:''}" title="Shopping list">${CART}<span class="cartlbl">Shopping list</span>${toOrder?`<span class="cbadge" aria-hidden="true">${toOrder}</span>`:''}</button><button class="btn primary" data-act="new">+ New</button></div></div>
     <label for="q" class="f" style="position:absolute;left:-9999px">Search projects</label>
     <input id="q" type="search" placeholder="Search projects, parts, notes…" value="${esc(view.q)}" data-input="q">
+    ${toOrder||lateN?`<button class="orderbar" data-act="shop" data-job="${ordProj.length===1&&!lateN?ordProj[0][0]:'all'}"><span>${toOrder?`<b>${toOrder} part${toOrder>1?'s':''} to order</b> <span class="muted">· ${ordProj.length===1?esc(ordProj[0][1].title||'Untitled'):ordProj.length+' projects'}</span>`:''}${lateN?`${toOrder?' <span class="muted">·</span> ':''}<b>${lateN} late</b>`:''}</span><span class="go">View list →</span></button>`:''}
   </header>
   ${(()=>{const rj=runningJob();if(!rj)return '';const [rid,rp]=rj;const r=running(rp);return `<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:10px;border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--surface))">
     <button class="btn ghost" data-act="open" data-pid="${rid}" style="flex:1;min-width:0;justify-content:flex-start;text-align:left;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0"><span class="eyebrow" style="color:var(--ok)">● On the clock</span><span style="font-weight:600;overflow-wrap:anywhere">${esc((jobLabel(rp)?jobLabel(rp)+' · ':'')+(rp.title||''))}</span><span class="mono" data-tick="${r.start}">${fmtClock(Date.now()-r.start)}</span></button>
