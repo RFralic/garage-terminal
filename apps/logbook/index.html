@@ -92,7 +92,7 @@ textarea{min-height:80px;resize:vertical}
 .span2{grid-column:1/-1}
 .parts{display:grid;gap:8px}
 .partrow{display:grid;grid-template-columns:1.2fr 1fr auto;gap:8px;align-items:center}
-.partrow3{display:grid;grid-template-columns:1.2fr .8fr 1fr auto;gap:8px;align-items:center}
+.partrow3{display:grid;grid-template-columns:1.2fr .8fr 1fr auto;gap:8px;align-items:center}.partrow3 .altin{grid-column:1/-1;font-size:.9rem}
 .partrow3 button{min-height:38px;padding:6px 10px}
 .pnpair{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1fr);gap:6px}
 .pbrand{font-family:var(--f-body);color:var(--muted)}
@@ -686,9 +686,9 @@ function renderSpecView(e){
     <div class="actions" style="justify-content:space-between"><span class="muted" style="font-size:.85rem">${e.updatedAt?"Updated "+fmtDate(String(e.updatedAt).slice(0,10)):""}</span><button class="primary" id="editBtn">Edit ${k.one}</button></div>
     ${sect("Specifications",spec.length||e.equipment?`<dl class="specview"><div><dt>${k.typeLabel}</dt><dd>${esc(e.equipment||"—")}</dd></div>${nextOil(e)?`<div class="nextoil ${nextOil(e).state}"><dt>Next oil change</dt><dd class="mono">${esc(nextOilText(nextOil(e)))}</dd></div>`:""}${spec.map(([f,l,m,pt])=>{if(!pt)return`<div><dt>${l}</dt><dd class="${m?"mono":""}">${esc(e[f])}</dd></div>`;const num=String(e[f]).trim(),br=String(e[f+"Brand"]||"").trim(),lab=l.replace(/ part #$/,""),alts=specAlts(e,f),st=stockFor(num,alts),loc=locOf(st);
       const sub=shelfLine(st,num);
-      return `<div><dt>${l}</dt><dd class="${m?"mono":""}"><span class="pnline"><span>${esc(withBrand(e[f+"Brand"],e[f]))}</span>${badge(st,lab,num,br)}</span>${alts.length?`<span style="display:block;font-size:.82rem">Also: ${esc(alts.join(", "))}</span>`:""}${sub?`<span class="muted" style="display:block;font-size:.78rem;font-family:inherit">${esc(sub)}</span>`:""}</dd></div>`}).join("")}</dl>`:`<p class="muted">No specs yet. Tap Edit to add them.</p>`)}
-    ${parts.length?sect("Other part numbers",`<div class="prows">${parts.map(p=>{const num=String(p.number||"").trim(),st=num?stockFor(num):[],loc=num?shelfLine(st,num):"";
-      return `<div class="prow"><span class="pnline"><span><b style="font-weight:500">${esc(p.name||"Part")}</b><span class="pn2">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>${loc?`<span class="loc">${esc(loc)}</span>`:""}</span>${num?badge(st,p.name||"Part",num,p.brand):""}</span></div>`}).join("")}</div>`):""}
+      return `<div><dt>${l}</dt><dd class="${m?"mono":""}"><span class="pnline"><span>${esc(withBrand(e[f+"Brand"],e[f]))}</span>${badge(st,lab,num,br)}</span>${alts.length?`<span style="display:block;font-size:.82rem">Also listed as: ${esc(alts.join(", "))}</span>`:""}${sub?`<span class="muted" style="display:block;font-size:.78rem;font-family:inherit">${esc(sub)}</span>`:""}</dd></div>`}).join("")}</dl>`:`<p class="muted">No specs yet. Tap Edit to add them.</p>`)}
+    ${parts.length?sect("Other part numbers",`<div class="prows">${parts.map(p=>{const num=String(p.number||"").trim(),al=splitAlts(p.alts),st=num?stockFor(num,al):[],loc=num?shelfLine(st,num):"";
+      return `<div class="prow"><span class="pnline"><span><b style="font-weight:500">${esc(p.name||"Part")}</b><span class="pn2">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>${al.length?`<span class="pn2">Also listed as: ${esc(al.join(", "))}</span>`:""}${loc?`<span class="loc">${esc(loc)}</span>`:""}</span>${num?badge(st,p.name||"Part",num,p.brand):""}</span></div>`}).join("")}</div>`):""}
     ${isV?sect("Torque specs &amp; bolt sizes",tq.length?`<div class="tablewrap"><table><thead><tr><th>Fastener</th><th>Socket / wrench</th><th>Torque</th><th>Notes</th></tr></thead><tbody>${tq.map(t=>`<tr><td>${esc(t.item)}</td><td class="n">${esc(t.size||"")}</td><td class="n">${t.value?esc(t.value)+" "+esc(t.unit||"ft-lb"):""}</td><td>${esc(t.notes||"")}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted">None yet. Tap Edit to add bolt sizes and torque specs.</p>`):""}
     ${x.tagged.length?sect(`Also on the shelf for this ${kindOf(e)==="vehicle"?"vehicle":"engine"}`,`<p class="muted" style="margin:0;font-size:.85rem">Parts tagged to it that aren't in its specs.</p><div class="prows">${x.tagged.map(p=>{const loc=locOf([p]);
       return `<div class="prow"><span class="pnline"><span><b style="font-weight:500">${esc(p.name||"Part")}</b><span class="pn2">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>${loc?`<span class="loc">${esc(loc)}</span>`:""}</span>${badge([p],p.name||"Part",p.number||"",p.brand)}</span></div>`}).join("")}</div>`):""}
@@ -710,7 +710,7 @@ function renderSpecs(e){
       <label>Nickname (optional)<input id="f-name" value="${esc(d.name)}" placeholder="Leave blank to use make &amp; model"></label>
       <label>${k.typeLabel}${sel("f-equipment",k.types,d.equipment)}</label>
       ${k.spec.map(([k,l,m,pt])=>k==="cycle"?`<label>${l}${sel("f-cycle",["4-stroke","2-stroke"],d.cycle)}</label>`:
-        pt?`<label class="pnlabel">${l}<span class="pnpair"><input id="f-${k}Brand" aria-label="${esc(l.replace(/ part #$/,""))} brand" value="${esc(d[k+"Brand"])}" placeholder="Brand"><input id="f-${k}" class="pn" aria-label="${esc(l)}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"Part #")}"></span></label>${ALT_SPEC.has(k)?`<label>${esc(l.replace(/ part #$/,""))}: other part #s<input id="f-${k}Alts" value="${esc(d[k+"Alts"]||"")}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k+"Alts"]||"Other brands, e.g. Fram PH8A, Wix 51515")}" maxlength="300"></label>`:""}`:
+        pt?`<label class="pnlabel">${l}<span class="pnpair"><input id="f-${k}Brand" aria-label="${esc(l.replace(/ part #$/,""))} brand" value="${esc(d[k+"Brand"])}" placeholder="Brand"><input id="f-${k}" class="pn" aria-label="${esc(l)}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"Part #")}"></span></label><label class="altlabel">${esc(l.replace(/ part #$/,""))}: also listed as<input id="f-${k}Alts" value="${esc(d[k+"Alts"]||"")}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k+"Alts"]||"Other brands' numbers, comma between")}" maxlength="300"></label>`:
         `<label>${l}<input id="f-${k}" class="${m?"pn":""}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"")}"></label>`).join("")}
     </div>
     <div class="parts"><h3>Other part numbers</h3>
@@ -718,7 +718,8 @@ function renderSpecs(e){
         <input id="pn-${i}" aria-label="Part name" value="${esc(p.name)}" placeholder="${esc(k.partPh)}">
         <input id="pbr-${i}" aria-label="Brand" value="${esc(p.brand)}" placeholder="Brand">
         <input id="pnum-${i}" class="pn" aria-label="Part number" value="${esc(p.number)}" placeholder="Part #">
-        <button class="ghost" data-rm="${i}">Remove</button></div>`).join("")}</div>
+        <button class="ghost" data-rm="${i}">Remove</button>
+        <input id="palt-${i}" class="altin" aria-label="Also listed as" value="${esc(p.alts||"")}" placeholder="Also listed as: other brands' numbers, comma between" maxlength="300"></div>`).join("")}</div>
       <div><button id="addPart">+ Add part</button></div>
     </div>
     ${kindOf(e)==="vehicle"?`<div class="parts"><h3>Torque specs &amp; bolt sizes</h3>
@@ -746,12 +747,12 @@ function renderSpecs(e){
     </div></section>`;
   const pull=()=>{d.name=$("#f-name").value;d.equipment=$("#f-equipment").value;d.notes=$("#f-notes").value;
     k.spec.forEach(([f,,,pt])=>{const el=$("#f-"+f);if(el)d[f]=el.value;if(pt){const b=$("#f-"+f+"Brand");if(b)d[f+"Brand"]=b.value;const al=$("#f-"+f+"Alts");if(al)d[f+"Alts"]=al.value.trim()}});
-    d.parts=(d.parts||[]).map((p,i)=>({name:$("#pn-"+i).value,brand:$("#pbr-"+i).value,number:$("#pnum-"+i).value}));
+    d.parts=(d.parts||[]).map((p,i)=>({name:$("#pn-"+i).value,brand:$("#pbr-"+i).value,number:$("#pnum-"+i).value,alts:($("#palt-"+i)?$("#palt-"+i).value:"").trim()}));
     d.docs=(d.docs||[]).map((x,i)=>({label:$("#dl-"+i).value,url:$("#du-"+i).value.trim()}));
     if($("#tqList"))d.torque=(d.torque||[]).map((t,i)=>({item:$("#tqi-"+i).value,size:$("#tqs-"+i).value.trim(),value:$("#tqv-"+i).value.trim(),unit:$("#tqu-"+i).value,notes:$("#tqn-"+i).value}));};
   if($("#addTq")){$("#addTq").onclick=()=>{pull();d.torque=d.torque||[];d.torque.push({item:"",size:"",value:"",unit:"ft-lb",notes:""});renderSpecs(e);$("#tqi-"+(d.torque.length-1)).focus()};
     $("#tqList").querySelectorAll("[data-rmt]").forEach(b=>b.onclick=()=>{pull();d.torque.splice(+b.dataset.rmt,1);renderSpecs(e)})}
-  $("#addPart").onclick=()=>{pull();d.parts.push({name:"",brand:"",number:""});renderSpecs(e);$("#pn-"+(d.parts.length-1)).focus()};
+  $("#addPart").onclick=()=>{pull();d.parts.push({name:"",brand:"",number:"",alts:""});renderSpecs(e);$("#pn-"+(d.parts.length-1)).focus()};
   $("#addDoc").onclick=()=>{pull();d.docs=d.docs||[];d.docs.push({label:d.docs.length?"":(kindOf(e)==="vehicle"?"Owner's manual":"Service manual"),url:""});renderSpecs(e);$("#du-"+(d.docs.length-1)).focus()};
   $("#docsList").querySelectorAll("[data-rmd]").forEach(b=>b.onclick=()=>{pull();d.docs.splice(+b.dataset.rmd,1);renderSpecs(e)});
   $("#partsList").querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{pull();d.parts.splice(+b.dataset.rm,1);renderSpecs(e)});
@@ -1069,14 +1070,15 @@ const shelfLine=(st,num)=>{if(!st.length)return"";
   return st.map(p=>`${qtyTxt(p)} ${withBrand(p.brand,p.number)||p.name||"part"}${p.location?` (${p.location})`:""}`).join(" · ")};
 /* barcodes saved on a part (from scanning its packaging) match exactly */
 const codeHit=(p,num)=>{const c=normPN(num);return !!c&&(p.barcodes||[]).some(b=>normPN(b)===c)};
-/* Spec part #s that can list the same part's other numbers (other brands), e.g. oilFilterAlts:
-   "Fram PH8A, Wix 51515". They count when checking stock, like an inventory part's "Also sold as". */
-const ALT_SPEC=new Set(["oilFilter"]);
-const specAlts=(e,f)=>ALT_SPEC.has(f)?String(e[f+"Alts"]||"").split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean):[];
+/* "Also listed as": every part # on a machine (spec part #s and Other part numbers) can list the same part's
+   other numbers (other brands), e.g. oilFilterAlts: "Fram PH8A, Wix 51515", or alts on an Other part number.
+   They count when checking stock, like an inventory part's "Also sold as". */
+const splitAlts=v=>String(v||"").split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);
+const specAlts=(e,f)=>splitAlts(e[f+"Alts"]);
 const numHits=(p,num,alts)=>partHits(p,num)||(alts||[]).some(a=>partHits(p,a));
 function machineParts(e){const k=K(e);if(!k)return[];
   return [...k.spec.filter(s=>s[3]&&(e[s[0]]||"").trim()).map(([f,l])=>({label:l.replace(/ part #$/,""),brand:String(e[f+"Brand"]||"").trim(),number:e[f].trim(),alts:specAlts(e,f)})),
-    ...(e.parts||[]).filter(p=>(p.number||"").trim()).map(p=>({label:p.name||"Part",brand:String(p.brand||"").trim(),number:p.number.trim()}))]}
+    ...(e.parts||[]).filter(p=>(p.number||"").trim()).map(p=>({label:p.name||"Part",brand:String(p.brand||"").trim(),number:p.number.trim(),alts:splitAlts(p.alts)}))]}
 function xref(e){const inv=partsOf();
   const rows=machineParts(e).map(mp=>({...mp,stock:inv.filter(p=>numHits(p,mp.number,mp.alts))}));
   const used=new Set(rows.flatMap(r=>r.stock.map(p=>p.id)));
@@ -1561,7 +1563,7 @@ function sheetBody(e){
   const log=sortedLog(e);
   const k=K(e);
   const rows=k.spec.filter(([f,,,pt])=>e[f]&&!pt).map(([f,l])=>`<tr><th>${l}</th><td class="m">${esc(e[f])}</td></tr>`).join("")+(nextOil(e)?`<tr><th>Next oil change</th><td class="m">${esc(fmtMi(nextOil(e).at))}</td></tr>`:"");
-  const parts=[...k.spec.filter(s=>s[3]&&e[s[0]]).map(([f,l])=>[l.replace(/ part #$/,""),e[f]+(specAlts(e,f).length?" (also "+specAlts(e,f).join(", ")+")":""),e[f+"Brand"]||""]),...(e.parts||[]).map(p=>[p.name,p.number,p.brand||""])].filter(p=>p[1]||p[0]);
+  const parts=[...k.spec.filter(s=>s[3]&&e[s[0]]).map(([f,l])=>[l.replace(/ part #$/,""),e[f]+(specAlts(e,f).length?" (also "+specAlts(e,f).join(", ")+")":""),e[f+"Brand"]||""]),...(e.parts||[]).map(p=>[p.name,(p.number||"")+(splitAlts(p.alts).length?" (also "+splitAlts(p.alts).join(", ")+")":""),p.brand||""])].filter(p=>p[1]||p[0]);
   const blanks=Array.from({length:Math.max(4,10-log.length)},()=>`<tr class="blank"><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join("");
   return `<div class="hd"><div><div class="eyebrow">Service record</div><h1>${esc(dname(e))}</h1>
     <div class="subt">${esc((kindOf(e)==="vehicle"?[e.year,e.make,e.model,e.trim,e.vin&&("VIN "+e.vin)]:[e.equipment,e.make,e.model,e.year,[e.engineMake,e.engineModel].filter(Boolean).join(" ")&&("Engine: "+[e.engineMake,e.engineModel].filter(Boolean).join(" ")),e.engineType]).filter(Boolean).join(" · "))}</div></div>
