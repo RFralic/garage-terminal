@@ -63,7 +63,9 @@ const TAB_KEY = 'gt.apps.tab';
 const appKey = (card) => card.querySelector('.meta a')?.getAttribute('href') || card.querySelector('h3')?.textContent.trim() || '';
 const nameOf = (card) => card.querySelector('h3')?.textContent.trim() || 'this app';
 let favs = new Set();
-try { favs = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]').filter((k) => typeof k === 'string')); } catch { /* none saved */ }
+// Apps that moved: a favorite saved under the old address follows the app.
+const MOVED = { '/apps/project-tracker': '/apps/job-board' };
+try { favs = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]').filter((k) => typeof k === 'string').map((k) => MOVED[k] || k)); } catch { /* none saved */ }
 const saveFavs = () => { try { localStorage.setItem(FAV_KEY, JSON.stringify([...favs])); } catch { /* storage blocked: works for this visit */ } };
 
 const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg>';

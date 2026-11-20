@@ -1,5 +1,5 @@
 // import-logbook.mjs: builds apps/logbook/index.html and
-// apps/project-tracker/index.html from the Engine & Vehicle Logbook's own pages
+// apps/job-board/index.html (Job_Board, was the Project Tracker) from the Engine & Vehicle Logbook's own pages
 // (github.com/RFralic/vehicle_logbook, folder public/).
 //
 //   node scripts/import-logbook.mjs path/to/vehicle_logbook/public
@@ -101,7 +101,7 @@ lb = swap(lb, '<div class="wrap">\n  <header class="top">', `<div class="wrap">\
 // 3. storage
 lb = swapFirebaseModule(lb, BACKEND, 'index.html');
 // 4. links
-lb = swap(lb, 'href="/tracker"', 'href="/apps/project-tracker"', 'Job_Board link');
+lb = swap(lb, 'href="/tracker"', 'href="/apps/job-board"', 'Job_Board link');
 // 6. scanner
 lb = swap(lb, SCANNER_FROM, SCANNER_TO, 'barcode scanner script');
 // 5. offline
@@ -111,7 +111,7 @@ lb = swap(lb, 'if("serviceWorker" in navigator)window.addEventListener("load",()
 
 let pt = readFileSync(join(srcDir, 'tracker.html'), 'utf8');
 // 1. head
-pt = swap(pt, /<!--\n  Job_Board \(renamed from Project Tracker, Nov 2026\): served at \/tracker[\s\S]*?-->/.exec(pt)?.[0] ?? '(header comment)', note('Job_Board', '/apps/project-tracker'), 'header comment');
+pt = swap(pt, /<!--\n  Job_Board \(renamed from Project Tracker, Nov 2026\): served at \/tracker[\s\S]*?-->/.exec(pt)?.[0] ?? '(header comment)', note('Job_Board', '/apps/job-board'), 'header comment');
 pt = swap(pt, '<title>Job_Board · Engine &amp; Vehicle Logbook</title>', '<title>Job_Board · Garage Terminal</title>', 'title');
 pt = swap(pt, '<link rel="manifest" href="/manifest.webmanifest">\n<link rel="icon" href="/icon-192.png">\n<link rel="apple-touch-icon" href="/icon-192.png">', ICONS, 'icons + manifest');
 pt = swap(pt, '<link rel="preconnect" href="https://fonts.googleapis.com">', `${barStyle('640px')}\n<link rel="preconnect" href="https://fonts.googleapis.com">`, 'fonts link');
@@ -127,7 +127,7 @@ pt = swap(pt, SCANNER_FROM, SCANNER_TO, 'barcode scanner script');
 // 5. offline
 pt = swap(pt, '<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));</script>', SW, 'service worker');
 
-for (const [dir, html] of [['apps/logbook', lb], ['apps/project-tracker', pt]]) {
+for (const [dir, html] of [['apps/logbook', lb], ['apps/job-board', pt]]) {
   if (/vehicle-logbook-c7e27|gstatic\.com\/firebasejs/.test(html)) throw new Error(`${dir} still points at the old Firebase project.`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(`${dir}/index.html`, html);

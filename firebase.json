@@ -63,6 +63,18 @@
         "source": "/wiki/**",
         "destination": "/wiki/doc.html"
       }
+    ],
+    "redirects": [
+      {
+        "source": "/apps/project-tracker",
+        "destination": "/apps/job-board",
+        "type": 301
+      },
+      {
+        "source": "/apps/project-tracker/**",
+        "destination": "/apps/job-board",
+        "type": 301
+      }
     ]
   },
   "firestore": {
