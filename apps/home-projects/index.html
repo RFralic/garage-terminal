@@ -91,6 +91,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px}
 .head .t{min-width:0;flex:1;display:grid;gap:6px}
 .eyebrow{font:600 .78rem var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.eyebrow .linkbtn{all:unset;cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px;padding:6px 0;margin:-6px 0}.eyebrow .linkbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.9rem;color:var(--muted)}
 .desc{max-width:65ch}
 .status{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:18px}
@@ -323,6 +324,10 @@ function stats(p){
   return s;
 }
 const isLate=p=>p.target&&p.status!=="Done"&&p.target<today();
+/* A project can be moved into a room (field `room` = the room's id). It then shows inside that room instead of on the Projects tab, and keeps all its own tasks, notes and photos. */
+const roomOf=p=>{if(!p||p.kind!=="project"||!p.room)return null;const r=getP(p.room);return r&&r.kind==="room"?r:null};
+const projectsIn=r=>items.filter(x=>x.kind==="project"&&x.room===r.id).sort((a,b)=>((a.status==="Done")-(b.status==="Done"))||(a.name||"").localeCompare(b.name||""));
+const rooms=()=>items.filter(x=>x.kind==="room").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
 const kindWord=(k,pl)=>k==="room"?(pl?"rooms":"room"):(pl?"projects":"project");
 const allStores=()=>{const set=new Set();items.forEach(p=>{if((p.kind==="upkeep")&&(p.store||"").trim())set.add(p.store.trim());(p.tasks||[]).forEach(t=>(t.shop||[]).forEach(s=>{if((s.store||"").trim())set.add(s.store.trim())}))});return [...set].sort()};
 const storeList=()=>`<datalist id="stores">${allStores().map(s=>`<option value="${esc(s)}"></option>`).join("")}</datalist>`;
@@ -343,14 +348,15 @@ function render(){
     top.innerHTML=`<button class="ghost" data-act="back-p">← ${esc(p.name||"Project")}</button>`;
     renderTask(p,t);
   }else{
-    top.innerHTML=`<button class="ghost" data-act="back-list">← All ${kindWord(p.kind,1)}</button>`;
+    const r=roomOf(p);
+    top.innerHTML=r?`<button class="ghost" data-act="open-p" data-id="${esc(r.id)}">← ${esc(r.name||"Room")}</button>`:`<button class="ghost" data-act="back-list">← All ${kindWord(p.kind,1)}</button>`;
     renderProject(p);
   }
   renderLb();
 }
 
 function renderList(){
-  const count=k=>k==="shop"?items.reduce((n,p)=>n+stats(p).shopLeft,0):k==="upkeep"?upkeepDue():items.filter(p=>p.kind===k).length;
+  const count=k=>k==="shop"?items.reduce((n,p)=>n+stats(p).shopLeft,0):k==="upkeep"?upkeepDue():items.filter(p=>p.kind===k&&!roomOf(p)).length;
   const tabs=`<nav class="tabs kindtabs" role="tablist">${[["room","Rooms"],["project","Projects"],["upkeep","Upkeep"],["shop","Shopping"]].map(([k,l])=>`<button role="tab" data-act="ltab" data-v="${k}" aria-selected="${k===listTab}">${l} <span class="cnt ${k==="upkeep"&&count(k)?"hot":""}" ${k==="upkeep"?'title="Due soon or overdue"':""}>${count(k)}</span></button>`).join("")}</nav>`;
   if(listTab==="shop"){app.innerHTML=tabs+renderShopAll();return}
   if(listTab==="upkeep"){app.innerHTML=tabs+renderUpkeepList();if(view.newKind==="upkeep")setTimeout(()=>{const i=$("#nu-name");i&&!i.value&&i.focus()},0);return}
@@ -364,9 +370,10 @@ function renderList(){
       </div>
       <div class="actions"><button class="primary" type="submit">Create ${kindWord(k)}</button><button type="button" class="ghost" data-act="new-cancel">Cancel</button></div>
     </form></section>`:"";
-  const list=items.filter(p=>p.kind===k).sort((a,b)=>((a.status==="Done")-(b.status==="Done"))||(a.name||"").localeCompare(b.name||""));
+  const list=items.filter(p=>p.kind===k&&!roomOf(p)).sort((a,b)=>((a.status==="Done")-(b.status==="Done"))||(a.name||"").localeCompare(b.name||""));
   if(!list.length){
-    app.innerHTML=tabs+newForm+(view.newKind===k?"":`<div class="empty"><h2>No ${kindWord(k,1)} yet</h2>
+    const moved=k==="project"?items.filter(x=>roomOf(x)).length:0;
+    app.innerHTML=tabs+newForm+(view.newKind===k?"":`<div class="empty"><h2>No ${moved?"projects outside a room":kindWord(k,1)+" yet"}</h2>${moved?`<p class="muted desc">${moved===1?"Your project is":"All "+moved+" of your projects are"} inside a room. Open the room on the Rooms tab to find ${moved===1?"it":"them"}.</p>`:""}
       <p class="muted desc">${k==="room"?"Add a room like the kitchen or garage, then break it into tasks, each with its own to-dos, shopping list, notes, links and photos.":"Add a project like a deck rebuild or a shed, then break it into tasks, each with its own to-dos, shopping list, notes, links and photos."}</p>
       <div class="actions"><button class="primary" data-act="new" data-kind="${k}">+ Add ${kindWord(k)}</button><button data-act="example" data-kind="${k}">Load an example</button></div></div>`);
     return;
@@ -382,7 +389,7 @@ function card(p){
       <div class="between"><span class="st ${P_CLS[p.status]||"plan"}">${esc(p.status||"Planning")}</span><span class="mono small muted">${s.done} of ${s.tasks} tasks done</span></div>
       <div class="bar" aria-hidden="true"><i style="width:${pct}%"></i></div>
       <dl><dt>Open to-dos</dt><dd>${s.todoOpen}</dd><dt>Still to buy</dt><dd>${s.shopLeft?`${s.shopLeft} · ${money(s.est)}`:"—"}</dd>
-      <dt>Target</dt><dd>${p.target?fmtDate(p.target)+(isLate(p)?" (past due)":""):"—"}</dd></dl>
+      <dt>Target</dt><dd>${p.target?fmtDate(p.target)+(isLate(p)?" (past due)":""):"—"}</dd>${p.kind==="room"&&projectsIn(p).length?`<dt>Projects</dt><dd>${projectsIn(p).length}</dd>`:""}</dl>
     </div>
     <div class="foot"><span>Updated <span class="mono">${fmtDate(p.updatedAt||p.createdAt)}</span></span>${p.example?'<span class="tag ex">Example</span>':`<span>${s.media} links &amp; pics</span>`}</div>
   </button></div>`;
@@ -431,13 +438,22 @@ function renderProject(p){
     <div class="stat ${budget&&planned>budget?"hot":budget?"ok":""}"><small>${budget?"Planned of budget":"Bought so far"}</small><b>${budget?`${money(planned)} / ${money(budget)}`:money(s.spent)}</b></div></div>`;
   const tabs=[["tasks","Tasks",s.tasks],["media","Inspiration",(p.photos||[]).length+(p.links||[]).length],["notes","Notes",null]];
   app.innerHTML=`<div class="head"><div class="t">
-      <span class="eyebrow">${p.kind==="room"?"Room":"Project"}${p.area?" · "+esc(p.area):""}</span>
+      <span class="eyebrow">${p.kind==="room"?"Room":"Project"}${roomOf(p)?` · in <button type="button" class="linkbtn" data-act="open-p" data-id="${esc(roomOf(p).id)}">${esc(roomOf(p).name||"a room")}</button>`:""}${p.area?" · "+esc(p.area):""}</span>
       <h2>${esc(p.name||"Untitled")}</h2>
       <div class="meta"><span class="st ${P_CLS[p.status]||"plan"}">${esc(p.status||"Planning")}</span>${p.target?`<span>Target <span class="mono">${fmtDate(p.target)}</span></span>`:""}${isLate(p)?'<span class="st late">Past due</span>':""}${p.example?'<span class="tag ex">Example</span>':""}</div>
       ${p.desc?`<p class="desc">${esc(p.desc)}</p>`:""}
-    </div>${view.edit?"":`<button data-act="edit">Edit details</button>`}</div>
-    ${view.edit?editProject(p):statBoxes+`<nav class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-act="ptab" data-v="${k}" aria-selected="${view.ptab===k}">${l}${n!=null?` <span class="cnt">${n}</span>`:""}</button>`).join("")}</nav>
+    </div>${view.edit||view.move?"":`<div class="actions">${p.kind==="project"?`<button data-act="move">${roomOf(p)?"Move…":"Move to a room"}</button>`:""}<button data-act="edit">Edit details</button></div>`}</div>
+    ${view.move&&p.kind==="project"?moveForm(p):""}${view.edit?editProject(p):statBoxes+`<nav class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-act="ptab" data-v="${k}" aria-selected="${view.ptab===k}">${l}${n!=null?` <span class="cnt">${n}</span>`:""}</button>`).join("")}</nav>
     ${view.ptab==="tasks"?taskList(p):view.ptab==="media"?`<section class="panel">${media(p)}</section>`:notesPanel(p.notes,"Project notes","Measurements, paint colors, contractor quotes, what's behind the wall…")}`}`;
+}
+function moveForm(p){
+  const rs=rooms(),cur=roomOf(p);
+  if(!rs.length)return `<section class="panel" style="margin-bottom:16px"><h3>Move to a room</h3><p class="muted">You don't have any rooms yet. Add one on the Rooms tab (like Kitchen or Garage), then come back and move this project into it.</p><div class="actions"><button type="button" class="ghost" data-act="move-cancel">OK</button></div></section>`;
+  return `<section class="panel" style="margin-bottom:16px"><form data-form="move-p" class="vsec"><h3>${cur?"Move this project":"Move to a room"}</h3>
+    <p class="muted">It keeps all its tasks, to-dos, shopping list, notes and photos, and shows up inside the room you pick.</p>
+    <div class="fields"><label>Room<select id="mv-room" name="room">${rs.map(r=>`<option value="${esc(r.id)}" ${cur&&cur.id===r.id?"selected":""}>${esc(r.name||"Untitled")}${r.area?" · "+esc(r.area):""}</option>`).join("")}${cur?`<option value="">Not in a room (back to the Projects tab)</option>`:""}</select></label></div>
+    <div class="actions"><button class="primary" type="submit">Move</button><button type="button" class="ghost" data-act="move-cancel">Cancel</button></div>
+  </form></section>`;
 }
 function editProject(p){
   return `<section class="panel"><form data-form="edit-p" class="vsec"><h3>Details</h3>
@@ -451,7 +467,7 @@ function editProject(p){
       <label class="span2">Description<textarea id="ep-desc" name="desc" style="min-height:80px" maxlength="600" placeholder="What you're doing and why">${esc(p.desc)}</textarea></label>
     </div>
     <div class="between"><div class="actions"><button class="primary" type="submit">Save details</button><button type="button" class="ghost" data-act="edit-cancel">Cancel</button></div>
-    ${view.confirm==="p"?`<div class="confirm"><span>Delete this ${kindWord(p.kind)}, its tasks and photos?</span><button type="button" class="danger" data-act="del-p-yes">Delete</button><button type="button" data-act="confirm-no">Keep</button></div>`:`<button type="button" class="danger" data-act="del-p">Delete ${kindWord(p.kind)}</button>`}</div>
+    ${view.confirm==="p"?`<div class="confirm"><span>Delete this ${kindWord(p.kind)}, its tasks and photos?${p.kind==="room"&&projectsIn(p).length?(projectsIn(p).length===1?" The project inside it goes back to the Projects tab.":` The ${projectsIn(p).length} projects inside it go back to the Projects tab.`):""}</span><button type="button" class="danger" data-act="del-p-yes">Delete</button><button type="button" data-act="confirm-no">Keep</button></div>`:`<button type="button" class="danger" data-act="del-p">Delete ${kindWord(p.kind)}</button>`}</div>
   </form></section>`;
 }
 function taskList(p){
@@ -464,7 +480,15 @@ function taskList(p){
       <span class="m">${td.length?`<span>${td.length-open} of ${td.length} to-dos</span>`:""}${sh?`<span>${sh} to buy</span>`:""}${md?`<span>${md} links &amp; pics</span>`:""}${!td.length&&!sh&&!md?"<span>Nothing added yet</span>":""}</span></button>
       <div class="side"><span class="st ${T_CLS[t.status]||"plan"}">${esc(t.status||"To do")}</span><span class="muted" aria-hidden="true">›</span></div></div>`}).join("")}</div>`
     :`<p class="muted">No tasks yet. Break the job into steps you can check off, like "Pull old vanity" or "Run new supply lines".</p>`}
-  </section>${roomUpkeep(p)}`;
+  </section>${roomProjects(p)}${roomUpkeep(p)}`;
+}
+function roomProjects(r){
+  if(r.kind!=="room")return "";
+  const ps=projectsIn(r);if(!ps.length)return "";
+  return `<section class="panel" style="margin-top:16px"><div class="secthead"><h3>Projects in this room</h3></div><div class="list">${ps.map(x=>{const s=stats(x);
+    return `<div class="item"><button class="main" data-act="open-p" data-id="${esc(x.id)}"><span class="t ${x.status==="Done"?"done":""}">${esc(x.name||"Untitled")}</span>
+      <span class="m"><span>${s.done} of ${s.tasks} tasks done</span>${s.todoOpen?`<span>${s.todoOpen} open to-dos</span>`:""}${s.shopLeft?`<span>${s.shopLeft} to buy · ${money(s.est)}</span>`:""}</span></button>
+      <div class="side"><span class="st ${P_CLS[x.status]||"plan"}">${esc(x.status||"Planning")}</span><span class="muted" aria-hidden="true">›</span></div></div>`}).join("")}</div></section>`;
 }
 function notesPanel(val,label,ph){
   return `<section class="panel"><label>${label}<textarea id="notes" data-live="notes" placeholder="${esc(ph)}">${esc(val)}</textarea></label><p class="note">Saves as you type.</p></section>`;
@@ -750,7 +774,7 @@ document.addEventListener("submit",e=>{
 });
 
 /* ---------- events ---------- */
-function go(v){Object.assign(view,{edit:false,confirm:null,editShop:null,rid:null},v);lb=null;render();window.scrollTo(0,0)}
+function go(v){Object.assign(view,{edit:false,move:false,confirm:null,editShop:null,rid:null},v);lb=null;render();window.scrollTo(0,0)}
 document.addEventListener("click",async e=>{
   const b=e.target.closest("[data-act]");if(!b||b.tagName==="LABEL")return;
   const a=b.dataset.act,d=b.dataset;const p=getP(view.pid);const t=p&&view.tid?getT(p,view.tid):null;
@@ -764,11 +788,13 @@ document.addEventListener("click",async e=>{
     case"back-p":go({tid:null});break;
     case"ptab":view.ptab=d.v;render();break;
     case"ttab":view.ttab=d.v;view.editShop=null;render();break;
-    case"edit":view.edit=true;view.confirm=null;render();setTimeout(()=>{const i=$("#ep-name")||$("#et-title");i&&i.focus()},0);break;
+    case"move":view.move=true;view.edit=false;render();setTimeout(()=>{const i=$("#mv-room");i&&i.focus()},0);break;
+    case"move-cancel":view.move=false;render();break;
+    case"edit":view.move=false;view.edit=true;view.confirm=null;render();setTimeout(()=>{const i=$("#ep-name")||$("#et-title");i&&i.focus()},0);break;
     case"edit-cancel":view.edit=false;view.confirm=null;render();break;
     case"confirm-no":view.confirm=null;render();break;
     case"del-p":view.confirm="p";render();break;
-    case"del-p-yes":{const k=p.kind;await removeP(p.id);listTab=k;toast("Deleted");go({pid:null,tid:null});break}
+    case"del-p-yes":{const k=p.kind;if(k==="room")projectsIn(p).forEach(x=>{delete x.room;save(x,true)});await removeP(p.id);listTab=k;toast("Deleted");go({pid:null,tid:null});break}
     case"del-t":view.confirm="t";render();break;
     case"del-t-yes":{const ids=(t.photos||[]).map(x=>x.id);p.tasks=p.tasks.filter(x=>x.id!==t.id);save(p,true);if(assets)ids.forEach(i=>assets.delete(i).catch(()=>{}));toast("Task deleted");go({tid:null});break}
     case"open-t":go({tid:d.id,ttab:"todo"});break;
@@ -799,8 +825,14 @@ document.addEventListener("submit",e=>{
   switch(f.dataset.form){
     case"new-p":{if(!v.name)return;const x={id:uid(),kind:view.newKind,name:v.name,area:v.area,status:v.status||"Planning",target:"",budget:"",desc:"",notes:"",tasks:[],links:[],photos:[],createdAt:new Date().toISOString()};
       items.push(x);save(x,true);go({pid:x.id,tid:null,newKind:null,ptab:"tasks"});setTimeout(()=>{const i=$("#nt-title");i&&i.focus()},0);break}
-    case"edit-p":Object.assign(p,{name:v.name||p.name,kind:v.kind==="room"?"room":"project",area:v.area,status:v.status,target:v.target,budget:v.budget,desc:v.desc});
+    case"edit-p":{const wasRoom=p.kind==="room",inside=wasRoom?projectsIn(p):[];
+      Object.assign(p,{name:v.name||p.name,kind:v.kind==="room"?"room":"project",area:v.area,status:v.status,target:v.target,budget:v.budget,desc:v.desc});
+      if(p.kind==="room")delete p.room; /* a room can't sit inside another room */
+      if(wasRoom&&p.kind!=="room")inside.forEach(x=>{delete x.room;save(x,true)});}
       save(p,true);view.edit=false;view.confirm=null;render();toast("Details saved");break;
+    case"move-p":{const r=v.room?getP(v.room):null;
+      if(r&&r.kind==="room"){p.room=r.id;save(p,true);view.move=false;render();toast("Moved to "+(r.name||"the room"))}
+      else{delete p.room;save(p,true);view.move=false;listTab="project";render();toast("Moved back to the Projects tab")}break}
     case"add-task":if(!v.title)return;(p.tasks=p.tasks||[]).push({id:uid(),title:v.title,status:"To do",notes:"",todos:[],shop:[],links:[],photos:[]});save(p);render();refocus("#nt-title");break;
     case"edit-t":if(!v.title)return;t.title=v.title;save(p);view.edit=false;view.confirm=null;render();break;
     case"add-todo":if(!v.text)return;(t.todos=t.todos||[]).push({id:uid(),text:v.text,done:false});save(p);render();refocus("#nd-text");break;
