@@ -20,6 +20,8 @@
 <link rel="stylesheet" href="/src/styles/pantry.css">
 <!-- Barcode scanner shared with the Logbook (camera + Bluetooth); sets window.GTScan -->
 <script src="/apps/scanner.js"></script>
+<!-- Keep the pantry on this phone too, so it opens and saves with no signal (src/lib/firebase.js) -->
+<script>window.__gtOfflineCache=true</script>
 <script type="module" src="/src/pages/pantry.js"></script>
 <script type="module" src="/src/lib/door.js"></script>
 </head>
@@ -37,6 +39,7 @@
 </header>
 
 <main class="wrap pt-main" id="pt">
+  <p class="pt-offline mono" id="pt-offline" role="status" hidden>No signal. Changes are saved on this phone and sync when you're back online.</p>
   <div id="pt-loading"><p class="mutedt mono">connecting…</p></div>
 
   <!-- Not signed in -->
@@ -106,5 +109,6 @@
 <footer>
   <div class="wrap"><span>© Garage Terminal</span><a class="footer-mail" href="mailto:support@garageterminal.com">support@garageterminal.com</a><span>NO CARRIER</span></div>
 </footer>
+<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/apps/sw.js",{scope:"/apps/"}).catch(()=>{}));</script>
 </body>
 </html>

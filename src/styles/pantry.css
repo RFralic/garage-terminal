@@ -157,3 +157,5 @@ body.pt-sheet-open{overflow:hidden}
 .pt-bulkrow b{overflow-wrap:anywhere}
 .pt-bulkctl{display:grid;grid-template-columns:70px minmax(0,1fr) 44px;gap:8px;align-items:center}
 .pt-move{width:100%}
+.pt-offline{margin:0 0 12px;padding:10px 12px;border:1px solid #5A4A2A;border-radius:8px;background:#221C10;color:var(--amber);font-size:.85rem}
+.pt-offline[hidden]{display:none}

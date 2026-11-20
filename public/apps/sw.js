@@ -1,9 +1,9 @@
-// sw.js (served at /apps/sw.js): lets the Engine & Vehicle Logbook and the
-// Job_Board (was the Project Tracker) open with no signal, out in the garage. Registered by those
-// two pages (scripts/import-logbook.mjs). The records themselves are kept
+// sw.js (served at /apps/sw.js): lets the Engine & Vehicle Logbook, Job_Board (was the
+// Project Tracker) and the Pantry open with no signal, out in the garage or the basement.
+// Registered by those pages (scripts/import-logbook.mjs; apps/pantry/index.html). The records themselves are kept
 // offline by Firestore (window.__gtOfflineCache); this keeps the pages.
 //
-//   - The two pages: network first, saved copy when offline.
+//   - The pages: network first, saved copy when offline.
 //   - /assets/* (the site's built code, named by content so never stale):
 //     saved copy first.
 //   - /__/firebase/init.json (the site's Firebase settings) and /apps/scanner.js
@@ -11,8 +11,8 @@
 // Every other request, and every other page under /apps/, passes straight through.
 //
 // Bump CACHE whenever this file changes so old copies are cleared.
-const CACHE = 'gt-apps-v3';
-const PAGES = ['/apps/logbook', '/apps/job-board'];
+const CACHE = 'gt-apps-v4';
+const PAGES = ['/apps/logbook', '/apps/job-board', '/apps/pantry'];
 // Old addresses that now redirect: offline, they open the saved copy of the new page.
 const ALIASES = { '/apps/project-tracker': '/apps/job-board' };
 const FILES = ['/__/firebase/init.json', '/apps/scanner.js'];

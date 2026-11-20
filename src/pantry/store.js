@@ -20,6 +20,18 @@ const pantryRef = (pid) => doc(db, 'pantries', pid);
 const itemsCol = (pid) => collection(db, 'pantries', pid, 'items');
 const withId = (snap) => ({ id: snap.id, ...snap.data() });
 
+// ---------- offline -------------------------------------------------------------------
+// The Pantry page keeps a copy of its data on the phone (window.__gtOfflineCache), so it
+// works with no signal. Firestore applies a write to that copy right away and sends it
+// when the connection is back, but the write's promise only settles once the server has
+// it. With no signal we don't wait for that: the change is already on screen and queued.
+export const isOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+function queued(write) {
+  if (!isOffline()) return write;
+  write.catch(() => {}); // a later rejection (e.g. rules) still shows up when the page re-syncs
+  return Promise.resolve();
+}
+
 /** Days an invite code works. */
 export const INVITE_DAYS = 7;
 
@@ -73,9 +85,9 @@ export function watchActivity(pid, cb, onErr) {
 
 /** Adds a line to Activity. Never blocks the change it describes. */
 export function log(pid, me, what) {
-  return addDoc(collection(db, 'pantries', pid, 'activity'), {
+  return queued(addDoc(collection(db, 'pantries', pid, 'activity'), {
     by: me.uid, who: String(me.name || '').slice(0, 40), what: String(what).slice(0, 200), at: serverTimestamp(),
-  }).catch(() => {});
+  })).catch(() => {});
 }
 
 // ---------- items ----------------------------------------------------------------
@@ -87,16 +99,16 @@ export async function saveItem(pid, me, item) {
   delete data.createdAt;
   if (item.id) {
     // merge keeps createdAt; every field the form edits is written in full
-    await setDoc(ref, data, { merge: true });
+    await queued(setDoc(ref, data, { merge: true }));
   } else {
     data.createdAt = serverTimestamp();
-    await setDoc(ref, data);
+    await queued(setDoc(ref, data));
   }
   return ref.id;
 }
 
 export function deleteItem(pid, itemId) {
-  return deleteDoc(doc(itemsCol(pid), itemId));
+  return queued(deleteDoc(doc(itemsCol(pid), itemId)));
 }
 
 /**
@@ -106,10 +118,7 @@ export function deleteItem(pid, itemId) {
  */
 export async function changeQty(pid, me, itemId, delta, expires) {
   const ref = doc(itemsCol(pid), itemId);
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error('That item was deleted.');
-    const it = snap.data();
+  const apply = (it) => {
     let lots, changed;
     if (delta < 0) {
       const r = useFromLots(it.lots, -delta);
@@ -117,8 +126,22 @@ export async function changeQty(pid, me, itemId, delta, expires) {
     } else {
       lots = addToLots(it.lots, delta, expires); changed = delta;
     }
+    return { lots, changed, out: { name: it.name, total: totalQty({ lots }), changed } };
+  };
+  if (isOffline()) {
+    // Transactions need the server. Offline, work from the phone's copy and queue the change.
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error('That item was deleted.');
+    const { lots, changed, out } = apply(snap.data());
+    if (changed) await queued(updateDoc(ref, { lots, updatedBy: me.uid, updatedAt: serverTimestamp() }));
+    return out;
+  }
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('That item was deleted.');
+    const { lots, changed, out } = apply(snap.data());
     if (changed) tx.update(ref, { lots, updatedBy: me.uid, updatedAt: serverTimestamp() });
-    return { name: it.name, total: totalQty({ lots }), changed };
+    return out;
   });
 }
 
@@ -133,7 +156,7 @@ export async function applyMove(pid, me, plan) {
   }
   for (const c of plan.create) b.set(doc(itemsCol(pid)), { ...itemData(c, me), createdAt: serverTimestamp() });
   for (const id of plan.remove) b.delete(doc(itemsCol(pid), id));
-  await b.commit();
+  await queued(b.commit());
 }
 
 /**
@@ -149,13 +172,13 @@ export async function applyBulk(pid, me, plan) {
   if (plan.create.length) {
     const b = writeBatch(db);
     for (const c of plan.create) { b.set(doc(itemsCol(pid)), { ...itemData(c, me), createdAt: serverTimestamp() }); n += totalQty(c); }
-    await b.commit();
+    await queued(b.commit());
   }
   return n;
 }
 
 export async function addBarcode(pid, me, itemId, code) {
-  await updateDoc(doc(itemsCol(pid), itemId), { barcodes: arrayUnion(code), updatedBy: me.uid, updatedAt: serverTimestamp() });
+  await queued(updateDoc(doc(itemsCol(pid), itemId), { barcodes: arrayUnion(code), updatedBy: me.uid, updatedAt: serverTimestamp() }));
 }
 
 /**
@@ -164,6 +187,7 @@ export async function addBarcode(pid, me, itemId, code) {
  * Returns { id, batch, code }.
  */
 export async function addBatch(pid, me, b) {
+  if (isOffline()) throw new Error("Making a batch needs a signal, so two people can't get the same batch number. Try again when you're back online.");
   const pRef = pantryRef(pid);
   const ref = doc(itemsCol(pid));
   return runTransaction(db, async (tx) => {
@@ -187,15 +211,15 @@ export async function addBatch(pid, me, b) {
 // ---------- shopping list (added by hand) -------------------------------------------
 
 export function addShopping(pid, me, name) {
-  return addDoc(collection(db, 'pantries', pid, 'shopping'), {
+  return queued(addDoc(collection(db, 'pantries', pid, 'shopping'), {
     name: name.trim().slice(0, 120), done: false, by: me.uid, who: String(me.name || '').slice(0, 40), at: serverTimestamp(),
-  });
+  }));
 }
 export function setShoppingDone(pid, id, done) {
-  return updateDoc(doc(db, 'pantries', pid, 'shopping', id), { done });
+  return queued(updateDoc(doc(db, 'pantries', pid, 'shopping', id), { done }));
 }
 export function deleteShopping(pid, id) {
-  return deleteDoc(doc(db, 'pantries', pid, 'shopping', id));
+  return queued(deleteDoc(doc(db, 'pantries', pid, 'shopping', id)));
 }
 
 // ---------- people, invites, settings ---------------------------------------------
