@@ -50,7 +50,11 @@ export const SECTION_HINTS = {
 };
 /** Most rows a pantry section lists before "and N more". */
 const PANTRY_MAX = 25;
-export const DEFAULT_SECTIONS = Object.fromEntries(Object.keys(SECTIONS).map((k) => [k, true]));
+/** Options inside a section (saved with the sections; not headings of their own). */
+export const SECTION_OPTIONS = {
+  customerJobs: { under: 'projects', label: 'Include Job_Board customer jobs' },
+};
+export const DEFAULT_SECTIONS = Object.fromEntries([...Object.keys(SECTIONS), ...Object.keys(SECTION_OPTIONS)].map((k) => [k, true]));
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /** Choices for how far "Coming up" looks ahead, in days. */
@@ -302,6 +306,7 @@ export function buildBrief({ records = [], projects = [], upkeep = [], pantries 
   if (on.projects) {
     brief.sections.projects = projects
       .filter((p) => p && p.status !== 'Done')
+      .filter((p) => on.customerJobs !== false || p.kind !== 'customer')
       .map((p) => {
         const tasks = Array.isArray(p.tasks) ? p.tasks : [];
         const toOrder = tasks.flatMap((t) => (Array.isArray(t.parts) ? t.parts : [])).filter((x) => x && x.status === 'To order').length;

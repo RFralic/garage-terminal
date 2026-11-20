@@ -63,6 +63,13 @@ describe('Morning Brief settings', () => {
     })));
   });
 
+  test('Job_Board customer jobs can be left out of the brief', async () => {
+    await assertSucceeds(setDoc(doc(as('bob'), 'briefs', 'bob'), settings('bob', {
+      sections: { today: true, upcoming: true, lowStock: true, maintenance: true, projects: true, pantryExpiring: true, pantryShopping: true, customerJobs: false },
+    })));
+    await assertFails(setDoc(doc(as('bob'), 'briefs', 'bob'), settings('bob', { sections: { customerJobs: 'no' } })));
+  });
+
   test('settings must be well-formed', async () => {
     const db = as('bob');
     await assertFails(setDoc(doc(db, 'briefs', 'bob'), settings('bob', { hour: 24 })));
