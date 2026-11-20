@@ -11,7 +11,7 @@ import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where
 import { db } from '../lib/firebase.js';
 import { mountHeader } from '../lib/header.js';
 import { watchSession } from '../lib/session.js';
-import { AHEAD_CHOICES, DEFAULT_SECTIONS, SECTIONS, SECTION_HINTS, WEEKDAYS, aheadDaysFor, buildAlert, buildBrief, renderBrief, upkeepStatus } from '../brief/brief.js';
+import { AHEAD_CHOICES, DEFAULT_SECTIONS, SECTIONS, SECTION_HINTS, SECTION_OPTIONS, WEEKDAYS, aheadDaysFor, buildAlert, buildBrief, renderBrief, upkeepStatus } from '../brief/brief.js';
 import { normalizeCalendarUrl } from '../brief/ics.js';
 import { isValidTimeZone } from '../brief/time.js';
 
@@ -60,6 +60,22 @@ for (const [key, label] of Object.entries(SECTIONS)) {
   i.dataset.section = key;
   l.append(i, ` ${SECTION_HINTS[key] || label}`);
   $('mb-sections').append(l);
+  for (const [opt, o] of Object.entries(SECTION_OPTIONS)) {
+    if (o.under !== key) continue;
+    const ol = document.createElement('label');
+    ol.className = 'check';
+    ol.style.marginLeft = '1.75rem';
+    const oi = document.createElement('input');
+    oi.type = 'checkbox';
+    oi.dataset.section = opt;
+    ol.append(oi, ` ${o.label}`);
+    $('mb-sections').append(ol);
+    // The option only means something while its section is on.
+    const sync = () => { oi.disabled = !i.checked; ol.style.opacity = i.checked ? '' : '0.6'; };
+    i.addEventListener('change', sync);
+    ol.dataset.syncFor = key;
+    ol._sync = sync;
+  }
 }
 const sectionBoxes = () => [...document.querySelectorAll('[data-section]')];
 
@@ -77,6 +93,7 @@ function fill(b) {
   $('mb-ics').value = b.icsUrl || '';
   const on = { ...DEFAULT_SECTIONS, ...(b.sections || {}) };
   for (const box of sectionBoxes()) box.checked = !!on[box.dataset.section];
+  for (const l of document.querySelectorAll('[data-sync-for]')) l._sync();
 }
 
 function read() {

@@ -638,14 +638,15 @@ service cloud.firestore {
     // read it. Sent by scripts/send-briefs.mjs (Admin SDK).
     function briefSections(s) {
       return s is map
-        && s.keys().hasOnly(['today', 'upcoming', 'lowStock', 'maintenance', 'projects', 'pantryExpiring', 'pantryShopping'])
+        && s.keys().hasOnly(['today', 'upcoming', 'lowStock', 'maintenance', 'projects', 'pantryExpiring', 'pantryShopping', 'customerJobs'])
         && (!('today' in s) || s.today is bool)
         && (!('upcoming' in s) || s.upcoming is bool)
         && (!('lowStock' in s) || s.lowStock is bool)
         && (!('maintenance' in s) || s.maintenance is bool)
         && (!('projects' in s) || s.projects is bool)
         && (!('pantryExpiring' in s) || s.pantryExpiring is bool)
-        && (!('pantryShopping' in s) || s.pantryShopping is bool);
+        && (!('pantryShopping' in s) || s.pantryShopping is bool)
+        && (!('customerJobs' in s) || s.customerJobs is bool);
     }
 
     match /briefs/{uid} {
