@@ -20,7 +20,7 @@ import { el, timeAgo } from '../lib/ui.js';
 import * as L from '../pantry/logic.js';
 import * as St from '../pantry/store.js';
 import { lookupProduct } from '../pantry/off.js';
-import { LABEL_SIZES, canShareImages, fontsReady, labelBlob, labelFileName, renderLabel, saveToPhone, shareImage } from '../pantry/label.js';
+import { DIRECTIONS, LABEL_SIZES, canShareImages, renderDirections, fontsReady, labelBlob, labelFileName, renderLabel, saveToPhone, shareImage } from '../pantry/label.js';
 
 mountHeader();
 
@@ -364,7 +364,7 @@ function buildTabs() {
   T.chips = el('div', { class: 'pt-chips', role: 'group', 'aria-label': 'Show' });
   T.list = el('div', { class: 'pt-list' });
   T.adds = el('div', { class: 'pt-adds' });
-  $('tab-pantry').replaceChildren(el('div', { class: 'pt-bar' }, searchWrap, scan), T.tiles, T.chips, T.list, T.adds);
+  $('tab-pantry').replaceChildren(el('div', { class: 'pt-bar' }, searchWrap, scan), T.adds, T.tiles, T.chips, T.list);
 
   // Shopping tab
   T.low = el('div', {});
@@ -722,6 +722,8 @@ function openItem(item, prefill = {}) {
   const countB = el('b', {}, String(L.totalQty(d)));
 
   const hm = d.homemade;
+  const recipe = hm ? recipeFields(hm, ro) : null;
+  const curHm = () => (hm ? { ...hm, ...recipe.get() } : hm);
   const body = [
     d.photo ? el('img', { class: 'pt-photo', src: d.photo, alt: '', referrerpolicy: 'no-referrer' }) : null,
     !isNew ? el('div', { class: 'pt-count' }, el('span', { class: 'mutedt' }, 'On hand'), countB) : null,
@@ -730,7 +732,8 @@ function openItem(item, prefill = {}) {
     hm ? el('div', { class: 'pt-lots' },
       el('div', {}, el('b', {}, `Homemade · batch ${hm.batch}`), el('span', { class: 'mono' }, L.spacedCode(L.batchCode(hm.batch)))),
       el('div', {}, el('span', {}, hm.method || ''), el('span', {}, [hm.made && 'made ' + L.fmtMDY(hm.made), hm.useBy && 'use by ' + L.fmtMY(hm.useBy)].filter(Boolean).join(' · '))),
-      el('div', {}, btn('Print labels', () => openLabels({ ...item, ...d }), 'primary'))) : null,
+      hm.recipeUrl ? el('div', {}, el('a', { href: hm.recipeUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Open the recipe ↗')) : null,
+      el('div', {}, btn('Print labels', () => openLabels({ ...item, ...d, notes: notes.value.trim(), homemade: curHm() }), 'primary'))) : null,
     field('Name', name),
     field('Brand', brand),
     size.node,
@@ -740,7 +743,8 @@ function openItem(item, prefill = {}) {
     el('div', { class: 'f' }, el('span', { class: 'field-label' }, 'Barcodes'), codes,
       ro ? null : el('div', { class: 'pt-addrow' }, typed,
         window.GTScan ? btn('Scan', () => GTScan.open({ title: 'Scan this item\'s barcode', onCode: (r) => addCode(r.text) })) : null)),
-    field('Notes', notes),
+    field(hm ? 'Notes (on the medium and large labels)' : 'Notes', notes),
+    ...(recipe ? (ro ? [hm.directions ? el('div', { class: 'f' }, el('span', { class: 'field-label' }, 'Directions'), el('p', { class: 'pt-dirs' }, hm.directions)) : null] : recipe.nodes) : []),
     msg,
     ro ? el('div', { class: 'pt-btns' }, btn('Close', closeSheet)) : el('div', { class: 'pt-btns' },
       btn(isNew ? 'Add to the pantry' : 'Save', save, 'primary'),
@@ -753,6 +757,13 @@ function openItem(item, prefill = {}) {
     d.name = name.value.trim();
     if (!d.name) { msg.textContent = 'Give it a name.'; msg.classList.add('bad'); name.focus(); return; }
     d.brand = brand.value.trim(); d.size = size.get(); d.notes = notes.value.trim();
+    if (hm && !ro) {
+      const r = recipe.get();
+      d.homemade = { ...hm };
+      delete d.homemade.recipeUrl; delete d.homemade.directions;
+      if (r.recipeUrl) d.homemade.recipeUrl = r.recipeUrl;
+      if (r.directions) d.homemade.directions = r.directions;
+    }
     d.location = where.value === '__other' ? (whereOther.value.trim() || 'Pantry') : where.value;
     const k = parseInt(keep.value, 10);
     d.keepAtLeast = Number.isFinite(k) && k > 0 ? Math.min(k, 999) : null;
@@ -977,6 +988,26 @@ function openBulkReview() {
 
 // ---------- homemade batches and labels -----------------------------------------------
 
+/* Recipe link and typed directions for homemade batches (kept in item.homemade). */
+const DIR_MAX = 4000;
+function cleanUrl(v) {
+  let u = String(v || '').trim();
+  if (!u) return '';
+  if (!/^[a-z]+:\/\//i.test(u)) u = 'https://' + u;
+  try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href.slice(0, 500) : ''; } catch { return ''; }
+}
+function recipeFields(init = {}, ro = false) {
+  const url = input({ type: 'url', inputmode: 'url', maxlength: '500', placeholder: 'Website or video, e.g. ballmasonjars.com/…', value: init.recipeUrl || '', disabled: ro });
+  const dirs = el('textarea', { class: 'field', rows: '6', maxlength: String(DIR_MAX), disabled: ro,
+    placeholder: '1. Wash and hull the berries.\n2. Crush, add pectin, boil hard 1 minute.\n3. Fill jars, 1/4 in headspace. Water bath 10 min.' });
+  dirs.value = init.directions || '';
+  return {
+    url, dirs,
+    nodes: [field('Recipe link (optional)', url), field('Directions (optional; on the large label, or print them on their own)', dirs)],
+    get: () => ({ recipeUrl: cleanUrl(url.value), directions: dirs.value.replace(/\s+$/, '').slice(0, DIR_MAX) }),
+  };
+}
+
 function openBatch() {
   const today = L.todayKey();
   const methods = L.METHODS.map((m) => m.name);
@@ -995,6 +1026,20 @@ function openBatch() {
   const where = select(locationsInUse(), method.value === 'Frozen' ? 'Freezer' : 'Pantry');
   method.addEventListener('change', () => { if (method.value === 'Frozen') where.value = 'Freezer'; else if (method.value === 'Fermented') where.value = 'Fridge'; });
   const notes = el('textarea', { class: 'field', rows: '2', maxlength: '500', placeholder: 'Low sugar. Refrigerate after opening.' });
+  const recipe = recipeFields();
+  // Making the same thing again: bring over the recipe link and directions from the last batch of it.
+  const filledFrom = el('p', { class: 'mutedt small', style: 'margin:-6px 0 0', hidden: true });
+  name.addEventListener('change', () => {
+    const n = name.value.trim().toLowerCase();
+    if (!n || recipe.url.value.trim() || recipe.dirs.value.trim()) return;
+    const prev = S.items.filter((i) => i.homemade && (i.name || '').trim().toLowerCase() === n && (i.homemade.recipeUrl || i.homemade.directions))
+      .sort((a, b) => (b.homemade.batch || 0) - (a.homemade.batch || 0))[0];
+    if (!prev) return;
+    recipe.url.value = prev.homemade.recipeUrl || '';
+    recipe.dirs.value = prev.homemade.directions || '';
+    filledFrom.textContent = `Recipe and directions filled in from batch ${prev.homemade.batch}. Change them if this batch is different.`;
+    filledFrom.hidden = false;
+  });
   const msg = el('p', { class: 'pt-msg', role: 'status' });
   const next = (S.pantry.nextBatch || 0) + 1;
 
@@ -1002,7 +1047,7 @@ function openBatch() {
     const b = e.currentTarget;
     const data = {
       name: name.value.trim(), method: method.value, qty: Math.max(1, Math.min(999, parseInt(qty.value, 10) || 1)),
-      size: size.get(), made: made.value || today, useBy: useBy.value, location: where.value, notes: notes.value.trim(),
+      size: size.get(), made: made.value || today, useBy: useBy.value, location: where.value, notes: notes.value.trim(), ...recipe.get(),
     };
     if (!data.name) { msg.textContent = 'What is it?'; msg.classList.add('bad'); name.focus(); return; }
     b.disabled = true;
@@ -1012,7 +1057,7 @@ function openBatch() {
       St.log(S.pid, S.me, `made batch ${r.batch}: ${data.name} (${data.qty})`);
       openLabels({
         id: r.id, name: data.name, size: data.size, notes: data.notes, lots: [{ qty: data.qty, expires: data.useBy }],
-        homemade: { batch: r.batch, method: data.method, made: data.made, useBy: data.useBy },
+        homemade: { batch: r.batch, method: data.method, made: data.made, useBy: data.useBy, recipeUrl: data.recipeUrl, directions: data.directions },
       }, `Saved batch ${r.batch}. Now the labels:`);
     } catch (err) {
       b.disabled = false;
@@ -1028,7 +1073,9 @@ function openBatch() {
     el('div', { class: 'pt-two' }, field('Made', made), field('Use by', useBy)),
     el('p', { class: 'mutedt small', style: 'margin:-6px 0 0' }, 'Use by is suggested from how it was put up; change it if you like. Defaults are under Household.'),
     field('Where', where),
-    field('Notes (printed on the big label)', notes),
+    field('Notes (on the medium and large labels)', notes),
+    ...recipe.nodes,
+    filledFrom,
     msg,
     el('div', { class: 'pt-btns' }, btn('Save + make labels', go, 'primary'), btn('Cancel', closeSheet, 'ghost')),
   ]);
@@ -1038,28 +1085,45 @@ function labelData(it) {
   const hm = it.homemade || {};
   return {
     name: it.name, method: hm.method || '', size: it.size || '', made: hm.made || '', useBy: hm.useBy || '',
-    notes: it.notes || '', household: S.pantry ? S.pantry.name : '', code: L.batchCode(hm.batch), batch: hm.batch,
+    notes: it.notes || '', directions: hm.directions || '', household: S.pantry ? S.pantry.name : '', code: L.batchCode(hm.batch), batch: hm.batch,
   };
 }
 
 async function openLabels(it, intro = '') {
   const data = labelData(it);
+  const choices = { ...LABEL_SIZES, ...(data.directions ? { [DIRECTIONS.key]: DIRECTIONS } : {}) };
   let size = store.get('ptLabelSize', '40x30');
-  if (!LABEL_SIZES[size]) size = '40x30';
+  if (!choices[size]) size = '40x30';
+  const sizeName = () => (size === DIRECTIONS.key ? '50 × 80 mm' : LABEL_SIZES[size].name);
   const preview = el('div', { class: 'pt-preview' });
   const sizes = el('div', { class: 'pt-sizes', role: 'group', 'aria-label': 'Label size' });
   const msg = el('p', { class: 'pt-msg', role: 'status' });
   const copies = L.totalQty(it);
   const step2 = el('li', {});
-  let canvas;
+  const step5 = el('li', {});
+  let canvases = [];
+  const shareBtn = canShareImages() ? btn('Share…', async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    try { await shareImage(await labelBlob(canvases[0]), labelFileName(data, size)); } catch (err) { msg.textContent = `Couldn't share it: ${errText(err)}`; }
+    b.disabled = false;
+  }) : null;
   const draw = () => {
-    step2.textContent = `In Katasymbol, start a new label and set it to ${LABEL_SIZES[size].name} (the size of the roll that's loaded).`;
-    canvas = renderLabel(data, size);
-    canvas.style.width = Math.min(canvas.width * 2, 480) + 'px';
-    canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', `Label preview, ${LABEL_SIZES[size].name}: ${data.name}, barcode ${L.spacedCode(data.code)}`);
-    preview.replaceChildren(canvas);
-    sizes.replaceChildren(...Object.entries(LABEL_SIZES).map(([k, s]) => el('button', {
+    step2.textContent = `In Katasymbol, start a new label and set it to ${sizeName()} (the size of the roll that's loaded).`;
+    step5.textContent = size === DIRECTIONS.key ? 'Print as many as you need (one for the shelf or recipe binder, or one per jar).' : `Print ${copies > 0 ? copies : 'one per jar'}${copies > 0 ? (copies === 1 ? ' copy' : ' copies') : ''}.`;
+    canvases = size === DIRECTIONS.key ? renderDirections(data) : [renderLabel(data, size)];
+    canvases.forEach((c, i) => {
+      c.style.width = Math.min(c.width * 2, 480) + 'px';
+      c.setAttribute('role', 'img');
+      c.setAttribute('aria-label', size === DIRECTIONS.key
+        ? `Directions label${canvases.length > 1 ? ` ${i + 1} of ${canvases.length}` : ''}: ${data.name}`
+        : `Label preview, ${sizeName()}: ${data.name}, barcode ${L.spacedCode(data.code)}`);
+    });
+    preview.replaceChildren(canvases.length > 1
+      ? el('div', { class: 'pt-pages' }, el('p', { class: 'mutedt small', style: 'margin:0' }, `The directions take ${canvases.length} labels. Save to phone saves all ${canvases.length}; print one of each.`), ...canvases)
+      : canvases[0]);
+    if (shareBtn) shareBtn.hidden = canvases.length > 1;
+    sizes.replaceChildren(...Object.entries(choices).map(([k, s]) => el('button', {
       type: 'button', 'aria-pressed': String(k === size), onclick: () => { size = k; store.set('ptLabelSize', k); draw(); },
     }, el('b', {}, s.name), el('span', {}, s.hint))));
   };
@@ -1071,18 +1135,20 @@ async function openLabels(it, intro = '') {
         const b = e.currentTarget;
         b.disabled = true;
         try {
-          const name = labelFileName(data, size);
-          saveToPhone(await labelBlob(canvas), name);
-          msg.textContent = `Saved ${name} to Downloads. Now add it to a ${LABEL_SIZES[size].name} label in Katasymbol (steps below).`;
+          const names = [];
+          for (let i = 0; i < canvases.length; i++) {
+            const name = labelFileName(data, size, i, canvases.length);
+            saveToPhone(await labelBlob(canvases[i]), name);
+            names.push(name);
+            if (i < canvases.length - 1) await new Promise((r) => setTimeout(r, 600)); // one download at a time
+          }
+          msg.textContent = names.length > 1
+            ? `Saved ${names.length} images to Downloads (${names.join(', ')}). If the phone asks, allow more than one download. Add each to a ${sizeName()} label in Katasymbol (steps below).`
+            : `Saved ${names[0]} to Downloads. Now add it to a ${sizeName()} label in Katasymbol (steps below).`;
         } catch (err) { msg.textContent = `Couldn't save the image: ${errText(err)}`; }
         b.disabled = false;
       }, 'primary'),
-      canShareImages() ? btn('Share…', async (e) => {
-        const b = e.currentTarget;
-        b.disabled = true;
-        try { await shareImage(await labelBlob(canvas), labelFileName(data, size)); } catch (err) { msg.textContent = `Couldn't share it: ${errText(err)}`; }
-        b.disabled = false;
-      }) : null,
+      shareBtn,
       btn('Done', closeSheet, 'ghost')),
     msg,
     el('ol', { class: 'pt-steps' },
@@ -1090,7 +1156,7 @@ async function openLabels(it, intro = '') {
       step2,
       el('li', {}, 'Add a picture to the label (its Image tool) and pick the saved label from Downloads.'),
       el('li', {}, 'Stretch it to fill the whole label; turn off any photo or dither effect.'),
-      el('li', {}, `Print ${copies > 0 ? copies : 'one per jar'}${copies > 0 ? (copies === 1 ? ' copy' : ' copies') : ''}.`)),
+      step5),
     el('p', { class: 'mutedt small', style: 'margin:0' }, 'Sharing the image straight to Katasymbol opens it as a full-page picture print instead of a label, so add it to a label as above. Tip: save the finished label as a template in Katasymbol, then just swap the image next time.'),
   ], { focus: '.pt-b' });
   draw();
