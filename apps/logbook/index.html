@@ -241,6 +241,19 @@ button.stk{flex:none;background:transparent;min-height:32px;padding:3px 9px;curs
 .tqchart{display:inline-block;margin-left:4px;font:700 .68rem/1.5 inherit;letter-spacing:.05em;text-transform:uppercase;padding:0 6px;border:1px dashed var(--warn);border-radius:4px;color:var(--warn);white-space:nowrap;vertical-align:1px}
 .tqchart.blk{display:table;margin:3px 0 0}
 .mixlink{margin-left:8px;font-size:.88rem;white-space:nowrap}
+.lpcombo{position:relative;flex:1;min-width:0}
+.lpcombo input{width:100%;padding-right:40px}
+.lpcaret{position:absolute;right:2px;top:50%;transform:translateY(-50%);border:0;background:none;min-height:40px;min-width:36px;padding:0;color:var(--muted);font-size:1rem}
+.lpres{display:flex;flex-direction:column;gap:6px;max-height:min(360px,55vh);overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:6px;margin-top:6px}
+.lphit{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;min-height:48px;padding:8px 12px;font-weight:400}
+.lphit small{color:var(--muted);font-size:.8rem}
+.lphit[disabled]{opacity:.55}
+.lpnone{margin:0;font-size:.85rem}
+.lpnewbtn{border-style:dashed}
+.lpnew{display:flex;flex-direction:column;gap:8px;border:1px dashed var(--line);border-radius:10px;padding:12px;margin:6px 0}
+.lpnew label{display:flex;flex-direction:column;gap:4px}
+.lpnew2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lpnew .actions{margin:0}
 /* Phones: each torque spec is a small card (name and torque on top, socket and notes under) instead of a 4-column table */
 @media (max-width:640px){
   .tqtable,.tqtable tbody{display:block;min-width:0;width:100%}
@@ -831,24 +844,77 @@ function usedParts(l,live){if(!(l.parts||[]).length)return"";
     return `<div>Part: ${esc([x.brand,x.number].filter(Boolean).join(" ")||x.name)}${x.name&&(x.brand||x.number)?` (${esc(x.name)})`:""} ×${esc(x.qty)}${x.warranty?` · <b>Warranty:</b> ${esc(x.warranty)}`:""}${
       rc.length?(live?`<div>${rc.map(r=>`<button type="button" class="rclink" data-rcview="${esc(r.id)}">${r.type==="pdf"?"PDF":"Receipt"}: ${esc(rcLabel(r))}</button>`).join("")}</div>`:` · <b>Receipt${rc.length>1?"s":""}:</b> attached`):""}</div>`}).join("")}</div>`}
 function drawLogParts(e){const box=$("#lParts");if(!box)return;
-  if(logParts.id!==e.id)logParts={id:e.id,rows:[]};
+  if(logParts.id!==e.id)logParts={id:e.id,rows:[],extra:[]};
+  logParts.extra=logParts.extra||[];
   logParts.rows=logParts.rows.filter(r=>engines.some(p=>p.id===r.partId));
-  const fitsHere=p=>allFits(p).includes(e.id);
-  const pickable=partsOf().filter(p=>qtyN(p)>0&&!logParts.rows.some(r=>r.partId===p.id))
-    .sort((a,b)=>(fitsHere(b)-fitsHere(a))||byName(a,b));
-  box.innerHTML=`<label for="l-addpart">Parts used <small class="muted">from your inventory; their counts go down when you add this to the log</small></label>
+  const nf=logParts.adding,mk=kindOf(e)==="vehicle"?"vehicle":"engine";
+  box.innerHTML=`<label for="l-psearch">Parts used <small class="muted">from your inventory (their counts go down when you add this to the log), or a part that isn't in it</small></label>
     ${logParts.rows.map((r,i)=>{const p=engines.find(x=>x.id===r.partId);return `<div class="lprow"><span class="lpname"><b>${esc(p.name||"Unnamed part")}</b> <span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))}</span>
       <small>${esc(qtyTxt(p))} on hand${(p.warranty||"").trim()?` · Warranty: ${esc(p.warranty)}`:""}</small></span>
       <div class="stepper"><button type="button" aria-label="One less" data-lpn="-1" data-i="${i}" ${r.n<=1?"disabled":""}>−</button><span class="mono">${r.n}</span><button type="button" aria-label="One more" data-lpn="1" data-i="${i}" ${r.n>=qtyN(p)?"disabled":""}>+</button></div>
       <button type="button" class="ghost" data-lpx="${i}" aria-label="Remove ${esc(p.name||"part")}">✕</button></div>`}).join("")}
-    ${partsOf().length?`<div class="lpadd"><select id="l-addpart"><option value="">${pickable.length?"+ Add a part used…":"Every part in stock is already listed"}</option>${pickable.map(p=>`<option value="${esc(p.id)}">${esc(p.name||"Unnamed part")} · ${esc(partLabel(p))} · ${qtyN(p)} on hand${fitsHere(p)?" · fits this":""}</option>`).join("")}</select>${scanBtn("l-scanpart","Scan",true)}</div>
-      <p class="lpmsg" id="lpMsg" role="status">${esc(logParts.msg||"")}</p>`
-      :`<p class="muted" style="margin:0;font-size:.85rem">No parts in your inventory yet.</p>`}`;
+    ${logParts.extra.map((x,i)=>`<div class="lprow"><span class="lpname"><b>${esc(x.name||"Part")}</b> <span class="mono">${esc([x.brand,x.number].filter(Boolean).join(" "))}</span>
+      <small>Not in inventory · ${onMachine(e,x)?`already on this ${mk}`:`gets added to this ${mk}`}</small></span>
+      <div class="stepper"><button type="button" aria-label="One less" data-lxn="-1" data-i="${i}" ${x.n<=1?"disabled":""}>−</button><span class="mono">${x.n}</span><button type="button" aria-label="One more" data-lxn="1" data-i="${i}" ${x.n>=99?"disabled":""}>+</button></div>
+      <button type="button" class="ghost" data-lxx="${i}" aria-label="Remove ${esc(x.name||"part")}">✕</button></div>`).join("")}
+    ${nf?`<div class="lpnew" role="group" aria-label="A part not in your inventory">
+        <b>Part not in your inventory</b>
+        <label>Part name<input id="lpn-name" maxlength="80" placeholder="e.g. Fuel line" value="${esc(nf.name||"")}"></label>
+        <div class="lpnew2"><label>Brand<input id="lpn-brand" maxlength="60" placeholder="Optional" value="${esc(nf.brand||"")}"></label><label>Part #<input id="lpn-num" maxlength="60" class="mono" placeholder="Optional" value="${esc(nf.number||"")}"></label></div>
+        <small class="muted">Logged with this service and added to this ${mk}'s Other part numbers. Your inventory isn't changed.</small>
+        <p class="lpmsg" id="lpnMsg" role="status"></p>
+        <div class="actions"><button type="button" class="primary" id="lpn-add">Add part used</button><button type="button" class="ghost" id="lpn-cancel">Cancel</button></div></div>`
+    :`<div class="lpadd"><div class="lpcombo"><input id="l-psearch" type="search" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="lpRes" aria-autocomplete="list" placeholder="+ Add a part used" aria-label="Add a part used: type a part #, brand or name, or pick from the list" value="${esc(logParts.q||"")}"><button type="button" class="lpcaret" id="l-pcaret" tabindex="-1" aria-label="Show all parts">▾</button></div>${partsOf().length?scanBtn("l-scanpart","Scan",true):""}</div>
+      <div id="lpRes" class="lpres" role="listbox" aria-label="Parts in your inventory" hidden></div>`}
+    <p class="lpmsg" id="lpMsg" role="status">${esc(logParts.msg||"")}</p>`;
   const sc=$("#l-scanpart");if(sc)sc.onclick=()=>scanPartUsed(e);
-  const add=$("#l-addpart");if(add)add.onchange=()=>{if(add.value){logParts.msg="";logParts.rows.push({partId:add.value,n:1});drawLogParts(e);const n=$("#l-addpart");if(n)n.focus()}};
+  const qs=$("#l-psearch");if(qs){
+    qs.onfocus=()=>drawUsedSearch(e,true);
+    qs.oninput=()=>{logParts.q=qs.value;drawUsedSearch(e,true)};
+    qs.onkeydown=ev=>{if(ev.key==="Escape")drawUsedSearch(e,false)};
+    qs.onblur=()=>setTimeout(()=>{if(!document.activeElement||!document.activeElement.closest||!document.activeElement.closest("#lpRes,#l-psearch"))drawUsedSearch(e,false)},150);
+    $("#l-pcaret").onclick=()=>{const open=$("#lpRes").hidden;drawUsedSearch(e,open);if(open)qs.focus()}}
+  if(nf){const nm=$("#lpn-name");if(nm&&!nm.value)nm.focus();else{const n2=$("#lpn-num");if(n2)n2.focus()}
+    $("#lpn-cancel").onclick=()=>{logParts.adding=null;drawLogParts(e)};
+    $("#lpn-add").onclick=()=>{const x={name:$("#lpn-name").value.trim(),brand:$("#lpn-brand").value.trim(),number:$("#lpn-num").value.trim(),n:1};
+      if(!x.name&&!x.number){$("#lpnMsg").textContent="Give it a name or a part #.";$("#lpn-name").focus();return}
+      const same=logParts.extra.find(y=>x.number?normPN(y.number)===normPN(x.number):(!y.number&&y.name.toLowerCase()===x.name.toLowerCase()));
+      if(same)same.n++;else logParts.extra.push(x);
+      logParts.adding=null;logParts.q="";logParts.msg=`${x.name||x.number}: added (not from inventory)`;drawLogParts(e)}}
   box.querySelectorAll("[data-lpn]").forEach(b=>b.onclick=()=>{const r=logParts.rows[+b.dataset.i],p=engines.find(x=>x.id===r.partId);
     r.n=Math.max(1,Math.min(qtyN(p),r.n+parseInt(b.dataset.lpn,10)));drawLogParts(e)});
   box.querySelectorAll("[data-lpx]").forEach(b=>b.onclick=()=>{logParts.rows.splice(+b.dataset.lpx,1);drawLogParts(e)});
+  box.querySelectorAll("[data-lxn]").forEach(b=>b.onclick=()=>{const x=logParts.extra[+b.dataset.i];x.n=Math.max(1,Math.min(99,x.n+parseInt(b.dataset.lxn,10)));drawLogParts(e)});
+  box.querySelectorAll("[data-lxx]").forEach(b=>b.onclick=()=>{logParts.extra.splice(+b.dataset.lxx,1);drawLogParts(e)});
+}
+/* Is this part (not from inventory) already listed on the machine: a spec part # or an Other part number? */
+function onMachine(e,x){const n=normPN(x.number);
+  if(n){if(K(e).spec.some(sp=>sp[3]&&(normPN(e[sp[0]])===n||specAlts(e,sp[0]).some(a=>normPN(a)===n))))return true;
+    return (e.parts||[]).some(p=>normPN(p.number)===n||splitAlts(p.alts).some(a=>normPN(a)===n))}
+  return (e.parts||[]).some(p=>!p.number&&(p.name||"").toLowerCase()===(x.name||"").toLowerCase())}
+/* Parts used: type a part #, brand, name, "also sold as" number or barcode and tap the match.
+   Only the results list redraws while typing, so the box keeps focus. */
+function usedHay(p){const nums=[p.number,...(p.alts||[]),...(p.barcodes||[])].filter(Boolean);
+  return [p.name,p.brand,p.category,p.location,p.fitsText,...nums].filter(Boolean).join(" ").toLowerCase()+" "+nums.map(normPN).join(" ")}
+function usedSearch(q){const words=String(q||"").toLowerCase().split(/\s+/).filter(Boolean);if(!words.length)return[];
+  return partsOf().filter(p=>{const h=usedHay(p);return words.every(w=>h.includes(w)||h.includes(normPN(w)))})}
+function drawUsedSearch(e,open){const box=$("#lpRes"),inp=$("#l-psearch");if(!box)return;
+  box.hidden=!open;if(inp)inp.setAttribute("aria-expanded",String(!!open));if(!open)return;
+  const q=(logParts.q||"").trim();
+  const fitsHere=p=>allFits(p).includes(e.id);
+  const hits=(q?usedSearch(q):partsOf()).sort((a,b)=>((qtyN(b)>0)-(qtyN(a)>0))||(fitsHere(b)-fitsHere(a))||byName(a,b));
+  const newBtn=`<button type="button" role="option" class="lphit lpnewbtn" data-lpnew="1"><span><b>+ ${q?`Add “${esc(q)}”`:"Add a part"} not in inventory</b></span><small>Logs it with this service and adds it to this ${kindOf(e)==="vehicle"?"vehicle":"engine"}'s part numbers</small></button>`;
+  const wire=()=>{const nb=box.querySelector("[data-lpnew]");if(nb){nb.onmousedown=ev=>ev.preventDefault();
+    nb.onclick=()=>{const looksNum=/\d/.test(q)&&!/\s/.test(q);logParts.adding={name:looksNum?"":q,number:looksNum?q:"",brand:""};logParts.q="";drawLogParts(e)}}};
+  if(!hits.length){box.innerHTML=(q?`<p class="muted lpnone">Nothing in your inventory matches “${esc(q)}”.</p>`:"")+newBtn;wire();return}
+  box.innerHTML=hits.map(p=>{const row=logParts.rows.find(r=>r.partId===p.id),out=qtyN(p)<=0,full=row&&row.n>=qtyN(p);
+    return `<button type="button" role="option" class="lphit" data-lpadd="${esc(p.id)}" ${out||full?"disabled":""}><span><b>${esc(p.name||"Unnamed part")}</b> <span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))}</span></span>
+      <small>${out?"None on hand":esc(qtyTxt(p))+" on hand"}${row?` · ${row.n} listed`:""}${fitsHere(p)?" · fits this":""}${p.location?" · "+esc(p.location):""}</small></button>`}).join("")+newBtn;wire();
+  box.querySelectorAll("[data-lpadd]").forEach(b=>b.onclick=()=>{const p=engines.find(x=>x.id===b.dataset.lpadd);if(!p)return;
+    const row=logParts.rows.find(r=>r.partId===p.id);
+    if(row){if(row.n<qtyN(p))row.n++}else logParts.rows.push({partId:p.id,n:1});
+    logParts.msg=`${p.name||partLabel(p)}: ${(row?row.n:1)} used`;logParts.q="";drawLogParts(e)});
+  box.querySelectorAll("button").forEach(b=>b.onmousedown=ev=>ev.preventDefault()); // keep the list open while tapping
 }
 function renderLog(e){
   const log=sortedLog(e);const k=K(e);
@@ -882,23 +948,29 @@ function renderLog(e){
       const known=tl.find(x=>x.toLowerCase()===t.toLowerCase())||t;if(!tasks.some(x=>x.toLowerCase()===known.toLowerCase()))tasks.push(known)}
     const notes=$("#l-notes").value.trim();
     const used=logParts.rows.map(r=>({r,p:engines.find(x=>x.id===r.partId)})).filter(x=>x.p&&x.r.n>0);
-    if(!tasks.length&&!notes&&!used.length){$("#logMsg").textContent="Tick at least one job, add a part used, or add a note.";$("#logMsg").style.color="var(--accent)";return}
+    const extra=(logParts.id===e.id&&logParts.extra)||[];
+    if(!tasks.length&&!notes&&!used.length&&!extra.length){$("#logMsg").textContent="Tick at least one job, add a part used, or add a note.";$("#logMsg").style.color="var(--accent)";return}
     const short=used.find(({r,p})=>r.n>qtyN(p));
     if(short){$("#logMsg").textContent=`Only ${qtyN(short.p)} ${short.p.name||"of that part"} on hand.`;$("#logMsg").style.color="var(--accent)";return}
     const entry={id:uid(),date:$("#l-date").value||today(),hours:$("#l-hours").value.trim(),cost:$("#l-cost").value.replace(/^\$/,"").trim(),tasks,notes};
     // Parts used: what they were and their warranty at the time (the entry's date is the install date).
     if(used.length)entry.parts=used.map(({r,p})=>({partId:p.id,name:p.name||"",brand:p.brand||"",number:p.number||"",qty:r.n,warranty:(p.warranty||"").trim(),
       ...((p.receipts||[]).length?{receipts:p.receipts.map(x=>({id:x.id,name:x.name||"",type:x.type,at:x.at||""}))}:{})})); // the part's receipts go with the service
+    // parts that weren't in the inventory: logged as they were typed, and added to the machine's Other part numbers
+    if(extra.length)entry.parts=[...(entry.parts||[]),...extra.map(x=>({name:x.name,brand:x.brand,number:x.number,qty:x.n,warranty:"",notInInventory:true}))];
     const out={...e,log:[...(e.log||[]),entry]};
+    const newOnMachine=[];for(const x of extra)if(!onMachine(e,x)&&!newOnMachine.some(y=>x.number?normPN(y.number)===normPN(x.number):y.name===x.name))newOnMachine.push(x);
+    if(newOnMachine.length)out.parts=[...(e.parts||[]),...newOnMachine.map(x=>({name:x.name,brand:x.brand,number:x.number}))];
     const num=v=>parseFloat(String(v||"").replace(/,/g,""));
     if(entry.hours&&(!e.hours||num(entry.hours)>=num(e.hours))){out.hours=entry.hours;out.hoursAt=entry.date}
     if(Array.isArray(e.schedule))out.schedule=e.schedule.map(x=>{if(!tasks.includes(x.task)||!x.snooze)return x;const {snooze,...y}=x;return y}); // done: wake any snooze
     try{await saveEngine(out);draft=null;
       // they came off the shelf: lower each part's count
       for(const {r,p} of used)await saveEngine({...p,qty:qtyStr(qtyN(p)-r.n)});
-      logParts={id:e.id,rows:[]};drawLogParts(e);
+      logParts={id:e.id,rows:[],extra:[]};drawLogParts(e);
       const m=$("#logMsg");if(m){const bits=["Added."];
       if(used.length)bits.push(`${used.reduce((t,x)=>t+x.r.n,0)} part${used.reduce((t,x)=>t+x.r.n,0)===1?"":"s"} taken from inventory.`);
+      if(newOnMachine.length)bits.push(`${newOnMachine.length===1?"1 part":newOnMachine.length+" parts"} added to this ${kindOf(e)==="vehicle"?"vehicle":"engine"}'s part numbers.`);
       if(out.hours!==e.hours&&milesN(out.hours)!=null)bits.push(`Mileage updated to ${fmtMi(milesN(out.hours))}.`);
       const n2=nextOil(out);if(tasks.includes("Oil & filter")&&n2)bits.push(`Next oil change at ${fmtMi(n2.at)}.`);
       m.style.color="";m.textContent=bits.join(" ")}}catch(err){$("#logMsg").textContent="Couldn't save: "+(err.message||err.code)}};
