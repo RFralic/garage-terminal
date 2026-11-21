@@ -22,6 +22,9 @@ jobs:
     # Fork PRs can't see secrets (and never get previews), so skip them.
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
+      # firebase-tools needs the repo's firebase.json
+      - uses: actions/checkout@v5
+
       - uses: actions/setup-node@v5
         with:
           node-version: 22
