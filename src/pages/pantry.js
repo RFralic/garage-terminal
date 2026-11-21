@@ -161,6 +161,7 @@ document.addEventListener('keydown', (e) => {
 function show(which) {
   for (const k of ['loading', 'guest', 'start', 'join', 'app']) $('pt-' + k).hidden = k !== which;
   $('pt-tabs').hidden = which !== 'app';
+  navCheck();
 }
 
 function showTab(tab) {
@@ -171,9 +172,41 @@ function showTab(tab) {
   }
   renderTab();
   window.scrollTo({ top: 0 });
+  navCheck();
 }
 for (const b of document.querySelectorAll('#pt-tabs button')) b.addEventListener('click', () => showTab(b.dataset.tab));
 $('pt-people').addEventListener('click', () => showTab('household'));
+
+// ---------- phone back button -------------------------------------------------------
+// While a pop-up, the scanner, or the Shopping or Household tab is showing, one extra
+// history entry sits on top. The phone's back button removes it, and we close what is
+// open (or go back to the Pantry tab) instead of leaving the app. Closing things with
+// their own buttons takes the entry away again, so the next back press isn't wasted.
+let navSkip = false, navTimer = 0;
+function navNeeded() {
+  if (window.GTScan && GTScan.isOpen) return true;
+  if (sheet) return true;
+  return !$('pt-app').hidden && !!S.tab && S.tab !== 'pantry';
+}
+function navCheck() {
+  clearTimeout(navTimer);
+  navTimer = setTimeout(() => {
+    const top = !!(history.state && history.state.ptBack);
+    try {
+      if (navNeeded() && !top) history.pushState({ ptBack: 1 }, '');
+      else if (!navNeeded() && top) { navSkip = true; history.back(); }
+    } catch { /* fine */ }
+  }, 0);
+}
+window.addEventListener('popstate', () => {
+  if (navSkip) { navSkip = false; navCheck(); return; }
+  if (window.GTScan && GTScan.isOpen) GTScan.close();
+  else if (sheet) closeSheet();
+  else if (!$('pt-app').hidden && S.tab && S.tab !== 'pantry') showTab('pantry');
+  navCheck();
+});
+// The pop-ups and the scanner both mark <body> while open, so watch that.
+new MutationObserver(navCheck).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
 // ---------- session and start-up ---------------------------------------------------
 
