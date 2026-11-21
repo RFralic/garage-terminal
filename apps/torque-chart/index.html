@@ -119,6 +119,28 @@ td.pick{outline:2px solid var(--hi-ink);outline-offset:-2px}
 .legend b{color:var(--ink)}
 .legend ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
 
+/* Bolt grades */
+:root{--head-fill:#cfd6dc;--head-edge:#7d8a95;--head-mark:#2b3540}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--head-fill:#56616b;--head-edge:#8b97a1;--head-mark:#eef2f5}}
+:root[data-theme="dark"]{--head-fill:#56616b;--head-edge:#8b97a1;--head-mark:#eef2f5}
+.grades{display:flex;flex-direction:column;gap:12px}
+.gcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.gcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.gcard.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.gtop{display:flex;gap:14px;align-items:center}
+.gtop svg{flex:none}
+.gcard h3{margin:0;font-size:1.2rem}
+.gcard p{margin:2px 0 0}
+.gm{font-weight:600}
+.glike{color:var(--muted);font-size:.9rem}
+.gcard dl{margin:0;display:flex;flex-direction:column;gap:6px}
+.gcard dl div{display:grid;grid-template-columns:7.5em 1fr;gap:8px}
+.gcard dt{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;padding-top:2px}
+.gcard dd{margin:0;font-size:.92rem}
+.gcard .btn{align-self:flex-start}
+.hm{display:inline-flex;align-items:center;gap:8px}
+.lnk{font:600 .88rem var(--f-display);background:none;border:0;padding:4px 0;color:var(--accent);text-decoration:underline;cursor:pointer;min-height:32px}
+
 /* Add to a machine */
 dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:0;width:min(480px,calc(100vw - 24px));max-height:calc(100dvh - 24px)}
 dialog::backdrop{background:rgba(0,0,0,.45)}
@@ -174,12 +196,14 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <div class="tabs" role="tablist">
       <button role="tab" data-t="sae" aria-selected="true">Inch (SAE)</button>
       <button role="tab" data-t="metric" aria-selected="false">Metric</button>
+      <button role="tab" data-t="grades" aria-selected="false">Bolt grades</button>
     </div>
     <input id="q" type="search" placeholder="Filter chart…" aria-label="Filter chart rows">
   </div>
 
   <p class="note" id="note"></p>
   <div class="scroll"><table id="tbl"></table></div>
+  <section id="grades" class="grades" hidden aria-label="Bolt grades"></section>
   <div class="legend">
     <span><b>Highlighted row</b> matches the bolt above. Tap any size to look it up.</span>
     <span><b>Dry</b> clean threads, plain or zinc-plated, as they come. <b>Oiled</b> threads with engine oil on them (25% less).</span>

@@ -190,3 +190,27 @@ export function parseBolt(raw) {
   }
   return { kind: 'miss' };
 }
+
+// ---------- the bolt grades reference tab -------------------------------------------
+// Strengths from SAE J429 and ISO 898-1 (minimum values).
+
+export const GRADE_INFO = [
+  { g: '2', sys: 'sae', name: 'SAE Grade 2', marks: 'No marks (maybe a maker\'s mark)', steel: 'Low or medium carbon steel',
+    tensile: '74,000 psi (1/4" to 3/4"), 60,000 psi above', proof: '55,000 psi (1/4" to 3/4"), 33,000 psi above',
+    like: 'About like metric class 4.6 / 5.8', uses: 'Light duty: household, trim, brackets, hardware-store bolts. Not for anything that carries a real load.' },
+  { g: '5', sys: 'sae', name: 'SAE Grade 5', marks: '3 lines, 120° apart', steel: 'Medium carbon steel, hardened (quenched and tempered)',
+    tensile: '120,000 psi (1/4" to 1")', proof: '85,000 psi (1/4" to 1")',
+    like: 'About like metric class 8.8', uses: 'Most car, truck and equipment bolts: engine accessories, brackets, body and frame bolts.' },
+  { g: '8', sys: 'sae', name: 'SAE Grade 8', marks: '6 lines, 60° apart', steel: 'Medium carbon alloy steel, hardened',
+    tensile: '150,000 psi', proof: '120,000 psi',
+    like: 'About like metric class 10.9', uses: 'High stress: suspension, steering, hitches, heavy equipment. Harder, so it snaps rather than bends when overloaded.' },
+  { g: '8.8', sys: 'metric', name: 'Metric class 8.8', marks: '"8.8" stamped on the head', steel: 'Medium carbon steel, hardened',
+    tensile: '800 MPa (M16 and under), 830 MPa above', proof: '580 MPa (M16 and under), 600 MPa above',
+    like: 'About like SAE Grade 5', uses: 'The everyday metric bolt on cars, mowers and machinery.' },
+  { g: '10.9', sys: 'metric', name: 'Metric class 10.9', marks: '"10.9" stamped on the head', steel: 'Alloy steel, hardened',
+    tensile: '1,040 MPa', proof: '830 MPa',
+    like: 'About like SAE Grade 8', uses: 'High stress metric bolts: suspension, drivetrain, engine mounts.' },
+  { g: '12.9', sys: 'metric', name: 'Metric class 12.9', marks: '"12.9" stamped on the head', steel: 'Alloy steel, hardened',
+    tensile: '1,220 MPa', proof: '970 MPa',
+    like: 'Stronger than SAE Grade 8', uses: 'Mostly socket head (Allen) cap screws in machines and tooling. Brittle compared with 8.8; don\'t swap one in where a softer bolt was meant to stretch.' },
+];

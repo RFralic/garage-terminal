@@ -3,8 +3,9 @@
 
 import {
   parseBolt, saeRows, metricRows, torqueFor, convert, fmt, UNITS,
-  SAE_GRADES, METRIC_CLASSES, MARKINGS,
+  SAE_GRADES, METRIC_CLASSES, MARKINGS, GRADE_INFO,
 } from '../torque/calc.js';
+import { headSvg } from '../torque/heads.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -35,7 +36,7 @@ const segBtns = (el, items, cur, attr) => {
 function renderFinder() {
   const p = parseBolt(inp.value);
   found = p.row ? p : null;
-  const sys = found ? found.kind : S.tab;
+  const sys = found ? found.kind : S.tab === 'metric' ? 'metric' : 'sae';
   segBtns($('grade'), (sys === 'sae' ? SAE_GRADES : METRIC_CLASSES).map((g) => [g, sys === 'sae' ? g : g]), S[sys], 'g');
   segBtns($('cond'), [['dry', 'Dry'], ['oiled', 'Oiled']], S.cond, 'c');
   segBtns($('unit'), SHOW_UNITS.map((u) => [u, u]), S.unit, 'u');
@@ -62,7 +63,7 @@ function renderFinder() {
       <div class="fig"><span class="lbl">${other === 'dry' ? 'Dry' : 'Oiled'}</span><div class="big two">${inUnit(t2.nm)} <small>${S.unit}</small></div><div class="alt">${SHOW_UNITS.filter((u) => u !== S.unit).map((u) => `${inUnit(t2.nm, u)} ${u}`).join(' · ')}</div></div>
     </div>
     <div class="extra">
-      <span>Head marks: <b>${esc(MARKINGS[g])}</b></span>
+      <span class="hm">${headSvg(g, 34, gradeName(sys, g) + ' head')}<span>Head marks: <b>${esc(MARKINGS[g])}</b> <button type="button" class="lnk" data-t="grades">See all grades</button></span></span>
       ${wrench ? `<span>Wrench: <b>${wrench}</b></span>` : ''}
       <span>Clamp load: <b>${clamp}</b></span>
       ${pitches ? `<span>Other pitch <span class="chips" style="display:inline-flex">${pitches}</span></span>` : ''}
@@ -92,7 +93,23 @@ cvUnit.addEventListener('change', renderConverter);
 // ---------- chart ----------------------------------------------------------------
 
 const tbl = $('tbl'), q = $('q');
+function renderGrades() {
+  const cur = found ? S[found.kind] : null;
+  $('grades').innerHTML = `<p class="note">How to tell a bolt's grade from the marks on its head. "ABC" stands in for the maker's mark; every brand has its own. No marks at all usually means Grade 2 or unknown, so treat it as Grade 2.</p>
+    <div class="gcards">${GRADE_INFO.map((x) => `<article class="gcard${x.g === cur ? ' cur' : ''}">
+      <div class="gtop">${headSvg(x.g, 88, x.name + ' head')}<div><h3>${esc(x.name)}</h3><p class="gm">${esc(x.marks)}</p><p class="glike">${esc(x.like)}</p></div></div>
+      <dl><div><dt>Steel</dt><dd>${esc(x.steel)}</dd></div><div><dt>Tensile strength</dt><dd>${esc(x.tensile)}</dd></div><div><dt>Proof load</dt><dd>${esc(x.proof)}</dd></div><div><dt>Used for</dt><dd>${esc(x.uses)}</dd></div></dl>
+      <button type="button" class="btn ghost" data-use="${esc(x.sys)}:${esc(x.g)}">Use ${esc(x.sys === 'sae' ? 'Grade ' + x.g : 'class ' + x.g)} in the finder</button>
+    </article>`).join('')}</div>
+    <p class="note">Nuts have grades too: use a nut at least as strong as the bolt (Grade 5 or 8 nuts, or metric class 8 / 10 nuts). Stainless bolts are usually marked 18-8, 304 or 316 (A2 / A4 on metric) and are about as strong as Grade 2, so this chart doesn't cover them.</p>`;
+}
 function renderChart() {
+  const grades0 = S.tab === 'grades';
+  for (const id of ['note', 'q']) $(id).hidden = grades0;
+  tbl.parentElement.hidden = grades0;
+  $('grades').hidden = !grades0;
+  for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.t === S.tab));
+  if (grades0) { renderGrades(); return; }
   const sae = S.tab === 'sae';
   const grades = sae ? SAE_GRADES : METRIC_CLASSES;
   const rows = sae ? saeRows() : metricRows();
@@ -119,7 +136,7 @@ function renderChart() {
 
 function lookup(scroll) {
   renderFinder();
-  if (found) S.tab = found.kind;
+  if (found && S.tab !== 'grades') S.tab = found.kind;
   renderChart();
   if (scroll) { const m = tbl.querySelector('tr.match'); if (m) m.scrollIntoView({ block: 'nearest' }); }
 }
@@ -140,8 +157,19 @@ document.addEventListener('click', (e) => {
   if (c) { S.cond = c.dataset.c; save(); lookup(false); return; }
   const u = e.target.closest('[data-u]');
   if (u) { S.unit = u.dataset.u; save(); lookup(false); return; }
-  const t = e.target.closest('.tabs button');
-  if (t) { S.tab = t.dataset.t; save(); renderChart(); }
+  const t = e.target.closest('.tabs button, button.lnk[data-t]');
+  if (t) {
+    S.tab = t.dataset.t; save(); renderChart();
+    if (t.matches('.lnk')) document.querySelector('.bar').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    return;
+  }
+  const use = e.target.closest('[data-use]');
+  if (use) {
+    const [sys, g] = use.dataset.use.split(':');
+    S[sys] = g;
+    if (!found || found.kind !== sys) inp.value = sys === 'sae' ? '3/8-16' : 'M10';
+    save(); lookup(false); window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
 });
 inp.addEventListener('input', () => lookup(false));
 q.addEventListener('input', renderChart);
