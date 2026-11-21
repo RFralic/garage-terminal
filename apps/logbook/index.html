@@ -292,7 +292,7 @@ a.doc::after{content:"↗";font-weight:400}
 .sccard{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:grid;gap:4px}
 .sccard b{font-size:1.1rem}.sccard .mono{color:var(--muted);font-size:.9rem}
 .sccount{font:500 1.05rem var(--f-mono);margin-top:2px}.sccount.out{color:var(--accent)}
-.scfits{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:2px}.scfits .scfl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:2px}.scfits button{min-height:36px;padding:4px 12px;font-size:14px}.scfits .muted{font-size:14px}
+.scfits{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:2px}.scfits .scfl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:2px}.scfits button{min-height:36px;padding:4px 12px;font-size:14px}.scfits .muted{font-size:14px}.scfits .scft{font-size:14px;padding:4px 10px;border:1px dashed var(--line);border-radius:999px;color:var(--steel)}
 .scacts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}.scacts button{min-height:48px;justify-content:center}
 /* pop-up sheets: keep the app's colors (the print preview's .sheet style was turning them white) */
 .sheetwrap>.sheet{background:var(--surface);color:var(--ink);max-width:none;margin:0;font-size:15px;border:0;border-top:1px solid var(--line);border-radius:14px 14px 0 0;
@@ -1086,9 +1086,11 @@ function xref(e){const inv=partsOf();
   return {rows,tagged}}
 const autoFits=p=>machines().filter(m=>machineParts(m).some(mp=>numHits(p,mp.number,mp.alts))).map(m=>m.id);
 const allFits=p=>[...new Set([...(p.fits||[]),...autoFits(p)])];
+/* typed "Also goes on" names: machines you don't keep in the Logbook (e.g. "Kohler CH18, neighbor's Cub Cadet"). Shown only, never linked */
+const fitsTyped=p=>String(p&&p.fitsText||"").split(/[,;\n]/).map(s=>s.trim()).filter(Boolean);
 // Machines a scanned part goes with (tagged to it, or listed in that machine's specs), shown on the scan sheet.
-function scFits(p){const ms=allFits(p).map(id=>engines.find(e=>e.id===id)).filter(m=>m&&!isPart(m)).sort(byName);
-  return `<div class="scfits"><span class="scfl">Fits</span>${ms.length?ms.map(m=>`<button type="button" data-mach="${esc(m.id)}">${esc(dname(m))}</button>`).join(""):`<span class="muted">Not linked to a machine yet</span>`}</div>`}
+function scFits(p){const ms=allFits(p).map(id=>engines.find(e=>e.id===id)).filter(m=>m&&!isPart(m)).sort(byName),tx=fitsTyped(p);
+  return `<div class="scfits"><span class="scfl">Fits</span>${ms.map(m=>`<button type="button" data-mach="${esc(m.id)}">${esc(dname(m))}</button>`).join("")}${tx.map(t=>`<span class="scft">${esc(t)}</span>`).join("")}${ms.length||tx.length?"":`<span class="muted">Not linked to a machine yet</span>`}</div>`}
 const qtyN=p=>{const n=parseFloat(p.qty);return isNaN(n)?0:Math.round(n*100)/100};
 /* Fluids can be measured in quarts or gallons (part.unit "qt" | "gal"); everything else is a count. */
 const UNIT_WORD={qt:"quart",gal:"gallon"};
@@ -1114,7 +1116,7 @@ function renderInventory(kt,wire){
   const low=all.filter(isLow).length, value=all.reduce((s,p)=>s+costN(p)*qtyN(p),0);
   const q=invQuery.trim().toLowerCase();
   const shown=all.filter(p=>(invFilter==="All"||(invFilter==="Low stock"?isLow(p):p.category===invFilter))&&
-    (!q||[p.name,p.number,p.brand,p.location,(p.barcodes||[]).join(" "),(p.alts||[]).join(" "),allFits(p).map(nameOf).join(" ")].join(" ").toLowerCase().includes(q)))
+    (!q||[p.name,p.number,p.brand,p.location,(p.barcodes||[]).join(" "),(p.alts||[]).join(" "),allFits(p).map(nameOf).join(" "),p.fitsText||""].join(" ").toLowerCase().includes(q)))
     .sort((a,b)=>(a.location||"~").localeCompare(b.location||"~")||(a.name||"").localeCompare(b.name||""));
   const cats=["All","Low stock",...PCATS.filter(c=>all.some(p=>p.category===c))];
   app.innerHTML=kt+`<div class="inv">
@@ -1124,7 +1126,7 @@ function renderInventory(kt,wire){
     ${forSel}${forBar}
     <div class="invsearchrow"><label class="invsearch">Search parts<input type="search" id="invQ" value="${esc(invQuery)}" placeholder="Name, part #, or what it fits"></label>${scanBtn("invScan")}${scanBtn("invBulk","Bulk scan",true)}</div>
     <div class="chips">${cats.map(c=>`<button class="fchip" data-cat="${esc(c)}" aria-pressed="${c===invFilter}">${esc(c)}</button>`).join("")}</div>
-    <div class="ilist">${shown.length?shown.map(p=>{const fits=allFits(p).map(nameOf).filter(Boolean);
+    <div class="ilist">${shown.length?shown.map(p=>{const fits=[...allFits(p).map(nameOf).filter(Boolean),...fitsTyped(p)];
       return `<article class="iitem ${isLow(p)?"low":""}">
         <div class="irow"><button class="iname" data-edit="${esc(p.id)}"><b>${esc(p.name||"Unnamed part")}</b><span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))||"No part #"}</span></button>
           <div class="stepper"><button aria-label="Use one" data-dq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>−</button><span class="mono">${esc(qtyTxt(p))}</span><button aria-label="Add one" data-dq="1" data-id="${esc(p.id)}">+</button></div></div>
@@ -1183,7 +1185,9 @@ function renderPartEdit(){
       <div class="altadd"><input id="p-altnew" placeholder="Brand and part #, e.g. Wix 51515" maxlength="60" aria-label="Another brand's part number"><button type="button" id="pAddAlt">Add</button></div></div>
     <div class="parts"><h3>Fits</h3>${ms.length?`<div class="chips">${ms.map(m=>`<button class="fchip" data-fit="${esc(m.id)}" aria-pressed="${(d.fits||[]).includes(m.id)}">${esc(dname(m))}</button>`).join("")}</div>
       ${(()=>{const am=autoFits(d).map(nameOf).filter(Boolean);return am.length?`<p style="margin:0;font-size:.85rem">Matches by part # on: <b style="color:var(--steel)">${esc(am.join(", "))}</b></p>`:""})()}
-      <p class="muted" style="margin:0;font-size:.82rem">Tap the engines and vehicles this part goes on. It also shows on their Specs tab.</p>`:`<p class="muted" style="margin:0">Add an engine or vehicle first to tag what this part fits.</p>`}</div>
+      <p class="muted" style="margin:0;font-size:.82rem">Tap the engines and vehicles this part goes on. It also shows on their Specs tab.</p>`:""}
+      <label>Also goes on<input id="p-fitsText" maxlength="300" placeholder="e.g. Kohler CH18, Briggs 31R907" value="${esc(d.fitsText||"")}"></label>
+      <p class="muted" style="margin:0;font-size:.82rem">Engines or machines you don't have in the Logbook. Separate them with commas. They show under Fits and in search, but don't link anywhere.</p></div>
     <div class="parts"><h3>Receipts</h3>
       ${(d.receipts||[]).length?`<div class="rclist">${d.receipts.map((r,i)=>`<span class="rcchip"><button type="button" class="rcopen" data-rcopen="${i}" title="${esc(rcLabel(r))}">${r.type==="pdf"?"PDF":"Photo"} · ${esc(rcLabel(r))}</button><button type="button" class="ghost rcx" data-rcdel="${i}" aria-label="${pe.rcDel===i?"Tap again to remove":"Remove"} ${esc(rcLabel(r))}">${pe.rcDel===i?"✓":"×"}</button></span>`).join("")}</div>`:""}
       <p class="muted" style="margin:0;font-size:.82rem">For warranty claims: a photo of the receipt, a screenshot, or a PDF of an emailed receipt (up to 680 KB). When this part is used on a service, its receipts go with that log entry.</p>
@@ -1194,7 +1198,7 @@ function renderPartEdit(){
     <div class="actions"><button class="primary" id="pSave">Save part</button><button id="pCancel">Cancel</button><span id="pMsg" class="saved"></span><span style="flex:1"></span>
       ${pe.isNew?"":pe.confirmDel?`<span class="confirm">Delete this part? <button class="danger" id="pDelYes">Delete</button><button id="pDelNo">Keep</button></span>`:`<button class="danger" id="pDel">Delete part</button>`}</div>
   </section>`;
-  const pull=()=>{["name","brand","number","category","qty","reorderAt","location","cost","source","warranty","notes","unit"].forEach(f=>{const el=$("#p-"+f);if(el)d[f]=el.value});if(d.category!=="Fluids")d.unit=""};
+  const pull=()=>{["name","brand","number","category","qty","reorderAt","location","cost","source","warranty","notes","unit","fitsText"].forEach(f=>{const el=$("#p-"+f);if(el)d[f]=el.value});if(d.category!=="Fluids")d.unit=""};
   {const cat=$("#p-category"),un=$("#p-unit"),q=$("#p-qty"),cl=$("#p-costlbl");
    const sync=()=>{const fl=cat.value==="Fluids";un.hidden=!fl;q.inputMode=fl?"decimal":"numeric";const u=fl?un.value:"";cl.textContent=u?"Cost per "+UNIT_WORD[u]:"Cost each"};
    if(cat&&un){cat.addEventListener("change",sync);un.addEventListener("change",sync)}}
