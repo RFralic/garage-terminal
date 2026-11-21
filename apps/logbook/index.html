@@ -240,6 +240,7 @@ button.stk{flex:none;background:transparent;min-height:32px;padding:3px 9px;curs
 .tqrow button{min-height:38px;padding:6px 10px}
 .tqchart{display:inline-block;margin-left:4px;font:700 .68rem/1.5 inherit;letter-spacing:.05em;text-transform:uppercase;padding:0 6px;border:1px dashed var(--warn);border-radius:4px;color:var(--warn);white-space:nowrap;vertical-align:1px}
 .tqchart.blk{display:table;margin:3px 0 0}
+.mixlink{margin-left:8px;font-size:.88rem;white-space:nowrap}
 /* Phones: each torque spec is a small card (name and torque on top, socket and notes under) instead of a 4-column table */
 @media (max-width:640px){
   .tqtable,.tqtable tbody{display:block;min-width:0;width:100%}
@@ -406,6 +407,9 @@ const tqVal=t=>t.value?esc(t.value)+" "+esc(t.unit||"ft-lb"):"";
 const tqItem=t=>esc(t.item)+(tqChart(t)?`<span class="tqchart blk" title="From chart: ${TQ_CHART_TIP}">From chart</span>`:"");
 const tqNote=t=>[tqChart(t)&&t.chart?"Chart: "+t.chart:"",t.notes||""].filter(Boolean).join(" · ");
 const tqKeep=t=>tqChart(t)?{src:"chart",chart:String(t.chart||"").slice(0,80)}:{};
+/* "50:1" in an engine's Fuel / mix ratio -> 50 (for the Fuel Mix app link on Garage Terminal) */
+const mixRatio=v=>{const m=String(v||"").match(/(\d{2,3})\s*[:\/]\s*1(?!\d)/);const n=m?+m[1]:0;return n>=10&&n<=200?n:0};
+const mixLink=v=>location.pathname.startsWith("/apps/")&&mixRatio(v)?` <a class="mixlink" href="/apps/fuel-mix?ratio=${mixRatio(v)}">Mix fuel ↗</a>`:"";
 const tqLink=()=>location.pathname.startsWith("/apps/")?`<p class="muted" style="margin:6px 0 0;font-size:.85rem"><a href="/apps/torque-chart">Torque Chart ↗</a> typical values by bolt size and grade.</p>`:"";
 const withBrand=(b,n)=>[b,n].map(x=>String(x||"").trim()).filter(Boolean).join(" ");
 const milesN=v=>{const n=parseFloat(String(v??"").replace(/[^0-9.]/g,""));return isNaN(n)?null:n};
@@ -709,7 +713,7 @@ function renderSpecView(e){
   const x=xref(e);
   $("#panel").innerHTML=`<section class="panel">
     <div class="actions" style="justify-content:space-between"><span class="muted" style="font-size:.85rem">${e.updatedAt?"Updated "+fmtDate(String(e.updatedAt).slice(0,10)):""}</span><button class="primary" id="editBtn">Edit ${k.one}</button></div>
-    ${sect("Specifications",spec.length||e.equipment?`<dl class="specview"><div><dt>${k.typeLabel}</dt><dd>${esc(e.equipment||"—")}</dd></div>${nextOil(e)?`<div class="nextoil ${nextOil(e).state}"><dt>Next oil change</dt><dd class="mono">${esc(nextOilText(nextOil(e)))}</dd></div>`:""}${spec.map(([f,l,m,pt])=>{if(!pt)return`<div><dt>${l}</dt><dd class="${m?"mono":""}">${esc(e[f])}</dd></div>`;const num=String(e[f]).trim(),br=String(e[f+"Brand"]||"").trim(),lab=l.replace(/ part #$/,""),alts=specAlts(e,f),st=stockFor(num,alts),loc=locOf(st);
+    ${sect("Specifications",spec.length||e.equipment?`<dl class="specview"><div><dt>${k.typeLabel}</dt><dd>${esc(e.equipment||"—")}</dd></div>${nextOil(e)?`<div class="nextoil ${nextOil(e).state}"><dt>Next oil change</dt><dd class="mono">${esc(nextOilText(nextOil(e)))}</dd></div>`:""}${spec.map(([f,l,m,pt])=>{if(!pt)return`<div><dt>${l}</dt><dd class="${m?"mono":""}">${esc(e[f])}${f==="fuelMix"?mixLink(e[f]):""}</dd></div>`;const num=String(e[f]).trim(),br=String(e[f+"Brand"]||"").trim(),lab=l.replace(/ part #$/,""),alts=specAlts(e,f),st=stockFor(num,alts),loc=locOf(st);
       const sub=shelfLine(st,num);
       return `<div><dt>${l}</dt><dd class="${m?"mono":""}"><span class="pnline"><span>${esc(withBrand(e[f+"Brand"],e[f]))}</span>${badge(st,lab,num,br)}</span>${alts.length?`<span style="display:block;font-size:.82rem">Also listed as: ${esc(alts.join(", "))}</span>`:""}${sub?`<span class="muted" style="display:block;font-size:.78rem;font-family:inherit">${esc(sub)}</span>`:""}</dd></div>`}).join("")}</dl>`:`<p class="muted">No specs yet. Tap Edit to add them.</p>`)}
     ${parts.length?sect("Other part numbers",`<div class="prows">${parts.map(p=>{const num=String(p.number||"").trim(),al=splitAlts(p.alts),st=num?stockFor(num,al):[],loc=num?shelfLine(st,num):"";
@@ -795,7 +799,7 @@ function renderSpecs(e){
     $("#delNo").onclick=()=>{pendingDelete=false;renderSpecs(e)}}
   else $("#delBtn").onclick=()=>{pull();pendingDelete=true;renderSpecs(e)};
 }
-const PH={oilFilter:"492932S",oilFilterBrand:"Briggs & Stratton",oilFilterAlts:"Kohler 52 050 02-S, Fram PH8172",warranty:"2 yr · ends May 2027 · keep the receipt",engineType:"Single-cylinder OHV",make:"Honda",model:"HRN216",serial:"MAGA-1234567",year:"2021",engineMake:"Honda",engineModel:"GCV170",fuelMix:"Unleaded 87, ethanol-free",hours:"112",plug:"NGK BPR5ES",plugGap:"0.028–0.031 in",oilType:"SAE 10W-30",oilCapacity:"0.58 qt (0.55 L)",airFilter:"17211-ZL8-023",fuelFilter:"—"};
+const PH={oilFilter:"492932S",oilFilterBrand:"Briggs & Stratton",oilFilterAlts:"Kohler 52 050 02-S, Fram PH8172",warranty:"2 yr · ends May 2027 · keep the receipt",engineType:"Single-cylinder OHV",make:"Honda",model:"HRN216",serial:"MAGA-1234567",year:"2021",engineMake:"Honda",engineModel:"GCV170",fuelMix:"Unleaded 87, ethanol-free · 50:1 for a 2-stroke",hours:"112",plug:"NGK BPR5ES",plugGap:"0.028–0.031 in",oilType:"SAE 10W-30",oilCapacity:"0.58 qt (0.55 L)",airFilter:"17211-ZL8-023",fuelFilter:"—"};
 
 /* Parts used on a service: picked from the inventory on the Log a service form. The entry keeps
    each part's name, part # and warranty as they were (entry.parts); their counts go down on save.
