@@ -1,0 +1,64 @@
+# Deletes website preview links (Firebase Hosting preview channels), so they never
+# fill up the site's limit on preview channels (a full limit makes PR previews fail
+# with "channel quota reached"; the live site is not affected).
+#  - When a pull request closes (merged or not): deletes that PR's preview (pr<N>-…).
+#  - Run by hand (Actions → Clean up preview links → Run workflow): deletes every
+#    preview link. The live site is never touched.
+# Previews also expire on their own 3 days after the last push (see deploy.yml).
+# Needs the same secret as deploy.yml: FIREBASE_SERVICE_ACCOUNT.
+name: Clean up preview links
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    # Fork PRs can't see secrets (and never get previews), so skip them.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Write credentials
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      - name: Delete preview links
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          FB="npx --yes firebase-tools@15 --project garage-terminal-15499 --non-interactive"
+          ids=$($FB hosting:channel:list --json | node -e '
+            const pr = process.env.PR;
+            let out = "";
+            process.stdin.on("data", d => out += d).on("end", () => {
+              const list = (JSON.parse(out).result || {}).channels || [];
+              for (const c of list) {
+                const id = String(c.name || "").split("/").pop();
+                if (!id || id === "live") continue;            // never the live site
+                if (pr && !id.startsWith("pr" + pr + "-")) continue; // PR closed: only its own
+                console.log(id);
+              }
+            });')
+          if [ -z "$ids" ]; then echo "No preview links to delete."; exit 0; fi
+          n=0
+          for id in $ids; do
+            echo "Deleting $id"
+            $FB hosting:channel:delete "$id" --force && n=$((n+1))
+          done
+          echo "Deleted $n preview link(s)."
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"

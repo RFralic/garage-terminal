@@ -8,7 +8,7 @@
 #      4. Cloud Functions (last, so a functions problem never blocks the site),
 #         plus a 1-day clean-up policy for old function images
 #  - Pull request: deploys the website only to a temporary preview link, posted on
-#    the PR. Previews share the live database and rules; those change only from main.
+#    the PR (expires after 3 days; deleted when the PR closes, see preview-cleanup.yml). Previews share the live database and rules; those change only from main.
 #
 # Needs one GitHub secret: FIREBASE_SERVICE_ACCOUNT (the JSON key of the deploy service account).
 name: Deploy
@@ -77,8 +77,10 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: garage-terminal-15499
-          # Live deploy on main; PRs get a preview channel (expires after 7 days).
+          # Live deploy on main; PRs get a preview channel that expires 3 days after
+          # the last push (and is deleted when the PR closes: preview-cleanup.yml).
           channelId: ${{ github.event_name == 'push' && 'live' || '' }}
+          expires: 3d
 
       - name: Deploy Cloud Functions
         if: github.event_name == 'push'
