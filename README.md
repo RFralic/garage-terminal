@@ -31,6 +31,8 @@ Live site: https://garageterminal.com (also https://garage-terminal-15499.web.ap
 | `apps/pantry/index.html`, `src/pages/pantry.js`, `src/styles/pantry.css` | Pantry: a household's food and supplies, scanned in and out |
 | `src/pantry/` | Pantry parts: `logic.js` (counts, dates, barcodes, batch codes), `store.js` (Firestore), `code128.js`, `label.js` (label images), `off.js` (Open Food Facts lookup) |
 | `apps/tap-drill-chart/index.html` | Tap Drill Chart, copied from its Claude artifact (re-copy if the artifact changes) |
+| `apps/torque-chart/index.html`, `src/pages/torque.js` | Torque Chart: typical bolt torque (SAE and metric, dry and oiled) and a unit converter |
+| `src/torque/` | Torque Chart parts: `calc.js` (the formula, standards and bolt sizes; tested in `tests/torque.calc.test.js`), `machines.js` (Add to a vehicle or engine: writes a `From chart` row to a Logbook machine's torque specs) |
 | `404.html` | Not-found page |
 | `src/styles/base.css` | Shared look: colors, fonts, header, footer, terminal boxes |
 | `src/styles/home.css` | Home-page-only styles |
