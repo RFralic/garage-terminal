@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<!--
+  Fuel Mix, served at /apps/fuel-mix. A reference app styled like Tap Drill Chart
+  and Torque Chart. Math in src/fuelmix/calc.js; page code in src/pages/fuelmix.js.
+  ?ratio=50 (and optionally &gas=5&unit=gal) opens with those picked; the Logbook's
+  "Mix fuel" link uses it.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Fuel Mix · Garage Terminal</title>
+<meta name="description" content="How much 2-stroke oil to add to your gas for any ratio: 50:1, 40:1, 32:1 and more, in ounces or milliliters.">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans+Condensed:wght@400;600;700&display=swap">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<style>
+:root{
+  --bg:#eef1f3; --panel:#ffffff; --ink:#18222b; --muted:#5b6872; --line:#d3d9de;
+  --accent:#1d5ea8; --accent-soft:#e2ecf7; --hi:#fff3c4; --hi-ink:#6b4d00; --warn:#9a5b00; --warn-soft:#fdf1dc; --ok:#1f7a4a;
+  --f-display:"IBM Plex Sans Condensed","Arial Narrow",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12171c; --panel:#1a2128; --ink:#e4e9ed; --muted:#93a0aa; --line:#2c3640;
+  --accent:#6aa6ec; --accent-soft:#1e2d3e; --hi:#3a3216; --hi-ink:#f0cf6e; --warn:#e8b25c; --warn-soft:#2e2615; --ok:#6fcf97; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12171c; --panel:#1a2128; --ink:#e4e9ed; --muted:#93a0aa; --line:#2c3640;
+  --accent:#6aa6ec; --accent-soft:#1e2d3e; --hi:#3a3216; --hi-ink:#f0cf6e; --warn:#e8b25c; --warn-soft:#2e2615; --ok:#6fcf97; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-display);font-size:15px;line-height:1.4;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header h1{margin:0;font-size:1.9rem;font-weight:700;letter-spacing:-.01em}
+header p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+.lbl{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.gt-back{align-self:flex-start;display:inline-flex;align-items:center;min-height:44px;font:600 .9rem var(--f-mono);color:var(--accent);text-decoration:none}
+.gt-back:hover{text-decoration:underline}
+
+/* inputs */
+.num{font:600 1.4rem var(--f-mono);padding:10px 12px;border:2px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;min-width:0}
+.num.sm{font-size:1.15rem;padding:8px 10px}
+.num:focus{outline:none;border-color:var(--accent)}
+.inrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 .85rem var(--f-mono);border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:4px 10px;border-radius:999px;cursor:pointer;min-height:34px}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+.seg{display:flex;flex-wrap:wrap;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px;align-self:flex-start}
+.seg button{font:600 .9rem var(--f-display);border:0;background:transparent;color:var(--muted);padding:6px 12px;border-radius:5px;cursor:pointer;min-height:38px}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--panel)}
+.opt{display:flex;flex-direction:column;gap:6px}
+.chip:focus-visible,.seg button:focus-visible,.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ratios .chip{min-width:52px}
+.other{display:flex;align-items:center;gap:6px;font:600 .9rem var(--f-mono);color:var(--muted)}
+.other input{width:84px;font:600 1rem var(--f-mono);padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);min-height:36px}
+.other input:focus{outline:none;border-color:var(--accent)}
+
+/* mixer */
+.mixer{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}
+.m-in{padding:16px;display:flex;flex-direction:column;gap:14px;border-right:1px solid var(--line);min-width:0}
+.m-out{min-width:0;display:flex;flex-direction:column}
+.res{padding:16px;display:flex;flex-direction:column;gap:4px;flex:1;justify-content:center}
+.big{font:700 2.6rem var(--f-mono);color:var(--accent);line-height:1.1;overflow-wrap:anywhere}
+.big small{font-size:1.1rem;font-weight:600}
+.alt{font:400 .95rem var(--f-mono);color:var(--muted)}
+.say{margin:8px 0 0;font-size:1rem}
+.say b{font-family:var(--f-mono)}
+.miss{padding:16px;color:var(--muted)}
+.tip{padding:10px 16px;background:var(--warn-soft);color:var(--warn);font-size:.9rem;border-top:1px solid var(--line);border-radius:0 0 10px 0}
+@media (max-width:640px){.mixer{grid-template-columns:1fr}.m-in{border-right:0;border-bottom:1px solid var(--line)}.tip{border-radius:0 0 10px 10px}}
+
+/* tabs and panels */
+.tabs{display:flex;flex-wrap:wrap;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px;align-self:flex-start}
+.tabs button{font:600 .95rem var(--f-display);border:0;background:transparent;color:var(--muted);padding:7px 12px;border-radius:5px;cursor:pointer;min-height:38px}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--panel)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.card h2{margin:0;font-size:1.15rem}
+.card p{margin:0}
+.note{font-size:.9rem;color:var(--muted);margin:0}
+.answer{border-radius:8px;padding:12px 14px;background:var(--accent-soft);display:flex;flex-direction:column;gap:2px}
+.answer .big{font-size:1.9rem}
+.answer.warn{background:var(--warn-soft)}
+.answer .st{margin:0 0 4px;font-weight:600;color:var(--ink)}
+.answer .alt{font-family:var(--f-display);font-size:.95rem}
+.answer.warn .big{color:var(--warn)}
+.answer.ok{background:color-mix(in srgb,var(--ok) 14%,var(--panel))}
+.answer.ok .big{color:var(--ok);font-size:1.5rem}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:420px){.two{grid-template-columns:1fr}}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:520px}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;background:var(--panel)}
+thead th.cur{color:var(--accent)}
+td{font:.95rem var(--f-mono);font-variant-numeric:tabular-nums}
+td:first-child{font-weight:700;font-family:var(--f-display);font-size:1rem}
+th:first-child,td:first-child{position:sticky;left:0;background:var(--panel);z-index:1;box-shadow:1px 0 0 var(--line)}
+td.cur{background:var(--accent-soft);color:var(--accent);font-weight:700}
+tr.cur td{background:var(--hi)}
+tr.cur td.cur{background:var(--hi);color:var(--hi-ink);outline:2px solid var(--hi-ink);outline-offset:-2px}
+.legend{display:flex;flex-direction:column;gap:6px;font-size:.88rem;color:var(--muted)}
+.legend b{color:var(--ink)}
+</style>
+<script type="module" src="/src/pages/fuelmix.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <a class="gt-back" href="/#apps">&lt; garage_terminal</a>
+
+  <header>
+    <h1>Fuel Mix</h1>
+    <p>How much 2-stroke oil to add to your gas. Use the ratio on the engine, its manual or the oil bottle.</p>
+  </header>
+
+  <section class="mixer" aria-label="Mix fuel">
+    <div class="m-in">
+      <div class="opt">
+        <label class="lbl" for="gas">Gas</label>
+        <div class="inrow"><input id="gas" class="num" type="text" inputmode="decimal" autocomplete="off" value="5"><div class="seg" id="unit" role="group" aria-label="Gas unit"></div></div>
+        <div class="chips" id="cans"></div>
+      </div>
+      <div class="opt">
+        <span class="lbl" id="rl">Ratio (gas : oil)</span>
+        <div class="chips ratios" id="ratios" role="group" aria-labelledby="rl"></div>
+        <label class="other">Other<input id="ratioOther" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 36" aria-label="Other ratio"> : 1</label>
+      </div>
+    </div>
+    <div class="m-out" id="out" aria-live="polite"></div>
+  </section>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" data-t="chart" aria-selected="true">Chart</button>
+    <button role="tab" data-t="bottle" aria-selected="false">I have a bottle</button>
+    <button role="tab" data-t="fix" aria-selected="false">Fix a mix</button>
+  </div>
+
+  <section id="p-chart" class="card" role="tabpanel" aria-label="Chart"></section>
+
+  <section id="p-bottle" class="card" role="tabpanel" aria-label="I have a bottle" hidden>
+    <h2>How much gas does my bottle of oil make?</h2>
+    <p class="note">Single-mix bottles are sized for one can at one ratio. Enter what's in yours; it uses the ratio picked above.</p>
+    <div class="opt">
+      <label class="lbl" for="bottle">Oil in the bottle (<span class="ou">fl oz</span>)</label>
+      <input id="bottle" class="num sm" type="text" inputmode="decimal" autocomplete="off" value="2.6">
+      <div class="chips" id="bottles"></div>
+    </div>
+    <div id="bottleOut" aria-live="polite"></div>
+  </section>
+
+  <section id="p-fix" class="card" role="tabpanel" aria-label="Fix a mix" hidden>
+    <h2>Put in the wrong amount of oil?</h2>
+    <p class="note">Tell it what's in the can now. It uses the ratio picked above as the one you wanted.</p>
+    <div class="two">
+      <div class="opt"><label class="lbl" for="fixGas">Gas in the can (<span class="gu">gal</span>)</label><input id="fixGas" class="num sm" type="text" inputmode="decimal" autocomplete="off" value="5"></div>
+      <div class="opt"><label class="lbl" for="fixOil">Oil already in (<span class="ou">fl oz</span>)</label><input id="fixOil" class="num sm" type="text" inputmode="decimal" autocomplete="off" value="16"></div>
+    </div>
+    <div id="fixOut" aria-live="polite"></div>
+  </section>
+
+  <div class="legend">
+    <span><b>50:1</b> means 50 parts gas to 1 part oil. A bigger number means less oil.</span>
+    <span><b>How to mix:</b> pour the oil into the can first, add the gas, then cap it and shake. Mix only what you'll use in about a month, and use the oil the engine maker calls for.</span>
+    <span><b>4-stroke engines</b> (separate oil fill) never get oil in the gas.</span>
+  </div>
+</div>
+</body>
+</html>
