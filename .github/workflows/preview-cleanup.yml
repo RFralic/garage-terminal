@@ -39,7 +39,8 @@ jobs:
         run: |
           set -euo pipefail
           FB="npx --yes firebase-tools@15 --project garage-terminal-15499 --non-interactive"
-          ids=$($FB hosting:channel:list --json | node -e '
+          if ! list=$($FB hosting:channel:list --json); then echo "Couldn't list preview links:"; echo "$list"; exit 1; fi
+          ids=$(printf '%s' "$list" | node -e '
             const pr = process.env.PR;
             let out = "";
             process.stdin.on("data", d => out += d).on("end", () => {
