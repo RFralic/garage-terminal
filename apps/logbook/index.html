@@ -240,6 +240,19 @@ button.stk{flex:none;background:transparent;min-height:32px;padding:3px 9px;curs
 .tqrow button{min-height:38px;padding:6px 10px}
 .tqchart{display:inline-block;margin-left:4px;font:700 .68rem/1.5 inherit;letter-spacing:.05em;text-transform:uppercase;padding:0 6px;border:1px dashed var(--warn);border-radius:4px;color:var(--warn);white-space:nowrap;vertical-align:1px}
 .tqchart.blk{display:table;margin:3px 0 0}
+/* Phones: each torque spec is a small card (name and torque on top, socket and notes under) instead of a 4-column table */
+@media (max-width:640px){
+  .tqtable,.tqtable tbody{display:block;min-width:0;width:100%}
+  .tqtable thead{display:none}
+  .tqtable tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .tqtable tr:last-child{border-bottom:0}
+  .tqtable td{display:block;padding:0;border:0;white-space:normal;min-width:0}
+  .tqtable td.tqi{grid-column:1;grid-row:1;font-weight:500}
+  .tqtable td.tqv{grid-column:2;grid-row:1;text-align:right;white-space:nowrap;font-weight:600}
+  .tqtable td.tqs,.tqtable td.tqn{grid-column:1/-1;font-size:.88rem;color:var(--muted)}
+  .tqtable td.tqs:not(:empty)::before{content:"Socket: "}
+  .tqtable td:empty{display:none}
+}
 .tqrow .tqfrom{grid-column:1/-1;order:-1;font-size:.82rem;color:var(--warn)}
 .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .saved{font-size:.85rem;color:var(--ok)}
@@ -701,7 +714,7 @@ function renderSpecView(e){
       return `<div><dt>${l}</dt><dd class="${m?"mono":""}"><span class="pnline"><span>${esc(withBrand(e[f+"Brand"],e[f]))}</span>${badge(st,lab,num,br)}</span>${alts.length?`<span style="display:block;font-size:.82rem">Also listed as: ${esc(alts.join(", "))}</span>`:""}${sub?`<span class="muted" style="display:block;font-size:.78rem;font-family:inherit">${esc(sub)}</span>`:""}</dd></div>`}).join("")}</dl>`:`<p class="muted">No specs yet. Tap Edit to add them.</p>`)}
     ${parts.length?sect("Other part numbers",`<div class="prows">${parts.map(p=>{const num=String(p.number||"").trim(),al=splitAlts(p.alts),st=num?stockFor(num,al):[],loc=num?shelfLine(st,num):"";
       return `<div class="prow"><span class="pnline"><span><b style="font-weight:500">${esc(p.name||"Part")}</b><span class="pn2">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>${al.length?`<span class="pn2">Also listed as: ${esc(al.join(", "))}</span>`:""}${loc?`<span class="loc">${esc(loc)}</span>`:""}</span>${num?badge(st,p.name||"Part",num,p.brand):""}</span></div>`}).join("")}</div>`):""}
-    ${sect("Torque specs &amp; bolt sizes",(tq.length?`<div class="tablewrap"><table><thead><tr><th>Fastener</th><th>Socket / wrench</th><th>Torque</th><th>Notes</th></tr></thead><tbody>${tq.map(t=>`<tr><td>${tqItem(t)}</td><td class="n">${esc(t.size||"")}</td><td class="n">${tqVal(t)}</td><td>${esc(tqNote(t))}</td></tr>`).join("")}</tbody></table></div>${tq.some(tqChart)?`<p class="muted" style="margin:6px 0 0;font-size:.82rem"><span class="tqchart" style="margin-left:0">From chart</span> ${TQ_CHART_TIP}. Check the manual when you can.</p>`:""}`:`<p class="muted">None yet. Tap Edit to add bolt sizes and torque specs.</p>`)+tqLink())}
+    ${sect("Torque specs &amp; bolt sizes",(tq.length?`<div class="tablewrap"><table class="tqtable"><thead><tr><th>Fastener</th><th>Socket / wrench</th><th>Torque</th><th>Notes</th></tr></thead><tbody>${tq.map(t=>`<tr><td class="tqi">${tqItem(t)}</td><td class="n tqs">${esc(t.size||"")}</td><td class="n tqv">${tqVal(t)}</td><td class="tqn">${esc(tqNote(t))}</td></tr>`).join("")}</tbody></table></div>${tq.some(tqChart)?`<p class="muted" style="margin:6px 0 0;font-size:.82rem"><span class="tqchart" style="margin-left:0">From chart</span> ${TQ_CHART_TIP}. Check the manual when you can.</p>`:""}`:`<p class="muted">None yet. Tap Edit to add bolt sizes and torque specs.</p>`)+tqLink())}
     ${x.tagged.length?sect(`Also on the shelf for this ${kindOf(e)==="vehicle"?"vehicle":"engine"}`,`<p class="muted" style="margin:0;font-size:.85rem">Parts tagged to it that aren't in its specs.</p><div class="prows">${x.tagged.map(p=>{const loc=locOf([p]);
       return `<div class="prow"><span class="pnline"><span><b style="font-weight:500">${esc(p.name||"Part")}</b><span class="pn2">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>${loc?`<span class="loc">${esc(loc)}</span>`:""}</span>${badge([p],p.name||"Part",p.number||"",p.brand)}</span></div>`}).join("")}</div>`):""}
     <div class="actions"><button id="goInv">Go to inventory for this ${kindOf(e)==="vehicle"?"vehicle":"engine"} →</button></div>
