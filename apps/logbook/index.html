@@ -238,6 +238,9 @@ button.stk{flex:none;background:transparent;min-height:32px;padding:3px 9px;curs
 #backupText{min-height:120px;font-family:var(--f-mono);font-size:.78rem}
 .tqrow{display:grid;grid-template-columns:1.3fr .7fr .55fr .6fr 1.3fr auto;gap:8px;align-items:center}
 .tqrow button{min-height:38px;padding:6px 10px}
+.tqchart{display:inline-block;margin-left:4px;font:700 .68rem/1.5 inherit;letter-spacing:.05em;text-transform:uppercase;padding:0 6px;border:1px dashed var(--warn);border-radius:4px;color:var(--warn);white-space:nowrap;vertical-align:1px}
+.tqchart.blk{display:table;margin:3px 0 0}
+.tqrow .tqfrom{grid-column:1/-1;order:-1;font-size:.82rem;color:var(--warn)}
 .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .saved{font-size:.85rem;color:var(--ok)}
 /* log */
@@ -382,6 +385,15 @@ const VSPEC=[
 const VPH={warranty:"3 yr / 36,000 mi · ends Jun 2028 · Smith Ford",year:"2018",make:"Ford",model:"F-150",trim:"XLT",vin:"1FTEW1EG…",plate:"ABC-1234",engine:"5.0L V8",hours:"84,250",oilType:"SAE 5W-20 synthetic blend",oilCapacity:"8.8 qt with filter",oilInterval:"5000",oilFilter:"FL-500S",airFilter:"FA-1883",cabinFilter:"FP-67",plug:"SP-542",plugGap:"0.049 in",brakePads:"Front / rear #",battery:"Group 65",wipers:"22 in / 22 in",tireSize:"275/65R18",tirePressure:"35 psi",coolant:"Orange (Motorcraft Yellow)",transFluid:"Mercon ULV"};
 const TQ_UNITS=["ft-lb","in-lb","N·m"];
 const tqSorted=e=>[...(e.torque||[])].sort((a,b)=>(a.item||"").localeCompare(b.item||""));
+/* Torque specs added from the Torque Chart app carry src:"chart" and chart:"3/8-16 Grade 5, dry".
+   They're always shown as "From chart" so a typical value is never mistaken for the manual's spec. */
+const TQ_CHART_TIP="a typical value from the Torque Chart for that bolt size and grade, not from a manual or this machine's specs";
+const tqChart=t=>!!t&&t.src==="chart";
+const tqVal=t=>t.value?esc(t.value)+" "+esc(t.unit||"ft-lb"):"";
+const tqItem=t=>esc(t.item)+(tqChart(t)?`<span class="tqchart blk" title="From chart: ${TQ_CHART_TIP}">From chart</span>`:"");
+const tqNote=t=>[tqChart(t)&&t.chart?"Chart: "+t.chart:"",t.notes||""].filter(Boolean).join(" · ");
+const tqKeep=t=>tqChart(t)?{src:"chart",chart:String(t.chart||"").slice(0,80)}:{};
+const tqLink=()=>location.pathname.startsWith("/apps/")?`<p class="muted" style="margin:6px 0 0;font-size:.85rem"><a href="/apps/torque-chart">Torque Chart ↗</a> typical values by bolt size and grade.</p>`:"";
 const withBrand=(b,n)=>[b,n].map(x=>String(x||"").trim()).filter(Boolean).join(" ");
 const milesN=v=>{const n=parseFloat(String(v??"").replace(/[^0-9.]/g,""));return isNaN(n)?null:n};
 const fmtMi=n=>Math.round(n).toLocaleString("en-US")+" mi";
@@ -689,7 +701,7 @@ function renderSpecView(e){
       return `<div><dt>${l}</dt><dd class="${m?"mono":""}"><span class="pnline"><span>${esc(withBrand(e[f+"Brand"],e[f]))}</span>${badge(st,lab,num,br)}</span>${alts.length?`<span style="display:block;font-size:.82rem">Also listed as: ${esc(alts.join(", "))}</span>`:""}${sub?`<span class="muted" style="display:block;font-size:.78rem;font-family:inherit">${esc(sub)}</span>`:""}</dd></div>`}).join("")}</dl>`:`<p class="muted">No specs yet. Tap Edit to add them.</p>`)}
     ${parts.length?sect("Other part numbers",`<div class="prows">${parts.map(p=>{const num=String(p.number||"").trim(),al=splitAlts(p.alts),st=num?stockFor(num,al):[],loc=num?shelfLine(st,num):"";
       return `<div class="prow"><span class="pnline"><span><b style="font-weight:500">${esc(p.name||"Part")}</b><span class="pn2">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>${al.length?`<span class="pn2">Also listed as: ${esc(al.join(", "))}</span>`:""}${loc?`<span class="loc">${esc(loc)}</span>`:""}</span>${num?badge(st,p.name||"Part",num,p.brand):""}</span></div>`}).join("")}</div>`):""}
-    ${isV?sect("Torque specs &amp; bolt sizes",tq.length?`<div class="tablewrap"><table><thead><tr><th>Fastener</th><th>Socket / wrench</th><th>Torque</th><th>Notes</th></tr></thead><tbody>${tq.map(t=>`<tr><td>${esc(t.item)}</td><td class="n">${esc(t.size||"")}</td><td class="n">${t.value?esc(t.value)+" "+esc(t.unit||"ft-lb"):""}</td><td>${esc(t.notes||"")}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted">None yet. Tap Edit to add bolt sizes and torque specs.</p>`):""}
+    ${sect("Torque specs &amp; bolt sizes",(tq.length?`<div class="tablewrap"><table><thead><tr><th>Fastener</th><th>Socket / wrench</th><th>Torque</th><th>Notes</th></tr></thead><tbody>${tq.map(t=>`<tr><td>${tqItem(t)}</td><td class="n">${esc(t.size||"")}</td><td class="n">${tqVal(t)}</td><td>${esc(tqNote(t))}</td></tr>`).join("")}</tbody></table></div>${tq.some(tqChart)?`<p class="muted" style="margin:6px 0 0;font-size:.82rem"><span class="tqchart" style="margin-left:0">From chart</span> ${TQ_CHART_TIP}. Check the manual when you can.</p>`:""}`:`<p class="muted">None yet. Tap Edit to add bolt sizes and torque specs.</p>`)+tqLink())}
     ${x.tagged.length?sect(`Also on the shelf for this ${kindOf(e)==="vehicle"?"vehicle":"engine"}`,`<p class="muted" style="margin:0;font-size:.85rem">Parts tagged to it that aren't in its specs.</p><div class="prows">${x.tagged.map(p=>{const loc=locOf([p]);
       return `<div class="prow"><span class="pnline"><span><b style="font-weight:500">${esc(p.name||"Part")}</b><span class="pn2">${esc([p.brand,p.number].filter(Boolean).join(" · "))||"No part #"}</span>${loc?`<span class="loc">${esc(loc)}</span>`:""}</span>${badge([p],p.name||"Part",p.number||"",p.brand)}</span></div>`}).join("")}</div>`):""}
     <div class="actions"><button id="goInv">Go to inventory for this ${kindOf(e)==="vehicle"?"vehicle":"engine"} →</button></div>
@@ -722,14 +734,14 @@ function renderSpecs(e){
         <input id="palt-${i}" class="altin" aria-label="Also listed as" value="${esc(p.alts||"")}" placeholder="Also listed as: other brands' numbers, comma between" maxlength="300"></div>`).join("")}</div>
       <div><button id="addPart">+ Add part</button></div>
     </div>
-    ${kindOf(e)==="vehicle"?`<div class="parts"><h3>Torque specs &amp; bolt sizes</h3>
+    ${kindOf(e)!=="part"?`<div class="parts"><h3>Torque specs &amp; bolt sizes</h3>
       <div id="tqList" class="parts">${(d.torque||[]).map((t,i)=>`<div class="tqrow">
         <input id="tqi-${i}" aria-label="Fastener" value="${esc(t.item)}" placeholder="What (e.g. Lug nuts, oil drain plug)">
         <input id="tqs-${i}" class="pn" aria-label="Socket or wrench size" value="${esc(t.size)}" placeholder="Socket (22 mm)">
         <input id="tqv-${i}" class="pn" aria-label="Torque value" inputmode="decimal" value="${esc(t.value)}" placeholder="100">
         <select id="tqu-${i}" aria-label="Unit">${TQ_UNITS.map(u=>`<option ${u===(t.unit||"ft-lb")?"selected":""}>${u}</option>`).join("")}</select>
         <input id="tqn-${i}" aria-label="Notes" value="${esc(t.notes)}" placeholder="Notes (star pattern, thread locker, extension)">
-        <button class="ghost" data-rmt="${i}">Remove</button></div>`).join("")}</div>
+        <button class="ghost" data-rmt="${i}">Remove</button>${tqChart(t)?`<span class="tqfrom"><span class="tqchart" style="margin-left:0">From chart</span> ${esc(t.chart||"")}, not from a manual</span>`:""}</div>`).join("")}</div>
       <div><button id="addTq">+ Add bolt / torque spec</button></div>
     </div>`:""}
     <div class="parts"><h3>Manuals &amp; links</h3>
@@ -749,7 +761,7 @@ function renderSpecs(e){
     k.spec.forEach(([f,,,pt])=>{const el=$("#f-"+f);if(el)d[f]=el.value;if(pt){const b=$("#f-"+f+"Brand");if(b)d[f+"Brand"]=b.value;const al=$("#f-"+f+"Alts");if(al)d[f+"Alts"]=al.value.trim()}});
     d.parts=(d.parts||[]).map((p,i)=>({name:$("#pn-"+i).value,brand:$("#pbr-"+i).value,number:$("#pnum-"+i).value,alts:($("#palt-"+i)?$("#palt-"+i).value:"").trim()}));
     d.docs=(d.docs||[]).map((x,i)=>({label:$("#dl-"+i).value,url:$("#du-"+i).value.trim()}));
-    if($("#tqList"))d.torque=(d.torque||[]).map((t,i)=>({item:$("#tqi-"+i).value,size:$("#tqs-"+i).value.trim(),value:$("#tqv-"+i).value.trim(),unit:$("#tqu-"+i).value,notes:$("#tqn-"+i).value}));};
+    if($("#tqList"))d.torque=(d.torque||[]).map((t,i)=>({...tqKeep(t),item:$("#tqi-"+i).value,size:$("#tqs-"+i).value.trim(),value:$("#tqv-"+i).value.trim(),unit:$("#tqu-"+i).value,notes:$("#tqn-"+i).value}));};
   if($("#addTq")){$("#addTq").onclick=()=>{pull();d.torque=d.torque||[];d.torque.push({item:"",size:"",value:"",unit:"ft-lb",notes:""});renderSpecs(e);$("#tqi-"+(d.torque.length-1)).focus()};
     $("#tqList").querySelectorAll("[data-rmt]").forEach(b=>b.onclick=()=>{pull();d.torque.splice(+b.dataset.rmt,1);renderSpecs(e)})}
   $("#addPart").onclick=()=>{pull();d.parts.push({name:"",brand:"",number:"",alts:""});renderSpecs(e);$("#pn-"+(d.parts.length-1)).focus()};
@@ -1555,7 +1567,7 @@ function parseBackup(text){
     if(out.kind==="part")out.fits=(Array.isArray(r.fits)?r.fits:[]).map(String).filter(x=>/^[A-Za-z0-9_-]{1,60}$/.test(x)).slice(0,50);
     out.parts=(Array.isArray(r.parts)?r.parts:[]).map(p=>({name:str(p&&p.name),brand:str(p&&p.brand),number:str(p&&p.number)}));
     out.docs=(Array.isArray(r.docs)?r.docs:[]).map(d=>({label:str(d&&d.label),url:safeUrl(d&&d.url)})).filter(d=>d.url);
-    out.torque=(Array.isArray(r.torque)?r.torque:[]).map(t=>({item:str(t&&t.item),size:str(t&&t.size),value:str(t&&t.value),unit:TQ_UNITS.includes(t&&t.unit)?t.unit:"ft-lb",notes:str(t&&t.notes)}));
+    out.torque=(Array.isArray(r.torque)?r.torque:[]).map(t=>({...tqKeep(t),item:str(t&&t.item),size:str(t&&t.size),value:str(t&&t.value),unit:TQ_UNITS.includes(t&&t.unit)?t.unit:"ft-lb",notes:str(t&&t.notes)}));
     out.log=(Array.isArray(r.log)?r.log:[]).map(l=>({id:/^[A-Za-z0-9_-]{1,60}$/.test(String(l&&l.id||""))?String(l.id):uid(),date:/^\d{4}-\d{2}-\d{2}$/.test(String(l&&l.date))?l.date:"",hours:str(l&&l.hours),cost:str(l&&l.cost),tasks:(Array.isArray(l&&l.tasks)?l.tasks:[]).map(str).slice(0,30),notes:str(l&&l.notes)}));
     return out});
   if(!recs.length)throw new Error("That backup doesn't have any engines, vehicles or parts in it.");
@@ -1576,7 +1588,7 @@ function sheetBody(e){
   <div><h2>Part numbers</h2><table><thead><tr><th>Part</th><th>Brand</th><th>Part #</th></tr></thead><tbody>${parts.map(p=>`<tr><td>${esc(p[0])}</td><td>${esc(p[2])}</td><td class="m">${esc(p[1]||"")}</td></tr>`).join("")||"<tr><td colspan=3>None recorded</td></tr>"}</tbody></table></div></div>
   <h2>Service log</h2><table class="log"><thead><tr><th style="width:13%">Date</th><th style="width:10%">${k.meterCol}</th><th style="width:27%">Work done</th><th>Notes / parts used</th><th style="width:10%">Cost</th></tr></thead><tbody>
   ${log.map(l=>`<tr><td class="m">${fmtDate(l.date)}</td><td class="m">${esc(l.hours||"")}</td><td>${esc((l.tasks||[]).join(", "))}</td><td class="lnotes">${esc(l.notes||"")}${usedParts(l,false)}</td><td class="m">${l.cost?"$"+esc(l.cost):""}</td></tr>`).join("")}${blanks}</tbody></table>
-  ${(e.torque||[]).length?`<h2>Torque specs &amp; bolt sizes</h2><table><thead><tr><th style="width:30%">Fastener</th><th style="width:16%">Socket / wrench</th><th style="width:15%">Torque</th><th>Notes</th></tr></thead><tbody>${tqSorted(e).map(t=>`<tr><td>${esc(t.item)}</td><td class="m">${esc(t.size||"")}</td><td class="m">${esc(t.value)} ${esc(t.value?t.unit||"ft-lb":"")}</td><td>${esc(t.notes||"")}</td></tr>`).join("")}</tbody></table>`:""}
+  ${(e.torque||[]).length?`<h2>Torque specs &amp; bolt sizes</h2><table><thead><tr><th style="width:30%">Fastener</th><th style="width:16%">Socket / wrench</th><th style="width:15%">Torque</th><th>Notes</th></tr></thead><tbody>${tqSorted(e).map(t=>`<tr><td>${esc(t.item)}</td><td class="m">${esc(t.size||"")}</td><td class="m">${esc(t.value)} ${esc(t.value?t.unit||"ft-lb":"")}${tqChart(t)?" (from chart)":""}</td><td>${esc(tqNote(t))}</td></tr>`).join("")}</tbody></table>${(e.torque||[]).some(tqChart)?`<p style="font-size:9pt">From chart: ${TQ_CHART_TIP}.</p>`:""}`:""}
   ${docsOf(e).length?`<h2>Manuals &amp; links</h2><table><tbody>${docsOf(e).map(d=>`<tr><th style="width:28%">${esc(d.label)}</th><td class="m url">${esc(safeUrl(d.url))}</td></tr>`).join("")}</tbody></table>`:""}
   ${e.notes?`<h2>Notes</h2><p class="notes">${esc(e.notes)}</p>`:""}`;
 }

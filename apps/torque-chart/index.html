@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<!--
+  Torque Chart, served at /apps/torque-chart.
+  Built to match Tap Drill Chart (same layout and colors). The values are
+  calculated in src/torque/calc.js; the page code is src/pages/torque.js and
+  "Add to a vehicle or engine" is src/torque/machines.js (loaded only when used).
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Torque Chart · Garage Terminal</title>
+<meta name="description" content="Typical bolt torque for SAE grades 2, 5 and 8 and metric classes 8.8, 10.9 and 12.9, dry and oiled, plus a torque unit converter.">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Condensed:wght@400;600;700&display=swap">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<style>
+:root{
+  --bg:#eef1f3; --panel:#ffffff; --ink:#18222b; --muted:#5b6872; --line:#d3d9de;
+  --accent:#1d5ea8; --accent-soft:#e2ecf7; --hi:#fff3c4; --hi-ink:#6b4d00; --warn:#9a5b00; --warn-soft:#fdf1dc;
+  --ok:#1f7a4a;
+  --f-display:"IBM Plex Sans Condensed","Arial Narrow",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12171c; --panel:#1a2128; --ink:#e4e9ed; --muted:#93a0aa; --line:#2c3640;
+  --accent:#6aa6ec; --accent-soft:#1e2d3e; --hi:#3a3216; --hi-ink:#f0cf6e; --warn:#e8b25c; --warn-soft:#2e2615; --ok:#6fcf97; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12171c; --panel:#1a2128; --ink:#e4e9ed; --muted:#93a0aa; --line:#2c3640;
+  --accent:#6aa6ec; --accent-soft:#1e2d3e; --hi:#3a3216; --hi-ink:#f0cf6e; --warn:#e8b25c; --warn-soft:#2e2615; --ok:#6fcf97; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-display);font-size:15px;line-height:1.4;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header h1{margin:0;font-size:1.9rem;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+.lbl{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+
+/* Finder */
+.finder{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}
+.f-in{padding:16px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line);min-width:0}
+#bolt,#cv-in{font:600 1.4rem var(--f-mono);padding:10px 12px;border:2px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
+#bolt:focus,#cv-in:focus{outline:none;border-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 .85rem var(--f-mono);border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:4px 9px;border-radius:999px;cursor:pointer;min-height:32px}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+.seg{display:flex;flex-wrap:wrap;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px;align-self:flex-start}
+.seg button{font:600 .9rem var(--f-display);border:0;background:transparent;color:var(--muted);padding:6px 11px;border-radius:5px;cursor:pointer;min-height:34px}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--panel)}
+.opt{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.chip:focus-visible,.seg button:focus-visible,.tabs button:focus-visible,#q:focus-visible,td.size button:focus-visible,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.f-out{min-width:0;display:flex;flex-direction:column}
+.res-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px}
+.res-head h2{margin:0;font-size:1.25rem}
+.figs{display:grid;grid-template-columns:1.2fr 1fr}
+.fig{padding:12px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.fig + .fig{border-left:1px solid var(--line)}
+.big{font:700 2.2rem var(--f-mono);color:var(--accent);line-height:1.1;overflow-wrap:anywhere}
+.big small{font-size:1rem;font-weight:600}
+.big.two{color:var(--ink);font-size:1.45rem}
+.alt{font:400 .88rem var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.extra{padding:10px 16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 18px;font-size:.9rem;color:var(--muted)}
+.extra b{font-family:var(--f-mono);font-weight:600;color:var(--ink)}
+.acts{padding:10px 16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{font:600 .95rem var(--f-display);border:1px solid var(--accent);background:var(--accent);color:var(--panel);padding:8px 14px;border-radius:7px;cursor:pointer;min-height:40px}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn[disabled]{opacity:.55;cursor:default}
+.tip{padding:10px 16px;background:var(--warn-soft);color:var(--warn);font-size:.9rem;border-top:1px solid var(--line);border-radius:0 0 10px 0}
+.miss{padding:16px;color:var(--muted);display:flex;flex-direction:column;gap:10px}
+.miss b{color:var(--ink)}
+.tag,.pill{display:inline-block;font:600 .7rem var(--f-display);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent)}
+.tag.chart{background:var(--warn-soft);color:var(--warn)}
+@media (max-width:640px){.finder{grid-template-columns:1fr}.f-in{border-right:0;border-bottom:1px solid var(--line)}.tip{border-radius:0 0 10px 10px}}
+@media (max-width:380px){.figs{grid-template-columns:1fr}.fig + .fig{border-left:0;border-top:1px solid var(--line)}}
+
+/* Converter */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.card h2{margin:0;font-size:1.15rem}
+.cv-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+#cv-in{font-size:1.2rem;padding:8px 10px}
+#cv-unit{font:600 1rem var(--f-mono);padding:9px 8px;border:2px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-height:46px}
+.cv-out{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.cv-out div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column}
+.cv-out b{font:700 1.15rem var(--f-mono);color:var(--ink);overflow-wrap:anywhere}
+.cv-out span{font-size:.8rem;color:var(--muted)}
+.cv-out div.from{background:var(--accent-soft);border-color:var(--accent)}
+
+/* Chart */
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px}
+.tabs button{font:600 .95rem var(--f-display);border:0;background:transparent;color:var(--muted);padding:7px 12px;border-radius:5px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--panel)}
+#q{font:1rem var(--f-mono);padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);width:200px;max-width:100%}
+.note{font-size:.9rem;color:var(--muted);margin:0}
+.scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:620px}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+thead th{background:var(--panel);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+thead tr.group th{color:var(--accent);border-bottom:0;padding-bottom:0}
+th.g,td.g{border-left:1px solid var(--line)}
+td{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.9rem}
+td.size button{font:700 1rem var(--f-display);color:var(--ink);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline dotted var(--muted);text-underline-offset:3px}
+td.size button:hover{color:var(--accent)}
+td.v{color:var(--accent);font-weight:600}
+td.dim,td .dim{color:var(--muted)}
+tbody tr.first td{border-top:2px solid var(--line)}
+tbody tr:hover td{background:var(--accent-soft)}
+tbody tr.match td{background:var(--hi)}
+tbody tr.match td.size button,tbody tr.match td.v{color:var(--hi-ink)}
+td.pick{outline:2px solid var(--hi-ink);outline-offset:-2px}
+.empty{padding:20px;color:var(--muted);text-align:center}
+.legend{display:flex;flex-direction:column;gap:6px;font-size:.88rem;color:var(--muted)}
+.legend b{color:var(--ink)}
+.legend ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+
+/* Add to a machine */
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:0;width:min(480px,calc(100vw - 24px));max-height:calc(100dvh - 24px)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dlg{padding:16px;display:flex;flex-direction:column;gap:12px}
+.dlg h2{margin:0;font-size:1.25rem}
+.dlg label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--muted);font-weight:600}
+.dlg input,.dlg select{font:1rem var(--f-display);padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);min-height:42px;width:100%}
+.dlg .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chartbox{border:1px dashed var(--warn);background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:.9rem;display:flex;flex-direction:column;gap:4px}
+.chartbox b{font-family:var(--f-mono);color:var(--ink)}
+.dlg .msg{margin:0;font-size:.9rem}
+.dlg .msg.ok{color:var(--ok)}
+.dlg .msg.err{color:var(--warn)}
+.dlg .btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.gt-back{align-self:flex-start;display:inline-flex;align-items:center;min-height:44px;font:600 .9rem var(--f-mono);color:var(--accent);text-decoration:none}
+.gt-back:hover{text-decoration:underline}
+.gt-back:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+</style>
+<script type="module" src="/src/pages/torque.js"></script>
+</head>
+<body>
+
+<div class="wrap">
+  <a class="gt-back" href="/#apps">&lt; garage_terminal</a>
+
+  <header>
+    <h1>Torque Chart</h1>
+    <p>Typical torque for a bolt by size and grade. Use your manual's spec whenever there is one; this chart is for when there isn't.</p>
+  </header>
+
+  <section class="finder" aria-label="Find a torque">
+    <div class="f-in">
+      <label class="lbl" for="bolt">Bolt size</label>
+      <input id="bolt" type="text" autocomplete="off" spellcheck="false" value="3/8-16" placeholder="3/8-16, #10-32, M10, M8x1">
+      <div class="chips" id="quick"></div>
+      <div class="opt"><span class="lbl" id="gl">Grade</span><div class="seg" id="grade" role="group" aria-labelledby="gl"></div></div>
+      <div class="opt"><span class="lbl" id="cl">Threads</span><div class="seg" id="cond" role="group" aria-labelledby="cl"></div></div>
+      <div class="opt"><span class="lbl" id="ul">Show in</span><div class="seg" id="unit" role="group" aria-labelledby="ul"></div></div>
+    </div>
+    <div class="f-out" id="out" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-labelledby="cv-h">
+    <h2 id="cv-h">Unit converter</h2>
+    <div class="cv-row">
+      <input id="cv-in" type="text" inputmode="decimal" autocomplete="off" value="25" aria-label="Torque to convert">
+      <select id="cv-unit" aria-label="Unit"></select>
+    </div>
+    <div class="cv-out" id="cv-out" aria-live="polite"></div>
+  </section>
+
+  <div class="bar">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-t="sae" aria-selected="true">Inch (SAE)</button>
+      <button role="tab" data-t="metric" aria-selected="false">Metric</button>
+    </div>
+    <input id="q" type="search" placeholder="Filter chart…" aria-label="Filter chart rows">
+  </div>
+
+  <p class="note" id="note"></p>
+  <div class="scroll"><table id="tbl"></table></div>
+  <div class="legend">
+    <span><b>Highlighted row</b> matches the bolt above. Tap any size to look it up.</span>
+    <span><b>Dry</b> clean threads, plain or zinc-plated, as they come. <b>Oiled</b> threads with engine oil on them (25% less).</span>
+    <span><b>How it's worked out:</b> torque = K × diameter × clamp load, where the clamp load is 75% of the bolt's proof load (SAE J429, ISO 898-1) and K is 0.20 dry or 0.15 oiled. Charts that use other assumptions will differ a little.</span>
+    <span><b>Don't use these numbers for:</b></span>
+    <ul>
+      <li>head bolts, connecting rods, flywheels, wheels and anything with a spec in the manual</li>
+      <li>torque-to-yield bolts (torque plus an angle), which are often single use</li>
+      <li>stainless steel, brass or aluminum bolts</li>
+      <li>bolts threaded into aluminum, cast iron or plastic, or through gaskets</li>
+      <li>anti-seize (it lowers friction even more than oil; follow its maker's advice)</li>
+    </ul>
+  </div>
+</div>
+
+<dialog id="add" aria-labelledby="add-h"></dialog>
+
+</body>
+</html>
