@@ -231,6 +231,16 @@ button.stk{flex:none;background:transparent;min-height:32px;padding:3px 9px;curs
 .stepper span{min-width:30px;text-align:center;font-weight:500}
 .imeta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.82rem;color:var(--muted)}
 .tag.reorder{color:var(--warn);border-color:var(--warn)}
+.tag.ordered{color:var(--steel);border-color:var(--steel)}
+.iitem.ordered{border-left:4px solid var(--steel)}
+.iord{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:.9rem}
+.iord .late{color:var(--accent);font-weight:600}
+.iord .iordb{display:flex;gap:6px;flex-wrap:wrap}
+.iord button.sm{min-height:40px;padding:6px 12px}
+.iord.form{flex-direction:column;align-items:stretch}
+.iordf{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.iordf label{display:flex;flex-direction:column;gap:4px}
+.iord .actions{margin:0}
 .ifits{font-size:.85rem;border-top:1px solid var(--line);padding-top:6px}.ifits span{color:var(--steel);font-weight:500}
 .scanbox{display:grid;gap:10px;background:var(--surface-2);border:1px dashed var(--steel);border-radius:6px;padding:14px}
 .backup{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;display:grid;gap:10px}
@@ -1142,6 +1152,12 @@ const DL={save:async({filename,data})=>{
 /* ---------- garage inventory ---------- */
 const PCATS=["Filters","Spark plugs","Belts","Fluids","Hardware","Electrical","Brakes","Tires","Other"];
 let invFilter="All", invQuery="", partEdit=null, scanBusy=false;
+/* Reordering, like Job_Board's shopping list: Reorder -> Ordered (ordered date, how many, expected date; late is flagged) -> Received (adds what came in to On hand).
+   Data: part.order = {on:"YYYY-MM-DD", qty:n, expected:"YYYY-MM-DD"|""}; gone once received. invOrd = the card with its little form open. */
+let invOrd=null;
+const isOrdered=p=>!!(p&&p.order&&p.order.on);
+const orderLate=p=>isOrdered(p)&&p.order.expected&&p.order.expected<today();
+const orderQtyGuess=p=>{const r=parseFloat(p.reorderAt);const need=isNaN(r)?1:Math.max(1,Math.ceil(r-qtyN(p)+1));return need};
 /* invFor: show only the parts for one engine / vehicle (the spec sheet's "Go to inventory" sets it).
    While it's set, parts you add, scan in or bulk scan are tagged to that machine. */
 let invFor=(()=>{try{return localStorage.getItem("inv-for")||""}catch(e){return""}})();
@@ -1200,6 +1216,20 @@ const qtyTxt=(p,n=qtyN(p))=>`${Math.round(n*100)/100}${unitOf(p)?" "+unitOf(p):"
 const sameUnit=ps=>{const u=[...new Set(ps.map(unitOf))];return u.length===1?u[0]:""};
 const qtyStr=n=>String(Math.round(Math.max(0,n)*100)/100);
 const isLow=p=>p.reorderAt!==""&&p.reorderAt!=null&&!isNaN(parseFloat(p.reorderAt))&&qtyN(p)<=parseFloat(p.reorderAt);
+/* The reorder strip on an inventory card: a Mark ordered button, the order's dates with Received, or the small form for either. */
+function ordRow(p){const id=esc(p.id),u=unitOf(p),uw=u?" "+u:"";
+  if(invOrd&&invOrd.id===p.id&&invOrd.mode==="order")return `<div class="iord form"><b>Mark ordered</b>
+    <div class="iordf"><label>How many<input id="ord-qty" class="pn" inputmode="decimal" value="${esc(String(invOrd.qty))}"></label><label>Expected (optional)<input id="ord-exp" type="date" value="${esc(invOrd.expected||"")}"></label></div>
+    <div class="actions"><button type="button" class="primary" data-ordsave="${id}">Mark ordered</button><button type="button" class="ghost" data-ordcancel="1">Cancel</button></div></div>`;
+  if(invOrd&&invOrd.id===p.id&&invOrd.mode==="recv")return `<div class="iord form"><b>Received</b>
+    <div class="iordf"><label>How many came in${uw?` (${esc(u)})`:""}<input id="ord-got" class="pn" inputmode="decimal" value="${esc(String(invOrd.got))}"></label></div>
+    <small class="muted">Adds them to On hand (${esc(qtyTxt(p))} now).</small>
+    <div class="actions"><button type="button" class="primary" data-ordrecv="${id}">Add to On hand</button><button type="button" class="ghost" data-ordcancel="1">Cancel</button></div></div>`;
+  if(isOrdered(p)){const o=p.order,late=orderLate(p);
+    return `<div class="iord"><span class="${late?"late":"muted"}">Ordered ${esc(fmtDate(o.on))}${o.expected?` · ${late?"Late: expected":"Expected"} ${esc(fmtDate(o.expected))}`:""}</span>
+      <span class="iordb"><button type="button" class="ghost sm" data-ordundo="${id}" aria-label="Not ordered after all: ${esc(p.name||"part")}">Not ordered</button><button type="button" class="sm" data-ordgot="${id}">✓ Received</button></span></div>`}
+  if(isLow(p))return `<div class="iord"><span class="muted">At or below ${esc(p.reorderAt)}${uw}: time to reorder</span><button type="button" class="sm" data-ordmark="${id}">Mark ordered</button></div>`;
+  return ""}
 const money=n=>"$"+(Math.round(n*100)/100).toLocaleString(undefined,{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2});
 const costN=p=>{const n=parseFloat(String(p.cost||"").replace(/[^0-9.]/g,""));return isNaN(n)?0:n};
 
@@ -1214,26 +1244,29 @@ function renderInventory(kt,wire){
   if(!all.length&&fn){app.innerHTML=kt+`<div class="inv">${forSel}${forBar}<div class="empty"><h2>No parts for ${esc(fn)} yet</h2><p class="muted">Add or scan its filters, plugs and belts here and they're tagged to it.</p><div class="actions" style="justify-content:center"><button class="primary" id="addEmpty">+ Add part</button>${scanBtn("invScan","Scan a barcode",true)}${scanBtn("invBulk","Bulk scan",true)}</div></div></div>`;
     $("#addEmpty").onclick=()=>openPart(null);if($("#invScan"))$("#invScan").onclick=startScan;if($("#invBulk"))$("#invBulk").onclick=startBulk;wireFor();wire();return}
   if(!all.length){app.innerHTML=kt+`<div class="empty"><h2>No spare parts yet</h2><p class="muted">Keep a list of the filters, plugs, belts and fluids on your shelf.</p><div class="actions" style="justify-content:center"><button class="primary" id="addEmpty">+ Add part</button>${scanBtn("invScan","Scan a barcode",true)}${scanBtn("invBulk","Bulk scan",true)}</div></div>`;$("#addEmpty").onclick=()=>openPart(null);if($("#invScan"))$("#invScan").onclick=startScan;if($("#invBulk"))$("#invBulk").onclick=startBulk;wire();return}
-  const low=all.filter(isLow).length, value=all.reduce((s,p)=>s+costN(p)*qtyN(p),0);
+  const low=all.filter(isLow).length, nOrd=all.filter(isOrdered).length, value=all.reduce((s,p)=>s+costN(p)*qtyN(p),0);
   const q=invQuery.trim().toLowerCase();
-  const shown=all.filter(p=>(invFilter==="All"||(invFilter==="Low stock"?isLow(p):p.category===invFilter))&&
+  const shown=all.filter(p=>(invFilter==="All"||(invFilter==="To reorder"?isLow(p)&&!isOrdered(p):invFilter==="Ordered"?isOrdered(p):p.category===invFilter))&&
     (!q||[p.name,p.number,p.brand,p.location,(p.barcodes||[]).join(" "),(p.alts||[]).join(" "),allFits(p).map(nameOf).join(" "),p.fitsText||""].join(" ").toLowerCase().includes(q)))
     .sort((a,b)=>(a.location||"~").localeCompare(b.location||"~")||(a.name||"").localeCompare(b.name||""));
-  const cats=["All","Low stock",...PCATS.filter(c=>all.some(p=>p.category===c))];
+  if(invFilter==="Ordered"&&!nOrd)invFilter="All";
+  const cats=["All","To reorder",...(nOrd?["Ordered"]:[]),...PCATS.filter(c=>all.some(p=>p.category===c))];
   app.innerHTML=kt+`<div class="inv">
     <div class="invstats"><div class="istat"><small>Parts</small><b>${all.length}</b></div>
-      <div class="istat ${low?"warn":""}"><small>Low stock</small><b>${low}</b></div>
+      <div class="istat ${low-all.filter(p=>isLow(p)&&isOrdered(p)).length?"warn":""}"><small>To reorder</small><b>${all.filter(p=>isLow(p)&&!isOrdered(p)).length}</b></div>
+      ${nOrd?`<div class="istat"><small>Ordered</small><b>${nOrd}</b></div>`:""}
       <div class="istat"><small>Value</small><b>${value?money(value):"—"}</b></div></div>
     ${forSel}${forBar}
     <div class="invsearchrow"><label class="invsearch">Search parts<input type="search" id="invQ" value="${esc(invQuery)}" placeholder="Name, part #, or what it fits"></label>${scanBtn("invScan")}${scanBtn("invBulk","Bulk scan",true)}</div>
     <div class="chips">${cats.map(c=>`<button class="fchip" data-cat="${esc(c)}" aria-pressed="${c===invFilter}">${esc(c)}</button>`).join("")}</div>
     <div class="ilist">${shown.length?shown.map(p=>{const fits=[...allFits(p).map(nameOf).filter(Boolean),...fitsTyped(p)];
-      return `<article class="iitem ${isLow(p)?"low":""}">
+      return `<article class="iitem ${isOrdered(p)?"ordered":isLow(p)?"low":""}">
         <div class="irow"><button class="iname" data-edit="${esc(p.id)}"><b>${esc(p.name||"Unnamed part")}</b><span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))||"No part #"}</span></button>
           <div class="stepper"><button aria-label="Use one" data-dq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>−</button><span class="mono">${esc(qtyTxt(p))}</span><button aria-label="Add one" data-dq="1" data-id="${esc(p.id)}">+</button></div></div>
-        <div class="imeta">${p.category?`<span class="tag">${esc(p.category)}</span>`:""}${p.location?`<span>${esc(p.location)}</span>`:""}${isLow(p)?`<span class="tag reorder">Reorder</span>`:""}${(p.receipts||[]).length?`<span>${p.receipts.length} receipt${p.receipts.length>1?"s":""}</span>`:""}</div>
+        <div class="imeta">${p.category?`<span class="tag">${esc(p.category)}</span>`:""}${p.location?`<span>${esc(p.location)}</span>`:""}${isOrdered(p)?`<span class="tag ordered">Ordered${p.order.qty?" "+esc(p.order.qty):""}</span>`:isLow(p)?`<span class="tag reorder">Reorder</span>`:""}${(p.receipts||[]).length?`<span>${p.receipts.length} receipt${p.receipts.length>1?"s":""}</span>`:""}</div>
         ${(p.warranty||"").trim()?`<div class="iwarr">Warranty: <span>${esc(p.warranty)}</span></div>`:""}
         ${fits.length?`<div class="ifits">Fits: <span>${esc(fits.join(", "))}</span></div>`:""}
+        ${ordRow(p)}
       </article>`}).join(""):`<p class="muted">No parts match. Try another search or filter${fn?", or Show all parts":""}.</p>`}</div></div>`;
   const qi=$("#invQ");qi.addEventListener("input",()=>{invQuery=qi.value;clearTimeout(qi._t);qi._t=setTimeout(()=>{render();const n=$("#invQ");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}},250)});
   if($("#invScan"))$("#invScan").onclick=startScan;
@@ -1243,7 +1276,23 @@ function renderInventory(kt,wire){
   app.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openPart(engines.find(e=>e.id===b.dataset.edit)));
   app.querySelectorAll("[data-dq]").forEach(b=>b.onclick=async()=>{const p=engines.find(e=>e.id===b.dataset.id);if(!p)return;
     b.disabled=true;const n=Math.max(0,Math.round((qtyN(p)+parseInt(b.dataset.dq,10))*100)/100);
-    try{await saveEngine({...p,qty:String(n)})}catch(err){showBanner("Couldn't update the count: "+(err.message||err.code))}});
+    const nx={...p,qty:String(n)};if(isOrdered(p)&&n>qtyN(p)&&!isLow(nx))delete nx.order; // back above the reorder level: treat it as received
+    try{await saveEngine(nx)}catch(err){showBanner("Couldn't update the count: "+(err.message||err.code))}});
+  const pOf=id=>engines.find(e=>e.id===id);
+  const focusOrd=()=>{const f=$("#ord-qty")||$("#ord-got");if(f){f.focus();f.select&&f.select()}};
+  app.querySelectorAll("[data-ordmark]").forEach(b=>b.onclick=()=>{const p=pOf(b.dataset.ordmark);if(!p)return;invOrd={id:p.id,mode:"order",qty:orderQtyGuess(p),expected:""};render();focusOrd()});
+  app.querySelectorAll("[data-ordgot]").forEach(b=>b.onclick=()=>{const p=pOf(b.dataset.ordgot);if(!p)return;invOrd={id:p.id,mode:"recv",got:p.order.qty||1};render();focusOrd()});
+  app.querySelectorAll("[data-ordcancel]").forEach(b=>b.onclick=()=>{invOrd=null;render()});
+  app.querySelectorAll("[data-ordundo]").forEach(b=>b.onclick=async()=>{const p=pOf(b.dataset.ordundo);if(!p)return;const {order,...rest}=p;
+    try{await saveEngine(rest);render()}catch(err){showBanner("Couldn't update it: "+(err.message||err.code))}});
+  app.querySelectorAll("[data-ordsave]").forEach(b=>b.onclick=async()=>{const p=pOf(b.dataset.ordsave);if(!p)return;
+    const n=parseFloat(($("#ord-qty").value||"").replace(",","."));const exp=$("#ord-exp").value||"";
+    b.disabled=true;invOrd=null;
+    try{await saveEngine({...p,order:{on:today(),qty:n>0?Math.round(n*100)/100:"",expected:exp}});render()}catch(err){showBanner("Couldn't mark it ordered: "+(err.message||err.code))}});
+  app.querySelectorAll("[data-ordrecv]").forEach(b=>b.onclick=async()=>{const p=pOf(b.dataset.ordrecv);if(!p)return;
+    const g=parseFloat(($("#ord-got").value||"").replace(",","."));if(!(g>0)){const f=$("#ord-got");f.focus();return}
+    const {order,...rest}=p;b.disabled=true;invOrd=null;
+    try{await saveEngine({...rest,qty:String(Math.round((qtyN(p)+g)*100)/100)});render()}catch(err){showBanner("Couldn't add them: "+(err.message||err.code))}});
   wire();
 }
 function guessCat(l){l=String(l||"").toLowerCase();return /filter/.test(l)?"Filters":/plug/.test(l)?"Spark plugs":/belt/.test(l)?"Belts":/brake/.test(l)?"Brakes":/battery|bulb|fuse/.test(l)?"Electrical":/tire/.test(l)?"Tires":/oil|fluid|coolant/.test(l)?"Fluids":/blade|bolt|pin|nut/.test(l)?"Hardware":""}
