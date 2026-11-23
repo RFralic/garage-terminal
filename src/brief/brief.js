@@ -275,6 +275,12 @@ export function buildBrief({ records = [], projects = [], upkeep = [], pantries 
         unit: unitOf(p),
         out: qtyN(p) <= 0,
         location: String(p.location || '').trim(),
+        // marked ordered in the Logbook inventory: {on, qty, expected}
+        ...(p.order && p.order.on ? {
+          ordered: String(p.order.on).slice(0, 10),
+          expected: String(p.order.expected || '').slice(0, 10),
+          late: !!(p.order.expected && String(p.order.expected).slice(0, 10) < today),
+        } : {}),
       }));
   }
 
@@ -414,8 +420,15 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const C = { bg: '#eef0f3', card: '#ffffff', ink: '#1a1d23', muted: '#5b6472', line: '#e3e6ea', head: '#16202e', accent: '#1d4ed8', soon: '#92400e', soonBg: '#fef3c7', over: '#991b1b', overBg: '#fee2e2', okBg: '#f5f7fa' };
 const FONT = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;";
 
+// "ordered 11/22, expected 11/25" (or "late: expected …") for a part marked ordered
+const md = (k) => (k ? `${+k.slice(5, 7)}/${+k.slice(8, 10)}` : '');
+function orderNote(p) {
+  if (!p.ordered) return '';
+  return `ordered ${md(p.ordered)}${p.expected ? `, ${p.late ? 'late: expected' : 'expected'} ${md(p.expected)}` : ''}`;
+}
+
 function pill(text, kind) {
-  const [fg, bg] = kind === 'over' ? [C.over, C.overBg] : [C.soon, C.soonBg];
+  const [fg, bg] = kind === 'over' ? [C.over, C.overBg] : kind === 'ordered' ? [C.head, C.okBg] : [C.soon, C.soonBg];
   return `<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:${bg};color:${fg};font-size:12px;font-weight:600">${esc(text)}</span>`;
 }
 
@@ -452,8 +465,8 @@ export function renderBrief(brief, { siteUrl = 'https://garageterminal.com' } = 
   }
   if (s.lowStock) {
     parts.push(section(SECTIONS.lowStock, s.lowStock.length ? rows(s.lowStock, (p) => row('', p.name,
-      [p.number && `#${p.number}`, `${p.qty}${p.unit ? ` ${p.unit}` : ''} on hand · reorder at ${p.reorderAt}${p.unit ? ` ${p.unit}` : ''}`, p.location].filter(Boolean).join(' · '),
-      pill(p.out ? 'Out' : 'Low', p.out ? 'over' : 'soon'))) : '', 'Nothing below its reorder level.'));
+      [p.number && `#${p.number}`, `${p.qty}${p.unit ? ` ${p.unit}` : ''} on hand · reorder at ${p.reorderAt}${p.unit ? ` ${p.unit}` : ''}`, orderNote(p), p.location].filter(Boolean).join(' · '),
+      p.ordered ? (p.late ? pill('Late', 'over') : pill('Ordered', 'ordered')) : pill(p.out ? 'Out' : 'Low', p.out ? 'over' : 'soon'))) : '', 'Nothing below its reorder level.'));
   }
   if (s.maintenance) {
     parts.push(section(brief.alert ? 'Coming due' : SECTIONS.maintenance, s.maintenance.length ? rows(s.maintenance, (m) => row('', `${m.machine}: ${m.item}`, m.detail,
@@ -500,7 +513,7 @@ ${brief.alert ? 'From your Garage Terminal Logbook and Home Projects. You get th
   };
   if (s.today) add(heading(brief, 'today'), s.today, (e) => `${e.when}  ${e.title}${e.detail ? ` (${e.detail})` : ''}`, calNote || (brief.weekly ? 'Nothing on the calendar this week.' : 'Nothing on the calendar today.'));
   if (s.upcoming) add(heading(brief, 'upcoming'), s.upcoming, (e) => `${e.title}: ${e.when}, ${e.detail}`, calNote || `Nothing ${brief.weekly ? `in the ${brief.aheadDays} days after this week` : `in the next ${brief.aheadDays} days`}.`);
-  if (s.lowStock) add(SECTIONS.lowStock, s.lowStock, (p) => `${p.name}${p.number ? ` #${p.number}` : ''}: ${p.qty}${p.unit ? ` ${p.unit}` : ''} on hand (reorder at ${p.reorderAt}${p.unit ? ` ${p.unit}` : ''})`, 'Nothing below its reorder level.');
+  if (s.lowStock) add(SECTIONS.lowStock, s.lowStock, (p) => `${p.name}${p.number ? ` #${p.number}` : ''}: ${p.qty}${p.unit ? ` ${p.unit}` : ''} on hand (reorder at ${p.reorderAt}${p.unit ? ` ${p.unit}` : ''})${p.ordered ? `, ${orderNote(p)}` : ''}`, 'Nothing below its reorder level.');
   if (s.maintenance) add(SECTIONS.maintenance, s.maintenance, (m) => `${m.machine}: ${m.item}, ${m.detail}`, 'Everything is on schedule.');
   if (s.projects) add(SECTIONS.projects, s.projects, (p) => `${p.title}: ${p.detail}`, 'No open projects.');
   const andMore = (n) => (n ? [{ more: n }] : []);

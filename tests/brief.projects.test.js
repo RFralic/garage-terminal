@@ -33,3 +33,27 @@ describe('Morning Brief: Job_Board customer jobs', () => {
     assert.match(text, /Ford 8N tune up/);
   });
 });
+
+describe('Morning Brief: parts marked ordered', () => {
+  const recs = [
+    { kind: 'part', name: 'Oil filter', number: '52 050 02', qty: '0', reorderAt: '1' },
+    { kind: 'part', name: 'Spark plug', number: 'BKR5E', qty: '1', reorderAt: '1', order: { on: '2026-11-18', qty: 2, expected: '2026-11-25' } },
+    { kind: 'part', name: 'Belt', number: 'A-1', qty: '0', reorderAt: '1', order: { on: '2026-11-10', qty: 1, expected: '2026-11-15' } },
+  ];
+  const brief = buildBrief({ records: recs, nowMs: NOW, tz: TZ, sections: { lowStock: true } });
+  const by = Object.fromEntries(brief.sections.lowStock.map((p) => [p.name, p]));
+  test('ordered parts carry their dates; late when the expected date has passed', () => {
+    assert.equal(by['Oil filter'].ordered, undefined);
+    assert.equal(by['Spark plug'].ordered, '2026-11-18');
+    assert.equal(by['Spark plug'].late, false);
+    assert.equal(by['Belt'].late, true);
+  });
+  test('the email says Ordered / Late instead of Low', () => {
+    const { html, text } = renderBrief(brief, { siteUrl: 'https://example.com' });
+    assert.match(text, /Spark plug #BKR5E: 1 on hand \(reorder at 1\), ordered 11\/18, expected 11\/25/);
+    assert.match(text, /Belt #A-1: .*late: expected 11\/15/);
+    assert.match(html, />Ordered</);
+    assert.match(html, />Late</);
+    assert.match(html, />Out</);
+  });
+});
