@@ -40,6 +40,37 @@ import { renderChat } from '../bbs/chat.js';
 import { getReads, isNewThread, markRead, watchBoards, watchChat, watchFiles, watchRecentThreads } from '../bbs/data.js';
 
 const $ = (id) => document.getElementById(id);
+
+// Chat screens (Shop Talk, private messages) fill the screen with the typing box at the bottom.
+// When the phone keyboard opens, Android Chrome (and iPhone Safari) only shrink the *visible*
+// area, so the box ended up behind the keyboard with no way to scroll to it. Track the visible
+// height (above the keyboard) in --b-vvh, keep the page at the top, and keep the newest
+// messages in view while the keyboard opens and closes.
+(function fitAboveKeyboard() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  let raf = 0;
+  const fit = () => {
+    raf = 0;
+    const root = document.documentElement;
+    root.style.setProperty('--b-vvh', `${Math.round(vv.height)}px`);
+    if (!document.body.classList.contains('chatmode')) return;
+    if (window.scrollY || vv.offsetTop) window.scrollTo(0, 0);
+    const log = document.querySelector('.chatlog');
+    if (log && log.dataset.atBottom !== '0') log.scrollTop = log.scrollHeight;
+  };
+  const soon = () => { if (!raf) raf = requestAnimationFrame(fit); };
+  vv.addEventListener('resize', soon);
+  vv.addEventListener('scroll', soon);
+  // Remember whether the log was at the bottom before the keyboard moved it.
+  document.addEventListener('scroll', (e) => {
+    const log = e.target;
+    if (log instanceof Element && log.classList.contains('chatlog')) {
+      log.dataset.atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80 ? '1' : '0';
+    }
+  }, true);
+  fit();
+})();
 const main = $('b-main');
 
 /** The tabs: [address, label]. */
