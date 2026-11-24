@@ -935,10 +935,14 @@ service cloud.firestore {
     //   bbsDms/{convId}   convId = the two uids, sorted, joined by "_"
     //     { members: [uidA, uidB], handles: { uid: handle }, lastAt, lastText, lastBy, lastId,
     //       readAt: { uid: when }, hidden: { uid: when } }
-    //   bbsDms/{convId}/messages/{id}  { uid, handle, text, photo?, createdAt }
+    //   bbsDms/{convId}/messages/{id}  { uid, handle, text: '', enc: { v, iv, ct, k }, photo?: { w, h }, createdAt }
+    //   bbsDms/{convId}/blobs/{id}     { uid, iv, data (bytes), createdAt }  a message's sealed photo
     // Only the two members can read or write, not even the sysop. Both must still be in the
     // BBS (removed members lose access at once; nobody can message them). Muted members can't
     // send. You may delete your own messages; nobody edits them. Kept until deleted.
+    // End-to-end encrypted since Nov 24, 2026 (src/bbs/e2e.js): new messages must be sealed
+    // (text empty, words in enc.ct) and lastText can only be a fixed placeholder, so nothing
+    // readable is stored. Older plain messages stay readable by the two members.
 
     function dmMember(uid) {
       return exists(/databases/$(database)/documents/admins/$(uid))
@@ -953,6 +957,17 @@ service cloud.firestore {
     // A map change that only touches my own key.
     function onlyMyKey(after, before) {
       return after is map && after.diff(before).affectedKeys().hasOnly([request.auth.uid]);
+    }
+
+    // A sealed message body: version 1, a 12-byte nonce, the sealed words, and the lock id
+    // of each member (sorted-member order). Only the two members' devices can open it.
+    function dmSealed(e) {
+      return e is map && e.keys().hasOnly(['v', 'iv', 'ct', 'k'])
+        && e.v == 1
+        && bbsText(e.iv, 16, 16)
+        && bbsText(e.ct, 24, 12000)
+        && e.k is list && e.k.size() == 2
+        && bbsText(e.k[0], 16, 16) && bbsText(e.k[1], 16, 16);
     }
 
     match /bbsDms/{convId} {
@@ -971,7 +986,7 @@ service cloud.firestore {
         && request.resource.data.handles[request.auth.uid] == me().handle
         && request.resource.data.lastBy == request.auth.uid
         && request.resource.data.lastAt == request.time
-        && bbsText(request.resource.data.lastText, 0, 100)
+        && request.resource.data.lastText == ''
         && request.resource.data.readAt is map && request.resource.data.readAt.keys().hasOnly([request.auth.uid])
         && request.resource.data.hidden is map && request.resource.data.hidden.size() == 0;
 
@@ -982,7 +997,8 @@ service cloud.firestore {
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastAt', 'lastBy'])
             || (request.resource.data.lastBy == request.auth.uid && request.resource.data.lastAt == request.time
                 && bbsCanTalk() && dmMember(dmOther(resource.data.members))))
-        && bbsText(request.resource.data.lastText, 0, 100)
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastText'])
+            || request.resource.data.lastText in ['Encrypted message', 'Message deleted'])
         && onlyMyKey(request.resource.data.readAt, resource.data.readAt)
         && onlyMyKey(request.resource.data.hidden, resource.data.hidden);
 
@@ -992,19 +1008,59 @@ service cloud.firestore {
         allow read: if dmIn(convId);
         allow create: if dmIn(convId) && bbsCanTalk()
           && dmMember(dmOther(get(/databases/$(database)/documents/bbsDms/$(convId)).data.members))
-          && request.resource.data.keys().hasOnly(['uid', 'handle', 'text', 'photo', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'handle', 'text', 'enc', 'photo', 'createdAt'])
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.handle == me().handle
           && request.resource.data.createdAt == request.time
-          && bbsText(request.resource.data.text, 0, 2000)
-          && (request.resource.data.text.matches('(?s).*\\S.*') || 'photo' in request.resource.data)
+          && request.resource.data.text == ''
+          && dmSealed(request.resource.data.enc)
           && (!('photo' in request.resource.data) || (request.resource.data.photo is map
-               && request.resource.data.photo.keys().hasOnly(['path', 'w', 'h'])
-               && request.resource.data.photo.path.matches('^bbs/dm/' + request.auth.uid + '/' + convId + '/[A-Za-z0-9_.-]{1,100}$')
-               && request.resource.data.photo.w is int && request.resource.data.photo.h is int));
+               && request.resource.data.photo.keys().hasOnly(['w', 'h'])
+               && request.resource.data.photo.w is int && request.resource.data.photo.h is int
+               && existsAfter(/databases/$(database)/documents/bbsDms/$(convId)/blobs/$(msgId))));
         allow update: if false;
         allow delete: if dmIn(convId) && resource.data.uid == request.auth.uid;
       }
+
+      // A message's photo, sealed. Written in the same batch as its message.
+      match /blobs/{msgId} {
+        allow read: if dmIn(convId);
+        allow create: if dmIn(convId) && bbsCanTalk()
+          && request.resource.data.keys().hasOnly(['uid', 'iv', 'data', 'createdAt'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && bbsText(request.resource.data.iv, 16, 16)
+          && request.resource.data.data is bytes
+          && request.resource.data.data.size() > 0 && request.resource.data.data.size() <= 750 * 1024;
+        allow update: if false;
+        allow delete: if dmIn(convId) && resource.data.uid == request.auth.uid;
+      }
+    }
+
+    // ---------- message locks (end-to-end encryption, src/bbs/keys.js) --------------------
+    //   bbsKeys/{uid}        { x, y, kid, at }  the public half; any member can read it
+    //   bbsKeyBackups/{uid}  { kid, v, iter, salt, iv, ct, at }  the private half, scrambled
+    //                        with the member's passphrase; only they can read it
+    // Only the member themself writes either one (not even the sysop through the app).
+    match /bbsKeys/{uid} {
+      allow read: if bbsIn();
+      allow create, update: if isSelf(uid) && bbsIn()
+        && request.resource.data.keys().hasOnly(['x', 'y', 'kid', 'at'])
+        && bbsText(request.resource.data.x, 43, 43) && bbsText(request.resource.data.y, 43, 43)
+        && bbsText(request.resource.data.kid, 16, 16)
+        && request.resource.data.at == request.time;
+      allow delete: if isSelf(uid);
+    }
+    match /bbsKeyBackups/{uid} {
+      allow read, delete: if isSelf(uid);
+      allow create, update: if isSelf(uid) && bbsIn()
+        && request.resource.data.keys().hasOnly(['kid', 'v', 'iter', 'salt', 'iv', 'ct', 'at'])
+        && bbsText(request.resource.data.kid, 16, 16)
+        && request.resource.data.v == 1
+        && request.resource.data.iter is int && request.resource.data.iter >= 100000
+        && bbsText(request.resource.data.salt, 24, 24) && bbsText(request.resource.data.iv, 16, 16)
+        && bbsText(request.resource.data.ct, 100, 600)
+        && request.resource.data.at == request.time;
     }
 
     match /bbsReads/{uid} {

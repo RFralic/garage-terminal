@@ -260,6 +260,21 @@ designs in `reference/bbs-design/`, not deployed). It isn't linked from any menu
   not even the sysop.** Kept until deleted: you can delete your own messages and hide a conversation from your
   own list (a new message brings it back). Removed members lose access and can't be messaged; muted members
   can't send. No emails. Tests: `tests/bbs.dm.rules.test.js`.
+  - **End-to-end encrypted (since Nov 24, 2026; `src/bbs/e2e.js`, `src/bbs/keys.js`).** Each member makes a
+    **message lock** (ECDH P-256 key pair) on their device the first time they open Crew, protected by a
+    **message passphrase** (10+ characters). The public half is at `bbsKeys/{uid}` (members read it); the
+    private half, scrambled with the passphrase (PBKDF2-SHA256 600,000 rounds → AES-GCM), is at
+    `bbsKeyBackups/{uid}` (only its owner reads it), so a new phone or computer unlocks with the same
+    passphrase. The unlocked key stays on the device in IndexedDB (not exportable); **Message lock settings**
+    on Crew change the passphrase or lock the device. Words and photos are sealed with AES-256-GCM using a key
+    both members derive (ECDH → HKDF, bound to the conversation and both lock ids); the sender's uid is
+    authenticated, so a message can't be moved or passed off as the other person's. Messages store
+    `text: ''` + `enc: { v, iv, ct, k }`; photos are sealed bytes at `bbsDms/{conv}/blobs/{msgId}` (≤ 700 KB,
+    shrunk to fit; no Storage, no CORS). The list preview is only ever "Encrypted message" / "Message
+    deleted". The rules refuse plain messages. **Safety code** in a conversation: 12 digits both members
+    compare in person; a "lock changed" warning shows if the other person's lock changes. **Forgotten
+    passphrase = start over with a new lock; old messages can't be read by anyone.** Messages from before Nov 24
+    stay as they were, marked "not encrypted". Tests: `tests/dm.crypto.test.js` (runs without the emulator).
 - **Emails** go out from Cloud Functions the moment something happens, from `brief@garageterminal.com`
   through Resend: "New BBS request" to the sysop, "You're in" to people who are approved or added. Nothing is
   sent to people who are denied or removed.
