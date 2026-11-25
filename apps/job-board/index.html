@@ -730,7 +730,21 @@ function renderProject(){
   const id=view.pid,p=projects[id],pr=progress(p),parts=allParts(p);
   const to=parts.filter(x=>x.status==='To order').length,od=parts.filter(x=>x.status==='Ordered').length,st=parts.filter(x=>x.status==='In stock').length;
   const c=p.customer||{};
-  let h=`<div class="top"><button class="btn ghost" data-act="home">← Projects</button><button class="btn sm" data-act="editp">${view.editing==='p'?'Close':'Edit details'}</button></div>
+  let h=`<div class="top"><button class="btn ghost" data-act="home">← Projects</button><button class="btn sm" data-act="editp">${view.editing==='p'?'Close':'Edit details'}</button></div>`;
+  // the details form opens right under its button (it used to open far down the page, out of sight)
+  if(view.editing==='p'){
+    h+=`<form class="panel" data-form="editp">
+      <label class="f">Project name<input type="text" name="title" required maxlength="120" value="${esc(p.title)}"></label>
+      <label class="f">Project type<select name="kind"><option value="mine" ${p.kind==='mine'?'selected':''}>My equipment</option>${custOn||p.kind==='customer'?`<option value="customer" ${p.kind==='customer'?'selected':''}>Customer job</option>`:''}</select></label>
+      <label class="f">Machine<input type="text" name="machine" maxlength="120" value="${esc(p.machine)}"></label>
+      ${p.kind==='mine'?logbookSelect(p):
+      `<div class="grid2"><label class="f">Dropped off<input type="date" name="drop" value="${esc(c.dropOff)}"></label><label class="f">Promised by<input type="date" name="promised" value="${esc(c.promised)}"></label></div>
+      <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px">${esc(c.complaint)}</textarea></label>`}
+      <button class="btn primary" type="submit">Save details</button>
+      ${view.confirm==='delp'?`<div class="confirm"><span>Delete this project and all its tasks?</span><button type="button" class="btn danger sm" data-act="delp-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:`<button type="button" class="btn danger" data-act="delp">Delete project</button>`}
+    </form>`;
+  }
+  h+=`
   <div class="card" style="cursor:default">
     <div class="plate ${p.kind}" style="flex-direction:column;align-items:flex-start;gap:2px"><span>${p.kind==='customer'?'Customer job'+(jobLabel(p)?' · <span class="mono" style="font-size:14px;letter-spacing:0">'+esc(jobLabel(p))+'</span>':''):'My equipment'}</span><b style="font-size:24px">${esc(p.title||'Untitled project')}</b></div>
     <div class="body">
@@ -765,18 +779,6 @@ function renderProject(){
       </div>`;
     }
     h+=`</section>`;
-  }
-  if(view.editing==='p'){
-    h+=`<form class="panel" data-form="editp">
-      <label class="f">Project name<input type="text" name="title" required maxlength="120" value="${esc(p.title)}"></label>
-      <label class="f">Project type<select name="kind"><option value="mine" ${p.kind==='mine'?'selected':''}>My equipment</option>${custOn||p.kind==='customer'?`<option value="customer" ${p.kind==='customer'?'selected':''}>Customer job</option>`:''}</select></label>
-      <label class="f">Machine<input type="text" name="machine" maxlength="120" value="${esc(p.machine)}"></label>
-      ${p.kind==='mine'?logbookSelect(p):
-      `<div class="grid2"><label class="f">Dropped off<input type="date" name="drop" value="${esc(c.dropOff)}"></label><label class="f">Promised by<input type="date" name="promised" value="${esc(c.promised)}"></label></div>
-      <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px">${esc(c.complaint)}</textarea></label>`}
-      <button class="btn primary" type="submit">Save details</button>
-      ${view.confirm==='delp'?`<div class="confirm"><span>Delete this project and all its tasks?</span><button type="button" class="btn danger sm" data-act="delp-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:`<button type="button" class="btn danger" data-act="delp">Delete project</button>`}
-    </form>`;
   }
   h+=`<section><div class="between"><h2>Checklist</h2><span class="note">tap a task for notes, parts and links</span></div>
   ${(p.tasks||[]).length?`<div class="list">${p.tasks.map(t=>{const tp=t.parts||[];const lg=p.kind==='mine'&&loggedOf(p)[t.id];const meta=[lg?`In Logbook · ${esc(fmtDate(lg.date))}`:'',tp.length?`${tp.length} part${tp.length>1?'s':''}`:'',(t.links||[]).length?`${t.links.length} link${t.links.length>1?'s':''}`:'',t.notes&&t.notes.trim()?'notes':''].filter(Boolean).join(' · ');
@@ -1101,7 +1103,7 @@ app.addEventListener('click',async e=>{
   else if(a==='open')go({name:'project',pid:b.dataset.pid});
   else if(a==='task')go({name:'task',tid:b.dataset.tid});
   else if(a==='shop')go({name:'shop',shopJob:b.dataset.job||'all',backPid:b.dataset.job&&b.dataset.job!=='all'?b.dataset.job:(view.name==='project'?view.pid:null)});
-  else if(a==='editp'){view.editing=view.editing==='p'?null:'p';view.confirm=null;render()}
+  else if(a==='editp'){view.editing=view.editing==='p'?null:'p';view.confirm=null;render();const f=document.querySelector('form[data-form="editp"]');if(f)f.scrollIntoView({block:'nearest'})}
   else if(a==='edittask'){view.editing=view.editing==='t'?null:'t';view.confirm=null;render()}
   else if(a==='editc'){view.editing='c';render();const el=document.getElementById('c-name');if(el)el.focus()}
   else if(a==='cancelc'){view.editing=null;render()}
