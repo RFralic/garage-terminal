@@ -95,6 +95,22 @@
       </div>
     </div>
     <div class="apps" id="apps-list">
+      <!-- The main Garage card: the shop app (built from the Logbook, Job_Board and the tool apps).
+           data-sysop: only the sysop sees it while the shop app is sysop-only (sysopOnly in src/pages/shop.js).
+           Remove data-sysop when it opens to everyone. -->
+      <article class="app app-main" data-category="garage" data-sysop>
+        <div class="apphead">
+          <img src="/logo.svg" alt="" width="64" height="64">
+          <div>
+            <h3>Garage Terminal <span class="beta">Beta</span></h3>
+            <p>The whole garage in one app: today's jobs, your machines and their history, parts to order and the shop tools. Turn on Shop mode for customer jobs, the customer list, invoices and the labor clock.</p>
+            <ul class="includes" aria-label="Includes">
+              <li>Logbook</li><li>Job_Board</li><li>Torque Chart</li><li>Fuel Mix</li><li>Tap Drill Chart</li>
+            </ul>
+            <p class="meta">Installs as its own app · <a href="/shop"><span>Open <span class="long">Garage Terminal</span><span class="short">app</span> →</span></a></p>
+          </div>
+        </div>
+      </article>
       <article class="app" data-category="gym">
         <div class="apphead">
           <img src="/img/repclock-icon.svg" alt="" width="56" height="56">
