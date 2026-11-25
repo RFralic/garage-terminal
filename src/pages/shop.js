@@ -17,7 +17,7 @@
 const sysopOnly = false;
 
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.js';
 import { finishRedirectSignIn, signInWithGoogle, watchSession } from '../lib/session.js';
 import { buildBrief } from '../brief/brief.js';
@@ -93,6 +93,7 @@ let records = null;
 let projects = null;
 let loadErr = '';
 let unsubs = [];
+let dayLimit = 0; // Job_Board shop info: warn when a day has this many drop-offs (0 = no limit)
 
 function listen(uid) {
   unsubs.forEach((u) => u());
@@ -101,6 +102,8 @@ function listen(uid) {
   unsubs = [
     onSnapshot(collection(db, 'logbook', uid, 'records'), (q) => { records = q.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, fail),
     onSnapshot(collection(db, 'logbook', uid, 'projects'), (q) => { projects = q.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, fail),
+    // Job_Board's shop info (only the daily drop-off limit is used here)
+    onSnapshot(doc(db, 'logbook', uid, 'trackerSettings', 'shop'), (d) => { const v = d.exists() ? d.data() || {} : {}; dayLimit = +v.dayLimit > 0 ? Math.round(+v.dayLimit) : 0; if (tab === 'settings') renderSettings(); renderHome(); }, () => {}),
   ];
 }
 
@@ -217,6 +220,23 @@ function renderHome() {
     }).join('')
     : '<p class="sh-empty">Nothing promised in the next 7 days.</p>'}</section>`;
 
+  // schedule (Job_Board's Schedule): today's drop-offs and pickups, and the week
+  const dropsOn = (k) => projects.filter((p) => p && p.kind === 'customer' && p.customer && p.customer.dropOff === k);
+  const picksOn = (k) => projects.filter((p) => p && p.kind === 'customer' && p.customer && p.customer.pickup === k && p.status !== 'Done');
+  const tm = (t) => { if (!/^\d{1,2}:\d{2}/.test(t || '')) return ''; const [h, mi] = t.split(':').map(Number); return `${(h % 12) || 12}:${String(mi).padStart(2, '0')}${h < 12 ? 'a' : 'p'}`; };
+  const todayRows = [
+    ...dropsOn(today).map((p) => ({ t: p.customer.dropTime || '', html: `<b>${esc(p.customer.name || 'Customer')} drops off</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title].filter(Boolean).join(' · '))}</span>`, pick: false })),
+    ...picksOn(today).map((p) => ({ t: p.customer.pickupTime || '', html: `<b>${esc(p.customer.name || 'Customer')} picks up</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title, p.status === 'Ready for pickup' ? 'ready' : p.status].filter(Boolean).join(' · '))}</span>`, pick: true })),
+  ].sort((a, b) => (a.t || '99').localeCompare(b.t || '99'));
+  const wk = (() => { const d = new Date(today + 'T12:00:00'); const off = (d.getDay() + 6) % 7; return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(today, i - off)); })();
+  const weekN = wk.reduce((n, k) => n + dropsOn(k).length + picksOn(k).length, 0);
+  const schedHtml = !cust ? '' : `<section aria-labelledby="h-today"><h2 class="sh-h2" id="h-today">Today <small>${esc(new Date(today + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}${dayLimit ? ` · ${dropsOn(today).length} of ${dayLimit} drop-offs` : ''}</small></h2>${todayRows.length
+      ? todayRows.map((r) => `<button type="button" class="sh-card sh-sched${r.pick ? ' pick' : ''}" data-sched="${today}"><span class="sh-tm">${esc(tm(r.t) || '—')}</span><span style="flex:1;min-width:0">${r.html}</span></button>`).join('')
+      : '<p class="sh-empty">No drop-offs or pickups booked today.</p>'}
+    <h2 class="sh-h2" style="margin-top:12px">This week <small>${weekN} booking${weekN === 1 ? '' : 's'}</small></h2>
+    <div class="sh-week">${wk.map((k) => { const n = dropsOn(k).length + picksOn(k).length; const d = new Date(k + 'T12:00:00');
+      return `<button type="button" data-sched="${k}" class="${k === today ? 'today' : ''}" aria-label="${esc(d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))}, ${n} booking${n === 1 ? '' : 's'}"><span>${esc(d.toLocaleDateString('en-US', { weekday: 'short' }))}</span><b>${d.getDate()}</b><i aria-hidden="true">${n ? '•'.repeat(Math.min(n, 4)) + (n > 4 ? '+' : '') : ''}</i></button>`; }).join('')}</div></section>`;
+
   // parts
   const partLines = [
     ...jobLate.map((x) => card('jobs', `<span style="color:var(--danger)">Late:</span> ${esc(x.name || 'Part')}`, esc(`${x.job.title || 'Job'} · expected ${shortDay(String(x.expected).slice(0, 10))}`), '')),
@@ -233,12 +253,15 @@ function renderHome() {
     : '<p class="sh-empty">No maintenance coming due.</p>'}</section>`;
 
   const scroll = box.scrollTop;
-  box.innerHTML = clock + stats + comingHtml + partsHtml + dueHtml
+  box.innerHTML = clock + stats + schedHtml + comingHtml + partsHtml + dueHtml
     + `<p class="sh-foot">Beta: Jobs, Machines and Parts are your Job_Board and Logbook, so everything you do there shows here.</p>`;
   box.scrollTop = scroll;
 }
 
 $('p-home').addEventListener('click', (e) => {
+  const s = e.target.closest('[data-sched]');
+  // a day opens Job_Board's Schedule on that day
+  if (s) { frameFor('jobs').src = '/apps/job-board?shop=1&sched=' + encodeURIComponent(s.dataset.sched); show('jobs'); return; }
   const b = e.target.closest('[data-go]');
   if (b) show(b.dataset.go);
 });
@@ -300,12 +323,40 @@ function renderSettings() {
           <li><b>Labor clock</b> and labor rate on jobs</li>
           <li><b>Shop info</b>: your shop's name, address and phone on invoices</li>
           <li><b>Inventory check on customer jobs</b>: which of their parts are on your shelf</li>
+          <li><b>Scheduling</b>: drop-offs and pickups on a week view in Job_Board, and Today + This week on Home</li>
           <li><b>Coming up</b> on Home: promised dates and pickups for the next 7 days</li>
         </ul>
       </div>
       <p class="sh-foot">Turning it off hides customer jobs; nothing is deleted, and they come back when you turn it on. Saved on this device, and the same switch as Customer jobs in Job_Board's ⚙ Settings. The Morning Brief has its own "Include Job_Board customer jobs" box.</p>
-    </section>`;
+    </section>
+    ${on ? `<section class="sh-set" aria-labelledby="h-limit">
+      <h2 class="sh-h2" id="h-limit">Daily drop-off limit</h2>
+      <form class="sh-limit" data-limit><label for="shLimit" class="sh-foot" style="margin:0">Booking a drop-off warns when a day already has this many. It never blocks. Leave empty for no limit.</label>
+        <div class="sh-limitrow"><input id="shLimit" type="number" min="1" max="99" step="1" inputmode="numeric" value="${dayLimit || ''}" placeholder="No limit"><button type="submit" class="sh-btn ghost">Save</button></div>
+        <p class="sh-foot" id="shLimitMsg" role="status" style="margin:0"></p></form>
+    </section>
+    <section class="sh-set sh-soon" aria-labelledby="h-email" aria-describedby="h-email-soon">
+      <div class="sh-setrow"><h2 class="sh-h2" id="h-email">Daily shop email</h2><span class="sh-pill steel" id="h-email-soon">Coming soon</span></div>
+      <p class="sh-foot" style="margin:0">Your shop's day in your inbox each morning: today's drop-offs and pickups, promised and at-risk jobs, jobs ready but not picked up, job parts to order or late, and low inventory. Separate from the Morning Brief.</p>
+      <fieldset disabled class="sh-soonbox">
+        <label>Send to<input type="email" placeholder="Shop email address (to be set up)"></label>
+        <div class="sh-limitrow"><label>Time<input type="time" value="06:30"></label><label>Days<select><option>Mon–Sat</option></select></label></div>
+        <button type="button" class="sh-switch" role="switch" aria-checked="false" aria-label="Daily shop email (coming soon)"><span></span></button>
+      </fieldset>
+    </section>` : ''}`;
 }
+
+$('p-settings').addEventListener('submit', async (e) => {
+  const f = e.target.closest('[data-limit]');
+  if (!f) return;
+  e.preventDefault();
+  const v = +$('shLimit').value;
+  const n = v > 0 ? Math.min(99, Math.round(v)) : '';
+  try {
+    await setDoc(doc(db, 'logbook', user.uid, 'trackerSettings', 'shop'), { dayLimit: n }, { merge: true });
+    $('shLimitMsg').textContent = n ? `Saved: ${n} drop-offs a day.` : 'Saved: no limit.';
+  } catch (err) { $('shLimitMsg').textContent = "Couldn't save: " + (err.message || err.code); }
+});
 
 $('p-settings').addEventListener('click', (e) => {
   if (!e.target.closest('[data-shopmode]')) return;
