@@ -307,7 +307,22 @@ const money=n=>pricesOk?(Number(n)||0).toLocaleString('en-US',{style:'currency',
 const timeLog=p=>(p&&p.time&&Array.isArray(p.time.log))?p.time.log:[];
 const entryStart=e=>e.manual?new Date((e.date||today())+'T12:00:00').getTime():e.start;
 const tMs=e=>e.manual?(Number(e.minutes)||0)*60000:Math.max(0,(e.end||Date.now())-e.start);
-const running=p=>timeLog(p).find(e=>!e.manual&&!e.end);
+/* Employees step 4 (shop app, Employees on): options.ownTime -> each entry says who (e.by = person id,
+   missing = the owner) and each person's clock runs on its own; options.approveTime -> entries by people who
+   can't approve start as e.ok === false ("Needs OK") until the owner or someone with perms.approveTime
+   approves (e.ok = true, okBy, okAt) or rejects (e.rejected). Only approved time counts toward
+   "Use clocked time" on the labor. Entries made before approval was on, or by approvers, just count. */
+const ownTimeOn=()=>shopTeam.on&&shopTeam.options.ownTime!==false&&shopTeam.people.length>1;
+const approveOn=()=>shopTeam.on&&shopTeam.options.approveTime!==false&&shopTeam.people.length>1;
+const canApprove=()=>!SHOP_OF||(SHOP_OF.perms&&SHOP_OF.perms.approveTime===true);
+const byOf=e=>e.by||'owner';
+const mineT=e=>!ownTimeOn()||byOf(e)===myPid;
+const needsOk=e=>approveOn()&&e.ok===false&&!e.rejected;
+const countsT=e=>!e.rejected&&!(approveOn()&&e.ok===false);
+const okMs=p=>timeLog(p).filter(e=>(e.manual||e.end)&&countsT(e)).reduce((n,e)=>n+tMs(e),0);
+const waitMs=p=>timeLog(p).filter(e=>(e.manual||e.end)&&needsOk(e)).reduce((n,e)=>n+tMs(e),0);
+const newEntry=o=>({id:uid(),...o,...(ownTimeOn()?{by:myPid}:{}),...(approveOn()&&!canApprove()?{ok:false}:{})});
+const running=p=>timeLog(p).find(e=>!e.manual&&!e.end&&mineT(e));
 const doneMs=p=>timeLog(p).filter(e=>e.manual||e.end).reduce((n,e)=>n+tMs(e),0);
 const totalMs=p=>timeLog(p).reduce((n,e)=>n+tMs(e),0);
 const fmtDur=ms=>{const m=Math.floor(ms/60000);return `${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m`};
@@ -337,16 +352,19 @@ function renderClock(id,p){
     :`<button class="btn" data-act="clockin" data-pid="${id}" style="min-height:56px;font-size:17px;background:var(--ok);border-color:var(--ok);color:#151a17;font-weight:700">▶ Clock in</button>`;
   if(log.length){h+=`<div class="list">${log.map(e=>view.editTime===e.id?editTimeForm(e):`<div class="item" style="padding:10px 12px;gap:10px;align-items:center">
       <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-weight:500">${esc(fmtDate(e.manual?e.date:dayOf(e.start)))}</span>
-      <span class="small muted">${e.manual?'Added by hand':`${esc(clockT(e.start))} – ${e.end?esc(clockT(e.end)):'now'}`}${e.note?' · '+esc(e.note):''}</span></div>
-      <span class="mono">${!e.manual&&!e.end?`<span data-tick="${e.start}" data-fmt="dur">${fmtDur(tMs(e))}</span>`:fmtDur(tMs(e))}</span>
-      <button class="btn ghost sm" data-act="edittime" data-tid="${e.id}" aria-label="Edit this time">Edit</button></div>`).join('')}</div>`}
+      <span class="small muted">${ownTimeOn()&&personOf(byOf(e))?esc(personOf(byOf(e)).name)+' · ':''}${e.manual?'Added by hand':`${esc(clockT(e.start))} – ${e.end?esc(clockT(e.end)):'now'}`}${e.note?' · '+esc(e.note):''}</span>
+      ${needsOk(e)?`<span class="row" style="gap:6px;flex-wrap:wrap"><span class="chip warnchip">Needs OK</span>${canApprove()?`<button class="btn sm" data-act="okt" data-tid="${e.id}">Approve</button><button class="btn ghost sm" data-act="rejt" data-tid="${e.id}" style="color:var(--danger)">Reject</button>`:''}</span>`:e.rejected?`<span class="row" style="gap:6px"><span class="chip" style="color:var(--danger);border-color:var(--danger)">Rejected</span>${canApprove()?`<button class="btn ghost sm" data-act="okt" data-tid="${e.id}">Approve after all</button>`:''}</span>`:approveOn()&&e.okBy&&personOf(e.okBy)?`<span class="small" style="color:var(--ok)">OK'd by ${esc(personOf(e.okBy).name)}</span>`:''}</div>
+      <span class="mono" style="${e.rejected?'text-decoration:line-through;opacity:.6':''}">${!e.manual&&!e.end?`<span data-tick="${e.start}" data-fmt="dur">${fmtDur(tMs(e))}</span>`:fmtDur(tMs(e))}</span>
+      ${mineT(e)||canApprove()?`<button class="btn ghost sm" data-act="edittime" data-tid="${e.id}" aria-label="Edit this time">Edit</button>`:''}</div>`).join('')}</div>`}
+  if(ownTimeOn()&&log.length){const by={};log.filter(e=>!e.rejected).forEach(e=>{by[byOf(e)]=(by[byOf(e)]||0)+tMs(e)});const keys=Object.keys(by);if(keys.length>1||!keys.includes(myPid))h+=`<span class="small muted">${keys.map(k=>esc((personOf(k)||{name:'Someone'}).name)+' '+fmtDur(by[k])).join(' · ')}</span>`}
+  if(approveOn()&&waitMs(p)){const n=log.filter(needsOk).length;h+=`<div class="panel" style="gap:8px;border-color:var(--warn)"><b>${fmtDur(waitMs(p))} waiting for a manager's OK</b><span class="small muted">It doesn't count toward Use clocked time on the invoice until it's approved.</span>${canApprove()&&n>1?`<button class="btn" data-act="okall">Approve all ${n}</button>`:''}</div>`}
   h+=view.editing==='addtime'?`<form class="panel sub" data-form="addtime">
       <label class="f">Date<input id="at-date" type="date" name="date" value="${today()}" required></label>
       <div class="grid2"><label class="f">Hours<input type="number" name="h" min="0" max="99" step="1" inputmode="numeric" placeholder="0"></label><label class="f">Minutes<input type="number" name="m" min="0" max="59" step="1" inputmode="numeric" placeholder="0"></label></div>
       <label class="f">Note (optional)<input type="text" name="note" maxlength="120" placeholder="e.g. Forgot to clock in"></label>
       <div class="grid2"><button class="btn primary" type="submit">Add time</button><button class="btn" type="button" data-act="addtime">Cancel</button></div></form>`
     :`<button class="btn ghost" data-act="addtime" style="border:1px dashed var(--line)">+ Add time by hand</button>`;
-  return h+`<span class="note">Tap Edit on any entry to fix the times. The total feeds the Labor box below.</span></section>`;
+  return h+`<span class="note">${approveOn()&&!canApprove()?'Tap Edit to fix your times; a change needs a manager\'s OK again.':'Tap Edit on any entry to fix the times. The total feeds the Labor box below.'}</span></section>`;
 }
 function editTimeForm(e){
   return `<form class="panel sub" data-form="edittime" data-tid="${e.id}" style="border-radius:0;border:0;border-bottom:1px solid var(--line)">
@@ -361,7 +379,7 @@ function editTimeForm(e){
 function clockIn(pid){
   const rj=runningJob();let msg='Clocked in';
   if(rj&&rj[0]!==pid){running(rj[1]).end=Date.now();save(rj[0]);msg=`Clocked out of ${jobLabel(rj[1])||rj[1].title} and into ${jobLabel(projects[pid])||projects[pid].title}`}
-  const p=projects[pid];if(running(p))return;p.time={log:[...timeLog(p),{id:uid(),start:Date.now()}]};save(pid);toast(msg);render();
+  const p=projects[pid];if(running(p))return;p.time={log:[...timeLog(p),newEntry({start:Date.now()})]};save(pid);toast(msg);render();
 }
 function clockOut(pid){const p=projects[pid];const r=p&&running(p);if(!r)return;r.end=Date.now();p.time={log:[...timeLog(p)]};save(pid);toast('Clocked out: '+fmtDur(tMs(r)));render()}
 
@@ -1012,7 +1030,8 @@ function renderLabor(p){const l=p.labor||{};const lc=laborCost(p);const pc=parts
     <label class="f">What was done (optional)<input id="lab-desc" type="text" maxlength="160" value="${esc(l.desc||'')}" placeholder="e.g. Carb rebuild and tune-up" data-labor="desc"></label>
     <div class="grid2"><label class="f">Hours<input id="lab-hours" type="number" min="0" step="0.25" inputmode="decimal" class="mono" value="${esc(l.hours||'')}" placeholder="0" data-labor="hours"></label>
     <label class="f">Rate ($/hr)<input id="lab-rate" type="number" min="0" step="0.01" inputmode="decimal" class="mono" value="${esc(rate)}" placeholder="0.00" data-labor="rate"></label></div>
-    ${totalMs(p)>=60000&&hrsQ(totalMs(p))!==+(l.hours||0)?`<button class="btn sm" data-act="usetime">Use clocked time: ${numStr(hrsQ(totalMs(p)))} hr${running(p)?' (so far)':''}</button>`:''}
+    ${(()=>{const ms=approveOn()?okMs(p):totalMs(p);return ms>=60000&&hrsQ(ms)!==+(l.hours||0)?`<button class="btn sm" data-act="usetime">Use ${approveOn()?'approved':'clocked'} time: ${numStr(hrsQ(ms))} hr${!approveOn()&&running(p)?' (so far)':''}</button>`:''})()}
+    ${approveOn()&&waitMs(p)?`<span class="small" style="color:var(--warn)">${fmtDur(waitMs(p))} of clocked time is waiting for approval and isn't counted.</span>`:''}
     <span class="small muted">${lc.has?`${numStr(lc.hours)} hr × ${money(lc.rate)}/hr. `:'Leave hours empty and labor won\'t show on the invoice. '}${shop.rate?'':'Set a default rate under Shop info.'}</span>
   </div>
   <div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;border-color:var(--tan)"><div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Job total</span><span class="mono" style="font-size:24px">${money(pc.total+lc.total)}</span></div><span class="small muted" style="text-align:right">Parts ${money(pc.total)}${lc.has?`<br>Labor ${money(lc.total)}`:''}</span></div>`}
@@ -1352,8 +1371,11 @@ app.addEventListener('click',async e=>{
   else if(a==='addtime'){view.editing=view.editing==='addtime'?null:'addtime';view.editTime=null;render();const el=document.getElementById('at-date');if(el&&view.editing)el.scrollIntoView({block:'center'})}
   else if(a==='edittime'){view.editTime=b.dataset.tid||null;view.confirm=null;if(view.editing==='addtime')view.editing=null;render()}
   else if(a==='deltime'){view.confirm='deltime';render()}
+  else if(a==='okt'||a==='rejt'||a==='okall'){if(!canApprove())return;const now=new Date().toISOString();
+    timeLog(p).forEach(e=>{if(a==='okall'?needsOk(e):e.id===b.dataset.tid){if(a==='rejt'){e.ok=false;e.rejected=true;e.okBy=myPid;e.okAt=now}else{e.ok=true;delete e.rejected;e.okBy=myPid;e.okAt=now}}});
+    p.time={log:[...timeLog(p)]};save(view.pid);toast(a==='rejt'?'Time rejected':'Time approved');render()}
   else if(a==='deltime-yes'){p.time={log:timeLog(p).filter(e=>e.id!==b.dataset.tid)};view.editTime=null;view.confirm=null;save(view.pid);toast('Time entry deleted');render()}
-  else if(a==='usetime'){p.labor={...(p.labor||{}),hours:hrsQ(totalMs(p))};if(p.labor.rate===undefined&&shop.rate)p.labor.rate=+shop.rate;save(view.pid);toast('Labor hours updated');render()}
+  else if(a==='usetime'){p.labor={...(p.labor||{}),hours:hrsQ(approveOn()?okMs(p):totalMs(p))};if(p.labor.rate===undefined&&shop.rate)p.labor.rate=+shop.rate;save(view.pid);toast('Labor hours updated');render()}
   else if(a==='custtoggle'){setCustOn(!custOn);render();toast(custOn?'Customer jobs on':'Customer jobs off on this device')}
   else if(a==='shopinfo'){go({name:'shopinfo'});const el=document.getElementById('s-name');if(el)el.focus()}
   else if(a==='editshop'){view.editing=view.editing==='shop'?null:'shop';render();const el=document.getElementById('s-name');if(el&&view.editing==='shop')el.focus()}
@@ -1406,12 +1428,13 @@ app.addEventListener('submit',e=>{
     save(view.pid);view.editing=null;toast(p.kind!==was?(p.kind==='customer'?'Now a customer job: add their info':'Now in My equipment'):'Saved');render()}
   else if(k==='invadd'){addToInventory(f.dataset.pid,f.dataset.tid,f.dataset.xid,Math.max(1,Math.min(9999,parseInt(d.n,10)||1)));return}
   else if(k==='addtime'){const mins=(Math.max(0,parseInt(d.h,10)||0))*60+Math.min(59,Math.max(0,parseInt(d.m,10)||0));if(!mins){toast('Enter hours or minutes');return}
-    p.time={log:[...timeLog(p),{id:uid(),manual:true,date:d.date||today(),minutes:mins,...(d.note&&d.note.trim()?{note:d.note.trim()}:{})}]};view.editing=null;save(view.pid);toast('Added '+fmtDur(mins*60000));render()}
+    p.time={log:[...timeLog(p),newEntry({manual:true,date:d.date||today(),minutes:mins,...(d.note&&d.note.trim()?{note:d.note.trim()}:{})})]};view.editing=null;save(view.pid);toast('Added '+fmtDur(mins*60000)+(approveOn()&&!canApprove()?'. It needs a manager\'s OK before it counts.':''));render()}
   else if(k==='edittime'){const e=timeLog(p).find(x=>x.id===f.dataset.tid);if(!e)return;
     if(e.manual){const mins=(Math.max(0,parseInt(d.h,10)||0))*60+Math.min(59,Math.max(0,parseInt(d.m,10)||0));if(!mins){toast('Enter hours or minutes');return}e.minutes=mins;e.date=d.date||e.date}
     else{const st=atLocal(d.date,d.start);if(!isFinite(st)){toast('Check the date and time');return}if(st>Date.now()){toast("Clock-in time can't be in the future");return}e.start=st;
       if(e.end){let en=atLocal(d.date,d.end);if(en<=st)en+=86400000;e.end=en}}
     if(d.note&&d.note.trim())e.note=d.note.trim();else delete e.note;
+    if(approveOn()&&!canApprove()){e.ok=false;delete e.okBy;delete e.okAt;delete e.rejected}
     p.time={log:[...timeLog(p)]};view.editTime=null;save(view.pid);toast('Time saved');render()}
   else if(k==='cust'){const c=custById(view.cid);if(!c)return;Object.assign(c,{name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),notes:(d.notes||'').trim()});saveCustomers();view.editing=null;toast('Customer saved');render()}
   else if(k==='shop'){shop={name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),footer:(d.footer||'').trim(),rate:d.rate!==''&&isFinite(+d.rate)&&+d.rate>0?Math.round(+d.rate*100)/100:'',receiptWidth:d.receiptWidth==='58'?'58':'80',dayLimit:+d.dayLimit>0?Math.min(99,Math.round(+d.dayLimit)):''};
