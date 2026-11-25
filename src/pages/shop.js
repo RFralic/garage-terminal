@@ -33,7 +33,7 @@ const setCustOn = (on) => { try { localStorage.setItem('jb-customers', on ? 'on'
 
 // ---------- tabs ------------------------------------------------------------------------
 
-const TITLES = { home: 'Home', jobs: 'Jobs', machines: 'Machines', parts: 'Parts', tools: 'Tools', settings: 'Settings' };
+const TITLES = { home: 'Home', jobs: 'Job_Board', machines: 'Machines', parts: 'Parts', tools: 'Tools', settings: 'Settings' };
 const FRAMES = {
   jobs: '/apps/job-board?shop=1',
   machines: '/apps/logbook?shop=1&view=machines',
