@@ -19,7 +19,7 @@
         ]
       },
       {
-        "source": "/@(manifest|logbook).webmanifest",
+        "source": "/@(manifest|logbook|shop).webmanifest",
         "headers": [
           {
             "key": "Cache-Control",
@@ -49,7 +49,7 @@
           },
           {
             "key": "X-Frame-Options",
-            "value": "DENY"
+            "value": "SAMEORIGIN"
           }
         ]
       }

@@ -200,6 +200,8 @@ a.btn{text-decoration:none}
 #print.receipt .rc-w{overflow-wrap:anywhere}
 #print.receipt .rc-ind{padding-left:2ch}
 #print.receipt .rc-tail{height:18mm}
+/* shop mode (inside garageterminal.com/shop): the app shows its own title, tabs and site bar */
+.shop [data-shophide],.shop .gt-bar{display:none!important}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="/apps/scanner.js"></script>
@@ -278,6 +280,10 @@ const hhmm=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0')
 const atLocal=(date,hm)=>new Date(date+'T'+(hm||'00:00')+':00').getTime();
 /* Customer jobs can be switched off in Settings (saved on this device only; on by default). Off hides customer jobs
    and everything that goes with them (job numbers, time clock, labor, invoices, Shop info); nothing is deleted. */
+/* Shop mode: inside the Garage Terminal shop app (garageterminal.com/shop) as ?shop=1. The app's tab bar replaces
+   the Logbook link and the page title; everything else works the same. */
+const SHOP=(()=>{try{return new URLSearchParams(location.search).get("shop")==="1"}catch(e){return false}})();
+if(SHOP)document.documentElement.classList.add('shop');
 let custOn=(()=>{try{return localStorage.getItem('jb-customers')!=='off'}catch(e){return true}})();
 function setCustOn(on){custOn=!!on;try{localStorage.setItem('jb-customers',custOn?'on':'off')}catch(e){}}
 const visible=([,p])=>custOn||p.kind!=='customer';
@@ -630,8 +636,8 @@ function renderList(){
   const lateN=(()=>{const td=today();return all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='Ordered'&&x.expected&&x.expected<td).length,0)})();
   const CART='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2.6l2.4 11.2a1.6 1.6 0 0 0 1.6 1.3h8.6a1.6 1.6 0 0 0 1.6-1.2L21 7.5H6"/></svg>';
   let h=`<header class="app">
-    <div class="between" style="align-items:center"><a class="btn ghost sm" href="/apps/logbook" style="padding:0">← Logbook</a><button class="btn ghost sm" data-act="shopinfo" style="flex:none">⚙ Settings</button></div>
-    <div class="between"><div style="min-width:0"><div class="eyebrow">Garage Terminal${offline?' · not syncing':' · saved to your account'}</div><h1>Job_Board</h1></div>
+    <div class="between" style="align-items:center"><a class="btn ghost sm" href="/apps/logbook" style="padding:0" data-shophide>← Logbook</a><button class="btn ghost sm" data-act="shopinfo" style="flex:none">⚙ Settings</button></div>
+    <div class="between"><div style="min-width:0"><div class="eyebrow" data-shophide>Garage Terminal${offline?' · not syncing':' · saved to your account'}</div><h1 data-shophide>Job_Board</h1></div>
     <div class="row" style="flex:none"><button class="btn cartbtn" data-act="shop" data-job="all" aria-label="Shopping list${toOrder?`, ${toOrder} to order`:''}" title="Shopping list">${CART}<span class="cartlbl">Shopping list</span>${toOrder?`<span class="cbadge" aria-hidden="true">${toOrder}</span>`:''}</button><button class="btn primary" data-act="new">+ New</button></div></div>
     <label for="q" class="f" style="position:absolute;left:-9999px">Search projects</label>
     <input id="q" type="search" placeholder="Search projects, parts, notes…" value="${esc(view.q)}" data-input="q">

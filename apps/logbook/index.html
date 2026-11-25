@@ -33,7 +33,12 @@ h3{font-size:1.05rem;text-transform:uppercase;letter-spacing:.06em;color:var(--s
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 .muted{color:var(--muted)}
 .top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:14px;border-bottom:3px solid var(--ink);margin-bottom:18px}
-.brand{display:flex;align-items:center;gap:12px;min-width:0}.logo{flex:none;width:52px;height:52px;display:block;border-radius:12px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+/* shop mode (inside garageterminal.com/shop): the app shows its own title and tabs */
+.shop .brand,.shop #trackerLink,.shop #who,.shop .gt-bar{display:none!important}
+.shop .top{border-bottom:0;padding-bottom:4px;margin-bottom:10px;justify-content:flex-end}
+.shop.shop-parts .kindtabs{display:none}
+.shop.shop-machines .kindtabs [data-kind="part"]{display:none}.logo{flex:none;width:52px;height:52px;display:block;border-radius:12px}
 @media (max-width:520px){.logo{width:42px;height:42px}}
 .top .sub{font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--f-display);font-weight:600}
 button,.btn{font:600 .9rem var(--f-body);border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;cursor:pointer;min-height:40px}
@@ -461,7 +466,14 @@ const dname=e=>{if(!e)return"";if((e.name||"").trim())return e.name.trim();
   const mm=(kindOf(e)==="vehicle"?[e.year,e.make,e.model]:[e.make,e.model]).map(x=>(x||"").trim()).filter(Boolean).join(" ");
   return mm||(e.equipment&&kindOf(e)!=="vehicle"?e.equipment:"")||"Unnamed "+(K(e)?K(e).one:"item")};
 const byName=(a,b)=>dname(a).localeCompare(dname(b));
-let listKind=(()=>{try{const v=localStorage.getItem("sel-kind");return v==="vehicle"||v==="part"||v==="due"?v:"engine"}catch(e){return"engine"}})();
+/* Shop mode: this page inside the Garage Terminal shop app (garageterminal.com/shop) as ?shop=1&view=machines|parts.
+   The app's own tab bar and Home replace this page's title, Job_Board link and account line, and the list it opens on
+   is the one the app asks for (machines: engines, vehicles and Due; parts: the inventory). Nothing changes outside shop mode. */
+const SHOP=(()=>{try{return new URLSearchParams(location.search).get("shop")==="1"}catch(e){return false}})();
+const SHOP_PARTS=SHOP&&(()=>{try{return new URLSearchParams(location.search).get("view")==="parts"}catch(e){return false}})();
+if(SHOP)document.documentElement.classList.add("shop",SHOP_PARTS?"shop-parts":"shop-machines");
+const saveKind=k=>{if(SHOP)return;try{localStorage.setItem("sel-kind",k)}catch(e){}};
+let listKind=SHOP_PARTS?"part":(()=>{try{const v=localStorage.getItem("sel-kind");return v==="vehicle"||(v==="part"&&!SHOP)||v==="due"?v:"engine"}catch(e){return"engine"}})();
 let listView=(()=>{try{return localStorage.getItem("sel-view")==="list"?"list":"grid"}catch(e){return"grid"}})(); /* engines & vehicles: "grid" cards or a compact "list" */
 let db=null, col=null, engines=[], view={id:null,tab:"specs"}, offline=false, draft=null, pendingDelete=false, editing=false;
 const $=s=>document.querySelector(s);
@@ -645,7 +657,7 @@ window.addEventListener("popstate",ev=>{const s=ev.state;
   else closed=false;
   if(closed){try{history.pushState({...navSnap(),prevK:s&&s.gtl?s.k:null},"")}catch(e){}return}
   if(!s||!s.gtl||signedOut)return;
-  listKind=s.listKind||listKind;try{localStorage.setItem("sel-kind",listKind)}catch(e){}
+  listKind=s.listKind||listKind;saveKind(listKind);
   if(typeof s.invFor==="string"&&s.invFor!==invFor)setInvFor(s.invFor);
   view={id:s.view&&s.view.id||null,tab:s.view&&s.view.tab||"specs"};draft=null;editing=false;pendingDelete=false;
   if(s.part){const p=engines.find(x=>x.id===s.part.id);
@@ -669,7 +681,7 @@ function renderList(){
   const count=kd=>engines.filter(e=>kindOf(e)===kd).length;
   const kt=`<nav class="tabs kindtabs" role="tablist">${[...Object.entries(KINDS).map(([kd,c])=>[kd,c.plural]),["part","Inventory"],["due","Due"]].map(([kd,lab])=>{const n=kd==="due"?dueNow().length:count(kd);
     return `<button role="tab" data-kind="${kd}" aria-selected="${kd===listKind}">${lab} <span class="cnt${kd==="due"&&n?" hot":""}">${n}</span></button>`}).join("")}</nav>`;
-  const wire=()=>app.querySelectorAll("[data-kind]").forEach(b=>b.onclick=()=>{listKind=b.dataset.kind;try{localStorage.setItem("sel-kind",listKind)}catch(e){}render()});
+  const wire=()=>app.querySelectorAll("[data-kind]").forEach(b=>b.onclick=()=>{listKind=b.dataset.kind;saveKind(listKind);render()});
   if(listKind==="part"){renderInventory(kt,wire);return}
   if(listKind==="due"){renderDue(kt,wire);return}
   const k=KINDS[listKind];
@@ -750,7 +762,7 @@ function renderSpecView(e){
   </section>`;
   $("#panel").querySelectorAll("[data-openpart]").forEach(b=>b.onclick=()=>{const p=engines.find(x=>x.id===b.dataset.openpart);if(p)openPart(p,{returnTo:e.id})});
   $("#panel").querySelectorAll("[data-addinv]").forEach(b=>b.onclick=()=>openPart(null,{returnTo:e.id,prefill:{name:b.dataset.label,brand:b.dataset.brand||"",number:b.dataset.number,category:guessCat(b.dataset.label),qty:"0",reorderAt:"0",fits:[e.id]},msg:"This part starts at 0 on hand and is marked Reorder. Update the count once you have it."}));
-  if($("#goInv"))$("#goInv").onclick=()=>{setInvFor(e.id);invFilter="All";invQuery="";view={id:null,tab:"specs"};draft=null;editing=false;pendingDelete=false;listKind="part";try{localStorage.setItem("sel-kind","part")}catch(x){}render();window.scrollTo(0,0)};
+  if($("#goInv"))$("#goInv").onclick=()=>{setInvFor(e.id);invFilter="All";invQuery="";view={id:null,tab:"specs"};draft=null;editing=false;pendingDelete=false;listKind="part";saveKind("part");render();window.scrollTo(0,0)};
   $("#editBtn").onclick=()=>{editing=true;draft=JSON.parse(JSON.stringify(e));pendingDelete=false;renderSpecs(e)};
 }
 function renderSpecs(e){
