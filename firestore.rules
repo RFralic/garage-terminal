@@ -444,7 +444,8 @@ service cloud.firestore {
     // switched on (shops/{owner}.on), people the owner invited by email can join it:
     //   shopInvites/{email}           the owner's invite: role + permissions; only the owner
     //                                 and the person with that verified Google email can read it
-    //   shops/{owner}                 { on, name }  (owner only)
+    //   shops/{owner}                 { on, name, people: [{id, name, role}], options }  (owner writes;
+    //                                 members read it for Assigned to / Done by)
     //   shops/{owner}/members/{uid}   made by the invited person when they join; must copy the
     //                                 invite's role, permissions and memberId exactly
     // Removing the member doc, or switching Employees off, cuts access at once.
@@ -516,8 +517,10 @@ service cloud.firestore {
     match /shops/{o} {
       allow read: if isSelf(o) || (signedIn() && exists(memberPath(o)));
       allow create, update: if isSelf(o)
-        && request.resource.data.keys().hasOnly(['on', 'name', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['on', 'name', 'people', 'options', 'updatedAt'])
         && request.resource.data.on is bool
+        && (!('people' in request.resource.data) || (request.resource.data.people is list && request.resource.data.people.size() <= 50))
+        && (!('options' in request.resource.data) || request.resource.data.options is map)
         && request.resource.data.name is string && request.resource.data.name.size() <= 80;
       allow delete: if isSelf(o);
 
