@@ -34,6 +34,16 @@ describe('Morning Brief: Job_Board customer jobs', () => {
   });
 });
 
+describe('Morning Brief: job parts (not on a task)', () => {
+  test('count toward parts to order with task parts', () => {
+    const ps = [{ title: 'Cory mower', kind: 'customer', status: 'In progress',
+      parts: [{ name: 'Air filter', status: 'To order' }, { name: 'Oil', status: 'In stock' }],
+      tasks: [{ title: 'Belt', parts: [{ name: 'Belt', status: 'To order' }] }] }];
+    const [p] = buildBrief({ projects: ps, nowMs: NOW, tz: TZ, sections: { projects: true } }).sections.projects;
+    assert.match(JSON.stringify(p), /2 parts to order/);
+  });
+});
+
 describe('Morning Brief: parts marked ordered', () => {
   const recs = [
     { kind: 'part', name: 'Oil filter', number: '52 050 02', qty: '0', reorderAt: '1' },

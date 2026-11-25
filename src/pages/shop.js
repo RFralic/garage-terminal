@@ -121,7 +121,11 @@ finishRedirectSignIn().catch(() => { /* shown as signed out */ });
 
 // ---------- home ------------------------------------------------------------------------
 
-const allParts = (p) => (Array.isArray(p.tasks) ? p.tasks : []).flatMap((t) => (t && Array.isArray(t.parts) ? t.parts : []));
+// job parts (p.parts) plus parts on each task (t.parts), like Job_Board's allParts
+const allParts = (p) => [
+  ...(Array.isArray(p.parts) ? p.parts : []),
+  ...(Array.isArray(p.tasks) ? p.tasks : []).flatMap((t) => (t && Array.isArray(t.parts) ? t.parts : [])),
+];
 const running = (p) => (p && p.time && Array.isArray(p.time.log) ? p.time.log : []).find((e) => e && !e.manual && !e.end && e.start);
 const jobNo = (p) => (p.kind === 'customer' && p.jobNo ? 'J-' + String(p.jobNo).padStart(3, '0') : '');
 const dur = (ms) => { const m = Math.max(0, Math.floor(ms / 60000)); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };

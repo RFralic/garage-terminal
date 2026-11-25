@@ -315,7 +315,8 @@ export function buildBrief({ records = [], projects = [], upkeep = [], pantries 
       .filter((p) => on.customerJobs !== false || p.kind !== 'customer')
       .map((p) => {
         const tasks = Array.isArray(p.tasks) ? p.tasks : [];
-        const toOrder = tasks.flatMap((t) => (Array.isArray(t.parts) ? t.parts : [])).filter((x) => x && x.status === 'To order').length;
+        const jobParts = Array.isArray(p.parts) ? p.parts : [];
+        const toOrder = [...jobParts, ...tasks.flatMap((t) => (Array.isArray(t.parts) ? t.parts : []))].filter((x) => x && x.status === 'To order').length;
         const done = tasks.filter((t) => t && t.done).length;
         const promised = p.kind === 'customer' && p.customer && p.customer.promised ? String(p.customer.promised).slice(0, 10) : '';
         const bits = [p.status || 'Not started'];

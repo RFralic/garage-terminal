@@ -110,6 +110,7 @@ button.chip{background:transparent;min-height:32px}
 .tag{display:inline-block;padding:1px 8px;border-radius:4px;font-family:var(--f-display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#151a17}
 .tag.mine{background:var(--steel)}.tag.customer{background:var(--tan)}
 .tag.sup{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+.tag.task{background:transparent;color:var(--steel);border:1px solid var(--steel);cursor:pointer;text-transform:none;letter-spacing:0;font-family:var(--f-body);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pills{display:flex;flex-wrap:wrap;gap:6px}
 .pill{min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:#c9d1cb;font-size:14px}
 .pill[aria-pressed=true]{background:var(--ink);color:#151a17;border-color:var(--ink)}
@@ -505,7 +506,7 @@ function addToInventory(pid,tid,xid,n){
   x.invAddedOn=today();save(pid);view.confirm=null;toast(msg);render()}
 
 function laborCost(p){const l=p.labor||{};const h=+l.hours,r=+l.rate;const ok=isFinite(h)&&isFinite(r)&&h>0&&r>0;return{hours:ok?h:(isFinite(h)&&h>0?h:0),rate:isFinite(r)&&r>0?r:0,total:ok?Math.round(h*r*100)/100:0,has:ok,desc:(l.desc||'').trim()}}
-function partsCost(p){let total=0,missing=0,count=0;(p.tasks||[]).forEach(t=>(t.parts||[]).forEach(x=>{if(hasPrice(x)){total+=x.price*(x.qty||1);count++}else missing++}));return{total:Math.round(total*100)/100,missing,count}}
+function partsCost(p){let total=0,missing=0,count=0;allParts(p).forEach(x=>{if(hasPrice(x)){total+=x.price*(x.qty||1);count++}else missing++});return{total:Math.round(total*100)/100,missing,count}}
 function setPartStatus(x,s){x.status=s;if(s==='Ordered'){if(!x.orderedOn)x.orderedOn=today();delete x.receivedOn}else if(s==='In stock'){if(!x.receivedOn)x.receivedOn=today()}else{delete x.orderedOn;delete x.receivedOn;delete x.expected}}
 const hostOf=u=>{try{return new URL(u).hostname.replace(/^www\./,'')}catch(e){return ''}};
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.hidden=false;clearTimeout(timers.toast);timers.toast=setTimeout(()=>{t.hidden=true},2200)}
@@ -535,7 +536,8 @@ const jobTotal=p=>partsCost(p).total+laborCost(p).total;
 
 function blankProject(kind){return{title:'',kind:kind||'mine',status:'Not started',logbook:'',machine:'',customer:{name:'',phone:'',dropOff:'',promised:'',complaint:''},notes:'',tasks:[],createdAt:Date.now(),updatedAt:Date.now()}}
 function progress(p){const t=p.tasks||[];const d=t.filter(x=>x.done).length;return{d,n:t.length,pct:t.length?Math.round(d/t.length*100):0}}
-function allParts(p){const out=[];(p.tasks||[]).forEach(t=>(t.parts||[]).forEach(x=>out.push({...x,taskId:t.id,taskTitle:t.title})));return out}
+/* parts: p.parts = parts for the whole job (no task); t.parts = parts on a task. taskId '' means a job part */
+function allParts(p){const out=(p.parts||[]).map(x=>({...x,taskId:'',taskTitle:''}));(p.tasks||[]).forEach(t=>(t.parts||[]).forEach(x=>out.push({...x,taskId:t.id,taskTitle:t.title})));return out}
 function brands(){const s=new Set();Object.values(projects).forEach(p=>allParts(p).forEach(x=>{if(x.brand&&x.brand.trim())s.add(x.brand.trim())}));return [...s].sort((a,b)=>a.localeCompare(b))}
 function partFields(x,sups,isNew){
   const p=projects[view.pid]||{};const fl=isFluid(x);
@@ -583,7 +585,7 @@ async function signIn(){
 }
 
 /* ---------- views ---------- */
-function go(patch){view={...view,editing:null,confirm:null,editPart:null,editTime:null,...patch};render();window.scrollTo(0,0)}
+function go(patch){view={...view,editing:null,confirm:null,editPart:null,editTime:null,addJobPart:null,...patch};render();window.scrollTo(0,0)}
 
 /* Phone back button: each screen (the project list, a project, a task, the shop list, shop info, a new project) gets its
    own browser history entry, so Back goes to the previous screen instead of leaving the Tracker. Back also closes an
@@ -628,7 +630,7 @@ function renderList(){
   const all=Object.entries(projects).filter(visible).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));
   const q=view.q.trim().toLowerCase();
   const match=([id,p])=>{if(view.tab!=='all'&&p.kind!==view.tab)return false;if(!q)return true;
-    const hay=[jobLabel(p),p.jobNo,p.title,p.machine,p.logbook,p.notes,p.customer&&p.customer.name,...(p.tasks||[]).flatMap(t=>[t.title,t.notes,...(t.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier])])].join(' ').toLowerCase();return hay.includes(q)};
+    const hay=[jobLabel(p),p.jobNo,p.title,p.machine,p.logbook,p.notes,p.customer&&p.customer.name,...(p.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier]),...(p.tasks||[]).flatMap(t=>[t.title,t.notes,...(t.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier])])].join(' ').toLowerCase();return hay.includes(q)};
   const shown=all.filter(match);
   const c={all:all.length,mine:all.filter(x=>x[1].kind==='mine').length,customer:all.filter(x=>x[1].kind==='customer').length};
   const toOrder=all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='To order').length,0);
@@ -727,7 +729,7 @@ function renderNew(){
 }
 
 function renderProject(){
-  const id=view.pid,p=projects[id],pr=progress(p),parts=allParts(p);
+  const id=view.pid,p=projects[id],pr=progress(p),parts=allParts(p),sups=suppliers();
   const to=parts.filter(x=>x.status==='To order').length,od=parts.filter(x=>x.status==='Ordered').length,st=parts.filter(x=>x.status==='In stock').length;
   const c=p.customer||{};
   let h=`<div class="top"><button class="btn ghost" data-act="home">← Projects</button><button class="btn sm" data-act="editp">${view.editing==='p'?'Close':'Edit details'}</button></div>`;
@@ -785,6 +787,18 @@ function renderProject(){
     return `<div class="item"><button class="check" data-act="toggle" data-tid="${t.id}" aria-label="${t.done?'Mark not done':'Mark done'}: ${esc(t.title)}"><span class="box ${t.done?'on':''}">✓</span></button>
     <button class="main" data-act="task" data-tid="${t.id}"><span class="t ${t.done?'done':''}">${esc(t.title)}</span>${meta?`<span class="small muted">${meta}</span>`:''}</button><span class="chev" aria-hidden="true">›</span></div>`}).join('')}</div>`:''}
   <form class="row" data-form="addtask"><label for="newtask" style="position:absolute;left:-9999px">New task</label><input id="newtask" type="text" name="title" maxlength="160" placeholder="+ Add a task" required><button class="btn sm" type="submit">Add</button></form>
+  </section>
+  <section><div class="between"><h2>Parts</h2><span class="note">${parts.length?'tap a status to change it':''}</span></div>
+  ${parts.length?`<div class="list">${parts.map(x=>partItem(p,id,x.taskId,findPart(id,x.taskId,x.id).x,sups,true,x.taskTitle)).join('')}</div>`:`<span class="small muted">No parts yet. Add parts for the whole job here, or on a task.</span>`}
+  <datalist id="sup-list">${sups.map(s=>`<option value="${esc(s)}"></option>`).join('')}</datalist>
+  <datalist id="brand-list">${brands().map(s=>`<option value="${esc(s)}"></option>`).join('')}</datalist>
+  ${view.addJobPart===id?`<form class="panel sub" data-form="addpart" data-where="job" id="jp-form">
+    <label class="f">Part<input id="jp-name" type="text" name="name" required maxlength="120" placeholder="e.g. Air filter or 10W-30 oil"></label>
+    ${partFields({qty:1,unit:''},sups,true)}
+    ${(p.tasks||[]).length?`<label class="f">For a task (optional)<select name="task"><option value="">Whole job</option>${p.tasks.map(t=>`<option value="${esc(t.id)}">${esc(t.title)}</option>`).join('')}</select></label>`:''}
+    <div class="grid2"><button class="btn primary" type="submit">Add part</button><button class="btn" type="button" data-act="jobpart">Cancel</button></div>
+  </form>`:`<button class="btn" data-act="jobpart">+ Add a part</button>`}
+  <span class="note">Parts added on a task show here too, with a Task tag.</span>
   </section>
   <section><h2>${p.kind==='customer'?'Parts &amp; labor':'Parts for this project'}</h2>
   ${p.kind==='customer'?(()=>{const pc=partsCost(p);return `<div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;gap:12px;border-color:var(--tan)">
@@ -1022,6 +1036,16 @@ function printDoc(p,kind){
   window.addEventListener('afterprint',done);window.print();
 }
 
+function partItem(p,pid,tid,x,sups,showTask,taskTitle){return view.editPart===x.id?`<form class="panel sub" data-form="editpart" data-tid="${tid}" data-xid="${x.id}" style="border-radius:0;border:0;border-bottom:1px solid var(--line)">
+    <label class="f">Part<input id="ep-name" type="text" name="name" required maxlength="120" value="${esc(x.name)}"></label>
+    ${partFields(x,sups)}
+    <div class="grid2"><button class="btn primary" type="submit">Save part</button><button class="btn" type="button" data-act="editpart" data-tid="${tid}" data-xid="">Cancel</button></div>
+  </form>`:`<div class="item" style="padding:10px 12px;gap:10px;align-items:flex-start">
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><span style="font-weight:500;overflow-wrap:anywhere">${esc(x.name)}</span>
+    <span class="mono small muted">${x.brand?`<span style="color:var(--text)">${esc(x.brand)}</span> · `:''}${esc(x.num||'no part #')} · ${esc(qtyText(x))}</span>${invChip(p,x)}${x.supplier||(showTask&&tid)?`<span class="row" style="gap:6px;flex-wrap:wrap">${x.supplier?`<span class="tag sup">${esc(x.supplier)}</span>`:''}${showTask&&tid?`<button class="tag task" data-act="task" data-tid="${tid}" aria-label="Open task ${esc(taskTitle)}">Task: ${esc(taskTitle)}</button>`:''}</span>`:''}
+    <label class="exp" for="pr-${x.id}"><span>Price ${perText(x)}</span><span class="row" style="gap:4px"><span class="mono">$</span><input id="pr-${x.id}" class="mono" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${hasPrice(x)?Number(x.price).toFixed(2):''}" data-price="1" data-tid="${tid}" data-xid="${x.id}" style="width:96px"></span>${hasPrice(x)&&(x.qty||1)!==1?`<span class="mono muted">= ${money(x.price*(x.qty||1))}</span></label>`:''}
+    ${x.status==='Ordered'?`<span class="small ${x.expected&&x.expected<today()?'':'muted'}" style="${x.expected&&x.expected<today()?'color:var(--danger);font-weight:600':''}">${x.expected?(x.expected<today()?'Late: expected ':'Expected ')+esc(fmtDate(x.expected)):'No expected date yet'}</span>`:''}${x.status==='In stock'&&x.receivedOn?`<span class="small muted">Received ${esc(fmtDate(x.receivedOn))}</span>`:''}${p.kind==='mine'&&x.status==='In stock'?invAddUI(pid,tid,x):''}</div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><button class="chip ${PART_CLASS[x.status]}" data-act="cyclepart" data-tid="${tid}" data-xid="${x.id}" aria-label="Status ${esc(x.status)}, tap to change">${esc(x.status)}</button><div class="row" style="gap:4px"><button class="btn ghost sm" data-act="editpart" data-tid="${tid}" data-xid="${x.id}" aria-label="Edit ${esc(x.name)}">Edit</button><button class="btn ghost sm" data-act="delpart" data-tid="${tid}" data-xid="${x.id}" aria-label="Remove ${esc(x.name)}">Remove</button></div></div></div>`}
 function renderTask(){
   const p=projects[view.pid],t=p.tasks.find(x=>x.id===view.tid),i=p.tasks.indexOf(t);
   const sups=suppliers();
@@ -1032,16 +1056,7 @@ function renderTask(){
     ${view.confirm==='delt'?`<div class="confirm"><span>Delete this task, its notes, parts and links?</span><button type="button" class="btn danger sm" data-act="delt-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:`<button type="button" class="btn danger" data-act="delt">Delete task</button>`}</form>`}
   h+=`<section><h2>Notes &amp; research</h2><label for="t-notes" style="position:absolute;left:-9999px">Task notes</label><textarea id="t-notes" data-input="tnotes" maxlength="20000" placeholder="Specs, torque values, what you found, what worked">${esc(t.notes)}</textarea><span class="note">Saves as you type.</span></section>
   <section><div class="between"><h2>Parts</h2><span class="note">tap a status to change it</span></div>
-  ${(t.parts||[]).length?`<div class="list">${t.parts.map(x=>view.editPart===x.id?`<form class="panel sub" data-form="editpart" data-xid="${x.id}" style="border-radius:0;border:0;border-bottom:1px solid var(--line)">
-    <label class="f">Part<input id="ep-name" type="text" name="name" required maxlength="120" value="${esc(x.name)}"></label>
-    ${partFields(x,sups)}
-    <div class="grid2"><button class="btn primary" type="submit">Save part</button><button class="btn" type="button" data-act="editpart" data-xid="">Cancel</button></div>
-  </form>`:`<div class="item" style="padding:10px 12px;gap:10px;align-items:flex-start">
-    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><span style="font-weight:500;overflow-wrap:anywhere">${esc(x.name)}</span>
-    <span class="mono small muted">${x.brand?`<span style="color:var(--text)">${esc(x.brand)}</span> · `:''}${esc(x.num||'no part #')} · ${esc(qtyText(x))}</span>${invChip(p,x)}${x.supplier?`<span><span class="tag sup">${esc(x.supplier)}</span></span>`:''}
-    <label class="exp" for="pr-${x.id}"><span>Price ${perText(x)}</span><span class="row" style="gap:4px"><span class="mono">$</span><input id="pr-${x.id}" class="mono" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${hasPrice(x)?Number(x.price).toFixed(2):''}" data-price="1" data-xid="${x.id}" style="width:96px"></span>${hasPrice(x)&&(x.qty||1)!==1?`<span class="mono muted">= ${money(x.price*(x.qty||1))}</span></label>`:''}
-    ${x.status==='Ordered'?`<span class="small ${x.expected&&x.expected<today()?'':'muted'}" style="${x.expected&&x.expected<today()?'color:var(--danger);font-weight:600':''}">${x.expected?(x.expected<today()?'Late: expected ':'Expected ')+esc(fmtDate(x.expected)):'No expected date yet'}</span>`:''}${x.status==='In stock'&&x.receivedOn?`<span class="small muted">Received ${esc(fmtDate(x.receivedOn))}</span>`:''}${p.kind==='mine'&&x.status==='In stock'?invAddUI(view.pid,view.tid,x):''}</div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><button class="chip ${PART_CLASS[x.status]}" data-act="cyclepart" data-xid="${x.id}" aria-label="Status ${esc(x.status)}, tap to change">${esc(x.status)}</button><div class="row" style="gap:4px"><button class="btn ghost sm" data-act="editpart" data-xid="${x.id}" aria-label="Edit ${esc(x.name)}">Edit</button><button class="btn ghost sm" data-act="delpart" data-xid="${x.id}" aria-label="Remove ${esc(x.name)}">Remove</button></div></div></div>`).join('')}</div>`:''}
+  ${(t.parts||[]).length?`<div class="list">${t.parts.map(x=>partItem(p,view.pid,view.tid,x,sups)).join('')}</div>`:''}
   <datalist id="sup-list">${sups.map(s=>`<option value="${esc(s)}"></option>`).join('')}</datalist>
   <datalist id="brand-list">${brands().map(s=>`<option value="${esc(s)}"></option>`).join('')}</datalist>
   <form class="panel sub" data-form="addpart">
@@ -1076,7 +1091,7 @@ function renderShop(){
     <button class="pill" aria-pressed="${view.shopSup==='all'}" data-act="ssup" data-v="all">All suppliers</button>
     ${sups.map(s=>`<button class="pill" aria-pressed="${view.shopSup===s}" data-act="ssup" data-v="${esc(s)}">${esc(s)}</button>`).join('')}
     ${hasNoSup?`<button class="pill" aria-pressed="${view.shopSup==='none'}" data-act="ssup" data-v="none">No supplier</button>`:''}</div>`:''}</section>
-  ${!rows.length?`<div class="empty">No parts yet. Add parts on a task and they show up here.</div>`:!f.length?`<div class="empty">Nothing here for these filters.</div>`:
+  ${!rows.length?`<div class="empty">No parts yet. Add parts on a job or a task and they show up here.</div>`:!f.length?`<div class="empty">Nothing here for these filters.</div>`:
   `<div class="list">${f.map(r=>{
     const isOrd=r.status==='Ordered',isStock=r.status==='In stock',isLate=isOrd&&r.expected&&r.expected<td;
     const cap=r.status==='To order'?'Ordered':'Received';
@@ -1093,7 +1108,7 @@ function renderShop(){
 }
 
 /* ---------- events ---------- */
-function findPart(pid,tid,xid){const p=projects[pid];const t=p&&p.tasks.find(x=>x.id===tid);const x=t&&(t.parts||[]).find(y=>y.id===xid);return{p,t,x}}
+function findPart(pid,tid,xid){const p=projects[pid];if(!p)return{};if(!tid){const x=(p.parts||[]).find(y=>y.id===xid);return{p,t:null,x}}const t=(p.tasks||[]).find(x=>x.id===tid);const x=t&&(t.parts||[]).find(y=>y.id===xid);return{p,t,x}}
 app.addEventListener('click',async e=>{
   const b=e.target.closest('[data-act]');if(!b||b.disabled)return;const a=b.dataset.act;const p=projects[view.pid];
   if(a==='home')go({name:'list'});
@@ -1144,9 +1159,10 @@ app.addEventListener('click',async e=>{
   else if(a==='toggle'){const t=p.tasks.find(x=>x.id===b.dataset.tid);t.done=!t.done;
     const pr=progress(p);if(pr.n&&pr.d===pr.n&&p.status==='In progress')toast('All tasks done. Update the status?');else if(t.done&&p.status==='Not started')p.status='In progress';
     save(view.pid);render()}
-  else if(a==='cyclepart'){const t=p.tasks.find(x=>x.id===view.tid);const x=t.parts.find(y=>y.id===b.dataset.xid);setPartStatus(x,PART_ST[(PART_ST.indexOf(x.status)+1)%3]);save(view.pid);render()}
+  else if(a==='cyclepart'){const {x}=findPart(view.pid,b.dataset.tid||'',b.dataset.xid);if(!x)return;setPartStatus(x,PART_ST[(PART_ST.indexOf(x.status)+1)%3]);save(view.pid);render()}
+  else if(a==='jobpart'){view.addJobPart=view.addJobPart===view.pid?null:view.pid;render();const el=document.getElementById(view.addJobPart?'jp-name':'');if(el){el.scrollIntoView({block:'nearest'});el.focus()}}
   else if(a==='editpart'){view.editPart=b.dataset.xid||null;render();const el=document.getElementById('ep-name');if(el&&view.editPart)el.focus()}
-  else if(a==='delpart'){const t=p.tasks.find(x=>x.id===view.tid);t.parts=t.parts.filter(y=>y.id!==b.dataset.xid);save(view.pid);render()}
+  else if(a==='delpart'){const {t}=findPart(view.pid,b.dataset.tid||'',b.dataset.xid);if(t)t.parts=(t.parts||[]).filter(y=>y.id!==b.dataset.xid);else p.parts=(p.parts||[]).filter(y=>y.id!==b.dataset.xid);save(view.pid);render()}
   else if(a==='dellink'){const t=p.tasks.find(x=>x.id===view.tid);t.links=t.links.filter(y=>y.id!==b.dataset.lid);save(view.pid);render()}
   else if(a==='sjob'){view.shopJob=b.dataset.v;render()}
   else if(a==='sst'){view.shopStatus=b.dataset.v;render()}
@@ -1187,10 +1203,10 @@ app.addEventListener('submit',e=>{
   else if(k==='editc'){p.customer={...(p.customer||{}),name:(d.cname||'').trim(),phone:(d.cphone||'').trim()};{const cu=custOfJob(p);if(cu){if(p.customer.name)cu.name=p.customer.name;cu.phone=p.customer.phone;saveCustomers()}else if(linkJob(p))saveCustomers()}save(view.pid);view.editing=null;toast('Customer info saved');render()}
   else if(k==='addtask'){const t=(d.title||'').trim();if(!t)return;p.tasks.push({id:uid(),title:t,done:false,notes:'',parts:[],links:[]});save(view.pid);render();const el=document.getElementById('newtask');if(el)el.focus()}
   else if(k==='edittask'){const t=p.tasks.find(x=>x.id===view.tid);t.title=d.title.trim()||t.title;save(view.pid);view.editing=null;render()}
-  else if(k==='editpart'){const t=p.tasks.find(x=>x.id===view.tid);const x=t&&(t.parts||[]).find(y=>y.id===f.dataset.xid);if(!x||!d.name.trim())return;
+  else if(k==='editpart'){const {x}=findPart(view.pid,f.dataset.tid||'',f.dataset.xid);if(!x||!d.name.trim())return;
     const unit=['qt','gal'].includes(d.unit)?d.unit:'';Object.assign(x,{name:d.name.trim(),brand:(d.brand||'').trim(),num:(d.num||'').trim(),unit,qty:parseQty(d.qty,unit),supplier:(d.supplier||'').trim()});
     if(!x.unit)delete x.unit;if(!x.brand)delete x.brand;save(view.pid);view.editPart=null;toast('Part saved');render()}
-  else if(k==='addpart'){const t=p.tasks.find(x=>x.id===view.tid);if(!d.name.trim())return;const unit=['qt','gal'].includes(d.unit)?d.unit:'';(t.parts=t.parts||[]).push({id:uid(),name:d.name.trim(),...(d.brand&&d.brand.trim()?{brand:d.brand.trim()}:{}),...(unit?{unit}:{}),num:(d.num||'').trim(),qty:parseQty(d.qty,unit),supplier:(d.supplier||'').trim(),status:PART_ST.includes(d.status)?d.status:'To order',...(d.price!==undefined&&d.price!==''&&isFinite(+d.price)&&+d.price>=0?{price:Math.round(+d.price*100)/100}:{})});
+  else if(k==='addpart'){const onJob=f.dataset.where==='job';const t=onJob?(d.task?(p.tasks||[]).find(x=>x.id===d.task):null):p.tasks.find(x=>x.id===view.tid);if(!onJob&&!t)return;if(!d.name.trim())return;const unit=['qt','gal'].includes(d.unit)?d.unit:'';const list=t?(t.parts=t.parts||[]):(p.parts=p.parts||[]);if(onJob)view.addJobPart=null;list.push({id:uid(),name:d.name.trim(),...(d.brand&&d.brand.trim()?{brand:d.brand.trim()}:{}),...(unit?{unit}:{}),num:(d.num||'').trim(),qty:parseQty(d.qty,unit),supplier:(d.supplier||'').trim(),status:PART_ST.includes(d.status)?d.status:'To order',...(d.price!==undefined&&d.price!==''&&isFinite(+d.price)&&+d.price>=0?{price:Math.round(+d.price*100)/100}:{})});
     save(view.pid);toast('Part added');render()}
   else if(k==='addlink'){const t=p.tasks.find(x=>x.id===view.tid);const u=safeUrl((d.url||'').trim());if(!u){toast('Enter a full link starting with https://');return}(t.links=t.links||[]).push({id:uid(),url:u,title:(d.title||'').trim()});save(view.pid);render()}
 });
@@ -1202,7 +1218,7 @@ app.addEventListener('input',e=>{
 });
 app.addEventListener('change',e=>{const el=e.target;if(el.dataset.input==='pickcust'){const c=custById(el.value);view.cid=el.value||null;const n=document.getElementById('n-cname'),ph=document.getElementById('n-cphone');if(n)n.value=c?c.name:'';if(ph)ph.value=c?c.phone:'';return}
   if(el.dataset.input==='status'){projects[view.pid].status=el.value;save(view.pid);render()}
-  else if(el.dataset.price){const t=projects[view.pid].tasks.find(x=>x.id===view.tid);const x=t&&t.parts.find(y=>y.id===el.dataset.xid);if(x){const v=el.value.trim();if(v===''||!isFinite(+v)||+v<0)delete x.price;else x.price=Math.round(+v*100)/100;save(view.pid);el.blur();render()}}
+  else if(el.dataset.price){const {x}=findPart(view.pid,el.dataset.tid||'',el.dataset.xid);if(x){const v=el.value.trim();if(v===''||!isFinite(+v)||+v<0)delete x.price;else x.price=Math.round(+v*100)/100;save(view.pid);el.blur();render()}}
   else if(el.dataset.exp){const {x}=findPart(el.dataset.pid,el.dataset.tid,el.dataset.xid);if(x){if(el.value)x.expected=el.value;else delete x.expected;save(el.dataset.pid);el.blur();render()}}});
 
 app.addEventListener('change',e=>{const fi=e.target.closest('[data-importfile]');if(fi){const file=fi.files&&fi.files[0];if(!file)return;if(file.size>20e6){toast('That file is too big to be a Project Tracker backup');return}file.text().then(importBackup).catch(()=>toast('Could not read that file'));fi.value='';return}
