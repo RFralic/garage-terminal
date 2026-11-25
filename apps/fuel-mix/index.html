@@ -109,6 +109,9 @@ tr.cur td.cur{background:var(--hi);color:var(--hi-ink);outline:2px solid var(--h
 .legend b{color:var(--ink)}
 </style>
 <script type="module" src="/src/pages/fuelmix.js"></script>
+<!-- Inside the shop app (garageterminal.com/shop, ?shop=1): the app has its own way back, so hide the site link -->
+<script>if(/[?&]shop=1(&|$)/.test(location.search))document.documentElement.classList.add('shop')</script>
+<style>.shop .gt-back{display:none!important}</style>
 </head>
 <body>
 <div class="wrap">

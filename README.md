@@ -33,6 +33,7 @@ Live site: https://garageterminal.com (also https://garage-terminal-15499.web.ap
 | `apps/tap-drill-chart/index.html` | Tap Drill Chart, copied from its Claude artifact (re-copy if the artifact changes) |
 | `apps/torque-chart/index.html`, `src/pages/torque.js` | Torque Chart: typical bolt torque (SAE and metric, dry and oiled) and a unit converter |
 | `src/torque/` | Torque Chart parts: `calc.js` (the formula, standards and bolt sizes; tested in `tests/torque.calc.test.js`), `machines.js` (Add to a vehicle or engine: writes a `From chart` row to a Logbook machine's torque specs) |
+| `shop/index.html`, `src/pages/shop.js`, `src/styles/shop.css`, `public/shop.webmanifest` | **Garage Terminal Shop** (beta) at `/shop`: one installable shop app. Home is built here from `logbook/{uid}/records` and `projects` (Morning Brief rules for low parts and maintenance); Jobs, Machines and Parts are the Job_Board and Logbook in shop mode (`?shop=1`, `&view=machines|parts`) inside frames; Tools has a quick torque lookup and opens the reference apps (`?shop=1` hides their site link). Framing needs `X-Frame-Options: SAMEORIGIN` (firebase.json) |
 | `apps/fuel-mix/index.html`, `src/pages/fuelmix.js`, `src/fuelmix/calc.js` | Fuel Mix: 2-stroke oil for any gas amount and ratio, a chart, "I have a bottle" and "Fix a mix" (math tested in `tests/fuelmix.calc.test.js`). `?ratio=50` opens with a ratio picked (the Logbook's Mix fuel link) |
 | `404.html` | Not-found page |
 | `src/styles/base.css` | Shared look: colors, fonts, header, footer, terminal boxes |

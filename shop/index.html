@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<!--
+  /shop: Garage Terminal as one shop app (beta). Home is built here (src/pages/shop.js);
+  Jobs, Machines and Parts are the Job_Board and Logbook pages in "shop mode"
+  (?shop=1: their own title and back links hidden); Tools are the reference apps.
+  It reads and writes the same records as those apps, so nothing is copied.
+  Installs as its own app (public/shop.webmanifest, id /shop).
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Garage Terminal Shop</title>
+<meta name="description" content="Garage Terminal for a small-engine shop: today's jobs, parts to order, machines and shop tools in one app.">
+<meta name="theme-color" content="#151a17">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/shop.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/src/styles/shop.css">
+<!-- Keep the shop's data on this phone too, like the Logbook (src/lib/firebase.js) -->
+<script>window.__gtOfflineCache=true</script>
+<script type="module" src="/src/pages/shop.js"></script>
+</head>
+<body class="sh">
+<div class="sh-app">
+  <header class="sh-top">
+    <div class="sh-titles">
+      <span class="sh-eyebrow">Garage Terminal · Shop <span class="sh-beta">Beta</span></span>
+      <h1 id="shTitle">Home</h1>
+    </div>
+    <a class="sh-icon" href="/" aria-label="Garage Terminal website"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l6-5-6-5"></path><path d="M12 19h8"></path></svg></a>
+  </header>
+
+  <main class="sh-main">
+    <section id="p-home" class="sh-panel sh-scroll" aria-labelledby="shTitle"><p class="sh-muted sh-pad">Loading…</p></section>
+    <section id="p-jobs" class="sh-panel sh-framebox" hidden></section>
+    <section id="p-machines" class="sh-panel sh-framebox" hidden></section>
+    <section id="p-parts" class="sh-panel sh-framebox" hidden></section>
+    <section id="p-tools" class="sh-panel sh-scroll" hidden></section>
+  </main>
+
+  <nav class="sh-tabs" aria-label="Shop">
+    <button type="button" data-tab="home" aria-current="page"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"></path><path d="M5 10v10h14V10"></path></svg>Home</button>
+    <button type="button" data-tab="jobs"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"></rect><path d="M9 4h6v3H9zM9 12h6M9 16h4"></path></svg>Jobs</button>
+    <button type="button" data-tab="machines"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="8" width="12" height="9" rx="1.5"></rect><path d="M16 11h3l2 2v2h-5M7 8V5h6v3M7 17v2M13 17v2"></path></svg>Machines</button>
+    <button type="button" data-tab="parts"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"></path><path d="M3 8l9 5 9-5M12 13v8"></path></svg>Parts</button>
+    <button type="button" data-tab="tools"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"></path></svg>Tools</button>
+  </nav>
+</div>
+</body>
+</html>
