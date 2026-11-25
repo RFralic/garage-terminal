@@ -81,6 +81,18 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
 .card .foot{margin-top:auto;border-top:1px solid var(--line);padding:9px 14px;font-size:.82rem;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
 .tag{display:inline-block;font:600 .7rem var(--f-display);text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:3px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
 .tag.ex{color:var(--warn);border-color:var(--warn)}
+.tag.cust{color:var(--steel);border-color:var(--steel);text-transform:none;letter-spacing:.02em;font-size:.78rem;margin-top:6px}
+.whose{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin:-6px 0 12px;max-width:420px}
+.whose button{border:0;min-height:40px;background:transparent;color:var(--muted);font-family:var(--f-display);text-transform:uppercase;letter-spacing:.04em}
+.whose button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.ownerh{grid-column:1/-1;margin:8px 0 -4px;font:700 .95rem var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--steel)}
+.jobsbox{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;margin:0 0 16px;display:flex;flex-direction:column;gap:6px}
+.jobsbox .jbh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.jobsbox .jbh b{font:700 .95rem var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--steel)}
+.jobrow{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px;padding:4px 0;border-top:1px solid var(--line);color:var(--ink);text-decoration:none}
+.jobrow span{display:flex;flex-direction:column;min-width:0}
+.jobrow b{font-weight:600}.jobrow small{color:var(--muted)}
+.jobsbox .btn{justify-content:center;min-height:44px;margin-top:4px}
 .empty{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:28px;text-align:center}
 /* detail */
 .head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px}
@@ -475,6 +487,22 @@ if(SHOP)document.documentElement.classList.add("shop",SHOP_PARTS?"shop-parts":"s
 const saveKind=k=>{if(SHOP)return;try{localStorage.setItem("sel-kind",k)}catch(e){}};
 let listKind=SHOP_PARTS?"part":(()=>{try{const v=localStorage.getItem("sel-kind");return v==="vehicle"||(v==="part"&&!SHOP)||v==="due"?v:"engine"}catch(e){return"engine"}})();
 let listView=(()=>{try{return localStorage.getItem("sel-view")==="list"?"list":"grid"}catch(e){return"grid"}})(); /* engines & vehicles: "grid" cards or a compact "list" */
+/* ---------- Customer machines (Shop mode) ----------
+   A machine with owner {id, name} is a customer's: id is the customer's id in Job_Board's customer list
+   (trackerSettings/customers). Customer machines show only while Shop mode is on (the same saved switch as
+   Job_Board's "Customer jobs", localStorage jb-customers) and never count in Maintenance due. Turning Shop
+   mode off hides them everywhere here (lists, search, Fits, Show parts for); nothing is deleted.
+   Job_Board jobs point at a machine with logbookId; the machine page lists them. */
+const custOn=()=>{try{return localStorage.getItem("jb-customers")!=="off"}catch(e){return true}};
+const isCust=e=>!!(e&&e.owner&&(e.owner.id||e.owner.name));
+let custList=[],jobList=[],jbUnsubs=[],jbLoaded=false;
+const ownerName=e=>{const o=e&&e.owner;if(!o)return"";const c=o.id&&custList.find(x=>x.id===o.id);return(c&&c.name)||o.name||"Customer"};
+let whose=(()=>{try{return localStorage.getItem("lb-whose")==="cust"?"cust":"mine"}catch(e){return"mine"}})();
+const TRACKER_HREF="/apps/job-board"; // Job_Board's address (Garage Terminal's import script points it at /apps/job-board)
+const jbHref=q=>TRACKER_HREF+"?"+q+(SHOP?"&shop=1":"");
+const fmtJobNo=n=>"J-"+String(n).padStart(3,"0");
+const jobsFor=e=>jobList.filter(p=>p.logbookId===e.id).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+window.addEventListener("storage",ev=>{if(ev.key==="jb-customers"&&!editing&&!partEdit)render()});
 let db=null, col=null, engines=[], view={id:null,tab:"specs"}, offline=false, draft=null, pendingDelete=false, editing=false;
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -575,12 +603,13 @@ let currentUser=null, signedOut=false, unsub=null, FB=null, authErr="";
 let linkTo=(()=>{try{return new URLSearchParams(location.search).get("m")}catch(e){return null}})();
 function openLinked(final){if(!linkTo)return;const e=engines.find(x=>x.id===linkTo&&kindOf(x)!=="part");
   if(e){view={id:e.id,tab:"log"};listKind=kindOf(e);draft=null;editing=false;pendingDelete=false}
-  if(e||final){linkTo=null;try{history.replaceState(history.state,"",location.pathname)}catch(x){}}}
+  if(e||final){linkTo=null;try{const u=new URL(location.href);u.searchParams.delete("m");history.replaceState(history.state,"",u.pathname+u.search)}catch(x){}}}
 async function init(){
   try{FB=await window.fbReady}catch(e){FB=null}
   if(!FB){goOffline("Couldn't connect to sync. Changes are kept on this device only for now.");return}
   FB.onAuth(user=>{
     if(unsub){unsub();unsub=null}
+    jbUnsubs.forEach(f=>{try{f()}catch(x){}});jbUnsubs=[];custList=[];jobList=[];jbLoaded=false;
     currentUser=user;drawWho();
     if(!user){if(!offline){signedOut=true;engines=[];view={id:null,tab:"specs"};draft=null;render()}return}
     signedOut=false;offline=false;showBanner("");
@@ -594,6 +623,11 @@ async function init(){
       if(view.id&&!engines.find(e=>e.id===view.id)&&!(draft&&draft._new&&draft.id===view.id)){view.id=null;draft=null}
       render();
     },err=>{clearTimeout(slow);showBanner("Your records couldn't load ("+(err&&err.code||"error")+"). Try signing out and back in.")});
+    // Job_Board's customers and jobs (read only), for customer machines and the jobs on each machine
+    if(FB.forUser){try{const u=FB.forUser(user.uid);const quiet=()=>{if(!editing&&!partEdit&&!sheet&&!(view.id&&view.tab==="log"))render()};
+      jbUnsubs.push(u.doc("settings/customers").onSnapshot(s=>{const v=s.exists?(s.data()||{}):null;custList=v&&Array.isArray(v.list)?v.list.filter(c=>c&&c.id):[];quiet()},()=>{}));
+      jbUnsubs.push(u.collection("projects").onSnapshot(q=>{jobList=q.docs.map(d=>({id:d.id,...d.data()}));jbLoaded=true;quiet()},()=>{}));
+    }catch(x){}}
   });
 }
 async function signIn(){
@@ -678,16 +712,22 @@ function renderScreen(){
 }
 function renderList(){
   const app=$("#app");
-  const count=kd=>engines.filter(e=>kindOf(e)===kd).length;
+  const anyC=custOn()&&engines.some(e=>!isPart(e)&&isCust(e)),w=anyC?whose:"mine";
+  const inList=e=>isPart(e)||(w==="cust"?isCust(e):!isCust(e));
+  const count=kd=>engines.filter(e=>kindOf(e)===kd&&inList(e)).length;
   const kt=`<nav class="tabs kindtabs" role="tablist">${[...Object.entries(KINDS).map(([kd,c])=>[kd,c.plural]),["part","Inventory"],["due","Due"]].map(([kd,lab])=>{const n=kd==="due"?dueNow().length:count(kd);
     return `<button role="tab" data-kind="${kd}" aria-selected="${kd===listKind}">${lab} <span class="cnt${kd==="due"&&n?" hot":""}">${n}</span></button>`}).join("")}</nav>`;
   const wire=()=>app.querySelectorAll("[data-kind]").forEach(b=>b.onclick=()=>{listKind=b.dataset.kind;saveKind(listKind);render()});
   if(listKind==="part"){renderInventory(kt,wire);return}
   if(listKind==="due"){renderDue(kt,wire);return}
   const k=KINDS[listKind];
-  const items=engines.filter(e=>kindOf(e)===listKind);
-  if(!items.length){app.innerHTML=kt+`<div class="empty"><h2>No ${k.plural.toLowerCase()} yet</h2><p class="muted">${k.emptyMsg}</p><button class="primary" id="addEmpty">+ Add ${k.one}</button></div>`;$("#addEmpty").onclick=()=>addEngine(listKind);wire();return}
-  const list=[...items].sort(byName);
+  const items=engines.filter(e=>kindOf(e)===listKind&&inList(e));
+  const nOf=c=>engines.filter(e=>kindOf(e)===listKind&&!isPart(e)&&isCust(e)===c).length;
+  const ws=anyC?`<div class="whose" role="group" aria-label="Whose machines"><button type="button" data-whose="mine" aria-pressed="${w==="mine"}">Mine · ${nOf(false)}</button><button type="button" data-whose="cust" aria-pressed="${w==="cust"}">Customers' · ${nOf(true)}</button></div>`:"";
+  const wireW=()=>app.querySelectorAll("[data-whose]").forEach(b=>b.onclick=()=>{whose=b.dataset.whose;try{localStorage.setItem("lb-whose",whose)}catch(x){}render()});
+  if(!items.length){app.innerHTML=kt+ws+(w==="cust"?`<div class="empty"><h2>No customers' ${k.plural.toLowerCase()} yet</h2><p class="muted">Add one from a customer's page in Job_Board, or + Add ${k.one} and pick the customer under "Whose is it?".</p></div>`:`<div class="empty"><h2>No ${k.plural.toLowerCase()} yet</h2><p class="muted">${k.emptyMsg}</p><button class="primary" id="addEmpty">+ Add ${k.one}</button></div>`);const ae=$("#addEmpty");if(ae)ae.onclick=()=>addEngine(listKind);wire();wireW();return}
+  const list=w==="cust"?[...items].sort((a,b)=>ownerName(a).localeCompare(ownerName(b))||byName(a,b)):[...items].sort(byName);
+  let lastOwner=null;const ownerHead=e=>{if(w!=="cust")return"";const o=ownerName(e);if(o===lastOwner)return"";lastOwner=o;return `<h3 class="ownerh">${esc(o)}</h3>`};
   /* Grid / List switch. List shows each card's title bar plus make, model, type and engine. */
   const vs=`<div class="viewbar"><div class="viewsw" role="group" aria-label="Show as">
     <button type="button" data-view="grid" aria-pressed="${listView==="grid"}"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>Grid</button>
@@ -697,7 +737,7 @@ function renderList(){
      (small engines: engine make & model and engine type; vehicles: the Engine field). */
   const t=v=>String(v||"").trim();
   const listSub=e=>kindOf(e)==="vehicle"?t(e.engine):[[t(e.engineMake),t(e.engineModel)].filter(Boolean).join(" "),t(e.engineType)].filter(Boolean).join(" · ");
-  app.innerHTML=kt+vs+`<div class="grid${listView==="list"?" listview":""}">${list.map(e=>{
+  app.innerHTML=kt+ws+vs+`<div class="grid${listView==="list"?" listview":""}">${list.map(e=>ownerHead(e)+(()=>{
     if(listView==="list"){const sub=listSub(e);
       return `<div class="card"><button class="cardmain" data-id="${esc(e.id)}" aria-label="Open ${esc(dname(e))}">
       <div class="plate"><div class="lvtitle"><b>${esc(dname(e))}</b>${sub?`<small>${esc(sub)}</small>`:""}</div><span class="eqt">${eqIcon(e.equipment)}${esc(e.equipment||"")}</span></div></button></div>`}
@@ -708,8 +748,8 @@ function renderList(){
       ${(()=>{if(isPart(e))return"";const x=xref(e);const n=x.rows.length;if(!n)return"";const have=x.rows.filter(r=>r.stock.some(p=>qtyN(p)>0)).length;
         return `<div class="sparesline"><span class="stk ${have===n?"ok":have?"low":"none"}">${have} of ${n}</span> part numbers in your inventory</div>`})()}
       <div class="foot"><span>Last service: <span class="mono">${last?fmtDate(last.date):"none"}</span></span>${e.example?'<span class="tag ex">Example</span>':`<span>${(e.log||[]).length} entries</span>`}</div>
-    </button>${docsOf(e).length?`<div class="cardlinks">${docsOf(e).map(x=>`<a class="doc" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">Open ${esc(x.label||"manual")}</a>`).join("")}</div>`:""}</div>`}).join("")}</div>`;
-  wire();
+    </button>${docsOf(e).length?`<div class="cardlinks">${docsOf(e).map(x=>`<a class="doc" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">Open ${esc(x.label||"manual")}</a>`).join("")}</div>`:""}</div>`})()).join("")}</div>`;
+  wire();wireW();
   app.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{listView=b.dataset.view;try{localStorage.setItem("sel-view",listView)}catch(x){}render()});
   app.querySelectorAll(".cardmain").forEach(c=>c.onclick=()=>{view={id:c.dataset.id,tab:"specs"};draft=null;pendingDelete=false;editing=false;render();window.scrollTo(0,0)});
 }
@@ -720,6 +760,13 @@ function addEngine(kind){
 }
 function current(){return engines.find(e=>e.id===view.id)||(draft&&draft.id===view.id?draft:null)}
 
+/* Job_Board jobs and projects on this machine (newest first); customer machines get + New job */
+function jobsBox(e){if(!jbLoaded||e._new)return"";const js=jobsFor(e),cust=isCust(e)&&custOn();if(!js.length&&!cust)return"";
+  const when=p=>{const d=(p.customer&&p.customer.dropOff)||(p.createdAt?new Date(p.createdAt).toISOString().slice(0,10):"");return d?fmtDate(d):""};
+  const row=p=>`<a class="jobrow" href="${esc(jbHref("job="+encodeURIComponent(p.id)))}"><span><b>${p.kind==="customer"&&p.jobNo?esc(fmtJobNo(p.jobNo))+" · ":""}${esc(p.title||"Untitled")}</b><small>${esc([when(p),p.status].filter(Boolean).join(" · "))}</small></span><span aria-hidden="true">›</span></a>`;
+  return `<section class="jobsbox" aria-label="Jobs on this machine"><div class="jbh"><b>${cust?"Jobs on this machine":"Job_Board"}</b><span class="muted">${js.length} ${js.length===1?"job":"jobs"}</span></div>
+    ${js.slice(0,6).map(row).join("")}${js.length>6?`<span class="muted small">+ ${js.length-6} older</span>`:""}
+    ${cust?`<a class="btn primary" href="${esc(jbHref("newjob="+encodeURIComponent(e.id)))}">+ New job for this machine</a>`:""}</section>`}
 function renderDetail(){
   const e=current(); const app=$("#app");
   if(!e){view.id=null;render();return}
@@ -727,7 +774,9 @@ function renderDetail(){
   const tabs=[["specs","Specs & parts"],["log","Schedule & log"],["print","Print record"]];
   app.innerHTML=`
    <div class="head"><div class="t"><h2>${esc(dname(e))}</h2><div class="muted">${esc((kindOf(e)==="vehicle"?[(e.name||"").trim()?[e.year,e.make,e.model].filter(Boolean).join(" "):"",e.trim,e.engine]:[e.equipment,(e.name||"").trim()?[e.make,e.model].filter(Boolean).join(" "):"",[e.engineMake,e.engineModel].filter(Boolean).join(" ")&&("Engine: "+[e.engineMake,e.engineModel].filter(Boolean).join(" ")),e.engineType]).filter(Boolean).join(" · "))} ${e.example?'<span class="tag ex">Example</span>':""}</div>
+     ${isCust(e)?`<div><span class="tag cust">Customer's · ${esc(ownerName(e))}</span></div>`:""}
      ${docsOf(e).length?`<div class="doclinks">${docsOf(e).map(d=>`<a class="doc" href="${esc(safeUrl(d.url))}" target="_blank" rel="noopener">${esc(d.label||"Link")}</a>`).join("")}</div>`:""}</div></div>
+   ${jobsBox(e)}
    <nav class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${view.tab===k}">${l}</button>`).join("")}</nav>
    <div id="panel"></div>`;
   app.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{view.tab=b.dataset.tab;renderDetail()});
@@ -772,6 +821,7 @@ function renderSpecs(e){
   $("#panel").innerHTML=`<section class="panel">
     <div class="fields">
       <label>Nickname (optional)<input id="f-name" value="${esc(d.name)}" placeholder="Leave blank to use make &amp; model"></label>
+      ${custOn()&&(custList.length||isCust(d))?`<label>Whose is it?<select id="f-owner"><option value="">Mine</option>${[...custList].sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""))).map(c=>`<option value="${esc(c.id)}" ${d.owner&&d.owner.id===c.id?"selected":""}>Customer: ${esc(c.name||"No name")}</option>`).join("")}${isCust(d)&&!custList.some(c=>d.owner&&c.id===d.owner.id)?`<option value="${esc((d.owner&&d.owner.id)||"__keep")}" selected>Customer: ${esc(ownerName(d))}</option>`:""}</select><small class="muted">A customer's machine shows only in Shop mode and never in Maintenance due.</small></label>`:""}
       <label>${k.typeLabel}${sel("f-equipment",k.types,d.equipment)}</label>
       ${k.spec.map(([k,l,m,pt])=>k==="cycle"?`<label>${l}${sel("f-cycle",["4-stroke","2-stroke"],d.cycle)}</label>`:
         pt?`<label class="pnlabel">${l}<span class="pnpair"><input id="f-${k}Brand" aria-label="${esc(l.replace(/ part #$/,""))} brand" value="${esc(d[k+"Brand"])}" placeholder="Brand"><input id="f-${k}" class="pn" aria-label="${esc(l)}" value="${esc(d[k])}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k]||"Part #")}"></span></label><label class="altlabel">${esc(l.replace(/ part #$/,""))}: also listed as<input id="f-${k}Alts" value="${esc(d[k+"Alts"]||"")}" placeholder="${esc((kindOf(e)==="vehicle"?VPH:PH)[k+"Alts"]||"Other brands' numbers, comma between")}" maxlength="300"></label>`:
@@ -810,6 +860,7 @@ function renderSpecs(e){
       ${pendingDelete?`<span class="confirm">Delete this ${k.one} and its whole service log? <button class="danger" id="delYes">Delete</button><button id="delNo">Keep</button></span>`:`<button class="danger" id="delBtn">Delete ${k.one}</button>`}
     </div></section>`;
   const pull=()=>{d.name=$("#f-name").value;d.equipment=$("#f-equipment").value;d.notes=$("#f-notes").value;
+    const ow=$("#f-owner");if(ow){const v=ow.value;if(!v)d.owner=null;else if(v!=="__keep"){const c=custList.find(x=>x.id===v);d.owner={id:v,name:c?String(c.name||""):((d.owner&&d.owner.name)||"")}}}
     k.spec.forEach(([f,,,pt])=>{const el=$("#f-"+f);if(el)d[f]=el.value;if(pt){const b=$("#f-"+f+"Brand");if(b)d[f+"Brand"]=b.value;const al=$("#f-"+f+"Alts");if(al)d[f+"Alts"]=al.value.trim()}});
     d.parts=(d.parts||[]).map((p,i)=>({name:$("#pn-"+i).value,brand:$("#pbr-"+i).value,number:$("#pnum-"+i).value,alts:($("#palt-"+i)?$("#palt-"+i).value:"").trim()}));
     d.docs=(d.docs||[]).map((x,i)=>({label:$("#dl-"+i).value,url:$("#du-"+i).value.trim()}));
@@ -823,7 +874,7 @@ function renderSpecs(e){
   $("#saveSpecs").onclick=async()=>{pull();d.parts=d.parts.filter(p=>p.name||p.number||p.brand);if(d.torque)d.torque=d.torque.filter(t=>t.item||t.value||t.size);
     const bad=(d.docs||[]).find(x=>x.url&&!safeUrl(x.url));if(bad){$("#savedMsg").style.color="var(--accent)";$("#savedMsg").textContent="One link isn't a web address. Paste the full link from Drive.";return}
     d.docs=(d.docs||[]).filter(x=>x.url).map(x=>({label:x.label.trim()||"Service manual",url:safeUrl(x.url)}));
-    const out={...e,...d};delete out._new;delete out._pickerShown;
+    const out={...e,...d};delete out._new;delete out._pickerShown;if(!out.owner)delete out.owner;
     if(String(out.hours||"")!==String(e.hours||""))out.hoursAt=today(); // "Mileage updated …" on the schedule
     const btn=$("#saveSpecs");btn.disabled=true;
     try{await saveEngine(out);draft=null;editing=false;render();const m=$("#savedMsg");if(m)m.textContent="Saved"}catch(err){$("#savedMsg").textContent="Couldn't save: "+(err.message||err.code);btn.disabled=false}};
@@ -1013,7 +1064,7 @@ let pendingLog=null;
 /* ---------- Maintenance due: the Due tab, each machine's service schedule, and the interval sheet ---------- */
 let dueFilter="all", logPrefill=null, sheet=null, meterEdit=false;
 const DUE_LABEL={over:"Overdue",soon:"Due soon",ok:"OK",none:"Not logged"};
-const dueAll=()=>machines().flatMap(e=>dueList(e,today()).map(d=>({...d,e})));
+const dueAll=()=>machines().filter(e=>!isCust(e)).flatMap(e=>dueList(e,today()).map(d=>({...d,e})));
 /** Overdue and due-soon services that aren't snoozed: the Due tab's badge. */
 const dueNow=()=>dueAll().filter(d=>(d.state==="over"||d.state==="soon")&&!d.snoozed);
 const meterWord=e=>kindOf(e)==="vehicle"?"mileage":"engine hours";
@@ -1178,7 +1229,7 @@ const forName=()=>invFor?nameOf(invFor):null; // null once that machine is gone
 const tagFor=p=>{const n=forName();return n&&!allFits(p).includes(invFor)?{...p,fits:[...(p.fits||[]),invFor]}:p};
 const isPart=e=>kindOf(e)==="part";
 const partsOf=()=>engines.filter(isPart);
-const machines=()=>engines.filter(e=>!isPart(e)).sort(byName);
+const machines=()=>engines.filter(e=>!isPart(e)&&(!isCust(e)||custOn())).sort(byName);
 const nameOf=id=>{const m=engines.find(e=>e.id===id&&!isPart(e));return m?dname(m):null};
 /* cross reference: machine part numbers <-> inventory */
 const normPN=v=>String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"");

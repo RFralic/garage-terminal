@@ -130,6 +130,13 @@ describe('the brief\'s maintenance list', () => {
     assert.match(alert.summary, /^5 items: Back yard mower spark plug, Work truck oil & filter and 3 more$/);
   });
 
+  test("customer machines (Shop mode) are never in the brief", () => {
+    const theirs = { ...RECORDS[0], id: 'c1', name: "Cory's truck", owner: { id: 'cu1', name: 'Cory' } };
+    const got = buildBrief({ records: [...RECORDS, theirs], nowMs: NOW, tz: TZ }).sections.maintenance;
+    assert.equal(got.length, 5);
+    assert.ok(!got.some((m) => /Cory/.test(m.machine)));
+  });
+
   test('nothing due when everything is on schedule', () => {
     const fresh = { id: 'v2', kind: 'vehicle', name: 'Car', hours: '10,000', log: [entry('2026-11-01', '10,000', 'Oil & filter', 'Tire rotation', 'Air filter', 'Brakes')] };
     assert.deepEqual(buildBrief({ records: [fresh], nowMs: NOW, tz: TZ }).sections.maintenance, []);

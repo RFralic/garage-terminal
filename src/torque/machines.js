@@ -60,7 +60,11 @@ export async function openAdd(spec, dlg) {
   let machines;
   try {
     const snap = await getDocs(collection(db, 'logbook', user.uid, 'records'));
-    machines = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((e) => kindOf(e) !== 'part');
+    // customer machines only while Shop mode is on (Job_Board's Customer jobs switch, saved per device)
+    let custOn = true;
+    try { custOn = localStorage.getItem('jb-customers') !== 'off'; } catch { /* on */ }
+    machines = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .filter((e) => kindOf(e) !== 'part' && (custOn || !(e.owner && (e.owner.id || e.owner.name))));
   } catch (err) {
     show(dlg, `<h2>Add to a vehicle or engine</h2><p class="msg err">Couldn't load your Logbook: ${esc(err.message || err.code)}</p><div class="btns"><button type="button" class="btn" data-close>OK</button></div>`);
     return;
