@@ -11,10 +11,10 @@
 // The framed pages are this site's own (firebase.json allows same-site framing only).
 // Nothing is copied: a change in the shop app shows in the Logbook and Job_Board and back.
 //
-// SYSOP ONLY for now (beta): anyone else signed in sees "coming soon", and the tabs
-// don't open. To open it to everyone later, make sysopOnly false.
-// (This only hides the app; each member's records are protected by firestore.rules anyway.)
-const sysopOnly = true;
+// Open to everyone signed in (beta). Set sysopOnly to true to limit it to the sysop again
+// (others then see "coming soon"); also put data-sysop back on the home page card.
+// Each member only ever sees their own records: firestore.rules allow logbook/{uid} to its owner only.
+const sysopOnly = false;
 
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot } from 'firebase/firestore';
