@@ -10,11 +10,16 @@
 //
 // The framed pages are this site's own (firebase.json allows same-site framing only).
 // Nothing is copied: a change in the shop app shows in the Logbook and Job_Board and back.
+//
+// SYSOP ONLY for now (beta): anyone else signed in sees "coming soon", and the tabs
+// don't open. To open it to everyone later, make sysopOnly false.
+// (This only hides the app; each member's records are protected by firestore.rules anyway.)
+const sysopOnly = true;
 
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.js';
-import { finishRedirectSignIn, signInWithGoogle } from '../lib/session.js';
+import { finishRedirectSignIn, signInWithGoogle, watchSession } from '../lib/session.js';
 import { buildBrief } from '../brief/brief.js';
 import { parseBolt, torqueFor, convert, fmt } from '../torque/calc.js';
 
@@ -49,7 +54,7 @@ function frameFor(name) {
 }
 
 function show(name, { again = false } = {}) {
-  if (!TITLES[name]) name = 'home';
+  if (!TITLES[name] || access !== 'ok') name = 'home';
   if (again && name === tab) {
     // Tapping the tab you're on goes back to its start
     if (FRAMES[name]) frameFor(name).src = FRAMES[name];
@@ -78,6 +83,7 @@ document.querySelector('.sh-tabs').addEventListener('click', (e) => {
 // ---------- data ------------------------------------------------------------------------
 
 let user = null;
+let access = 'loading'; // loading | guest | waiting (signed in, not allowed yet) | ok
 let records = null;
 let projects = null;
 let loadErr = '';
@@ -93,10 +99,19 @@ function listen(uid) {
   ];
 }
 
+watchSession((s) => {
+  const before = access;
+  access = s.state === 'loading' ? 'loading' : s.state === 'guest' ? 'guest' : (!sysopOnly || (s.state === 'member' && s.isSysop)) ? 'ok' : 'waiting';
+  document.querySelector('.sh-tabs').hidden = access !== 'ok';
+  if (access === 'ok' && before !== 'ok' && user) listen(user.uid);
+  if (access !== 'ok') { unsubs.forEach((x) => x()); unsubs = []; records = projects = null; show('home'); }
+  renderHome();
+});
+
 onAuthStateChanged(auth, (u) => {
   const was = user && user.uid;
   user = u;
-  if (u) listen(u.uid);
+  if (u && access === 'ok') listen(u.uid);
   else { unsubs.forEach((x) => x()); unsubs = []; records = projects = null; }
   // pages already open in a tab sign in or out with the app
   if ((u && u.uid) !== was) for (const n of Object.keys(FRAMES)) { const f = $('p-' + n).querySelector('iframe'); if (f) f.src = FRAMES[n]; }
@@ -136,6 +151,13 @@ function renderHome() {
         $('shSignMsg').textContent = "Couldn't sign in: " + (err.message || err.code);
       }
     };
+    return;
+  }
+  if (access === 'loading') { box.innerHTML = '<p class="sh-muted sh-pad">Loading…</p>'; return; }
+  if (access === 'waiting') {
+    box.innerHTML = `<div class="sh-signin"><h2>Coming soon</h2>
+      <p>The Garage Terminal shop app is being tested and isn't open yet. Your Logbook and Job_Board work as usual in the meantime.</p>
+      <a class="sh-btn ghost" href="/#apps" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Back to Garage Terminal</a></div>`;
     return;
   }
   if (loadErr) { box.innerHTML = `<p class="sh-empty">Couldn't load your shop: ${esc(loadErr)}</p>`; return; }
