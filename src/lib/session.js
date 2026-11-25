@@ -25,7 +25,7 @@ import {
   runTransaction,
   serverTimestamp,
 } from 'firebase/firestore';
-import { auth, db } from './firebase.js';
+import { auth, db, isPreviewSite } from './firebase.js';
 
 // ---------- handle rules (the same rules are enforced in firestore.rules) ----
 
@@ -87,7 +87,7 @@ const isInstalledApp = () =>
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  if (usesTouch || isInstalledApp()) {
+  if ((usesTouch || isInstalledApp()) && !isPreviewSite) {
     await signInWithRedirect(auth, provider);
   } else {
     await signInWithPopup(auth, provider);

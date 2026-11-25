@@ -20,9 +20,9 @@
 // of firestore.rules). The pages turn on the offline cache
 // (window.__gtOfflineCache) so they keep working without a signal.
 
-import { onAuthStateChanged, signOut, signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
+import { onAuthStateChanged, signOut, signInWithRedirect, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase.js';
+import { auth, db, isPreviewSite } from '../lib/firebase.js';
 import { finishRedirectSignIn, signInWithGoogle, watchSession } from '../lib/session.js';
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -118,7 +118,8 @@ finishRedirectSignIn().catch((err) => console.error('Logbook: sign-in did not fi
 function signInRedirect() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  return signInWithRedirect(auth, provider);
+  // previews: pop-up (see src/lib/firebase.js)
+  return isPreviewSite ? signInWithPopup(auth, provider) : signInWithRedirect(auth, provider);
 }
 
 window.fbResolve({

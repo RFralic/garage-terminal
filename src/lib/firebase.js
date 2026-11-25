@@ -10,6 +10,10 @@
 // redirecting back to {site}/__/auth/handler, and iPhone Safari only allows that
 // when it's the same address as the page. (That address must be listed under
 // "Authorized redirect URIs" on the OAuth client in Google Cloud Console.)
+//
+// Pull request previews (garage-terminal-15499--pr12-name-abc.web.app) get a new address
+// every time, so they can't be listed there: previews use the project's own
+// {project}.firebaseapp.com sign-in page (always allowed) and a pop-up instead of the redirect.
 
 import { initializeApp } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
@@ -25,6 +29,8 @@ import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 const isLocal = import.meta.env.DEV;
+/** True on a pull request preview address (not the live site). */
+export const isPreviewSite = /--/.test(location.hostname) && location.hostname.endsWith('.web.app');
 
 // Bot protection (App Check): proves requests come from this website, using a
 // reCAPTCHA v3 *site* key. The site key is public by design (every browser gets
@@ -45,7 +51,7 @@ async function loadConfig() {
   const res = await fetch('/__/firebase/init.json');
   if (!res.ok) throw new Error('Could not load Firebase config');
   const config = await res.json();
-  config.authDomain = location.host;
+  config.authDomain = isPreviewSite ? `${config.projectId}.firebaseapp.com` : location.host;
   return config;
 }
 
