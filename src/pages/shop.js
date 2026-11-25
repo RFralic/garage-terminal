@@ -6,7 +6,7 @@
 //  Jobs      /apps/job-board?shop=1             (Job_Board in shop mode)
 //  Machines  /apps/logbook?shop=1&view=machines (Logbook: engines, vehicles, Due)
 //  Parts     /apps/logbook?shop=1&view=parts    (Logbook inventory)
-//  Tools     quick torque here; Torque Chart, Fuel Mix, Tap Drill Chart open inside
+//  Tools     Torque Chart, Fuel Mix, Tap Drill Chart open inside
 //
 // The framed pages are this site's own (firebase.json allows same-site framing only).
 // Nothing is copied: a change in the shop app shows in the Logbook and Job_Board and back.
@@ -21,7 +21,6 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.js';
 import { finishRedirectSignIn, signInWithGoogle, watchSession } from '../lib/session.js';
 import { buildBrief } from '../brief/brief.js';
-import { parseBolt, torqueFor, convert, fmt } from '../torque/calc.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -253,26 +252,11 @@ const TOOLS = [
 function renderTools() {
   const box = $('p-tools');
   box.className = 'sh-panel sh-scroll';
-  box.innerHTML = `<div class="sh-quick">
-      <label for="shBolt">Quick torque · Grade 5 / class 8.8, dry
-        <input id="shBolt" type="text" inputmode="text" autocomplete="off" spellcheck="false" value="3/8-16" placeholder="3/8-16, M10…"></label>
-      <div class="sh-qrow" id="shQ" aria-live="polite"></div>
-    </div>
+  box.innerHTML = `
     ${TOOLS.map((t) => `<button type="button" class="sh-card sh-tool" data-tool="${t.id}">
       <span class="sh-ticon" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#eaf2fb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
       <span class="sh-tbody"><b>${t.name}</b><span class="sh-sub">${t.sub}</span></span><span class="sh-right" aria-hidden="true">&gt;</span></button>`).join('')}
     <p class="sh-foot">The charts work with no signal once they've been opened.</p>`;
-  const inp = $('shBolt');
-  const draw = () => {
-    const p = parseBolt(inp.value);
-    if (!p.row) { $('shQ').innerHTML = `<span class="sh-qalt">${p.kind === 'empty' ? 'Type a bolt size.' : 'No match. Try 3/8-16, #10-32 or M10.'}</span>`; return; }
-    const g = p.kind === 'sae' ? '5' : '8.8';
-    const dry = torqueFor(p.row, g, 'dry').nm, oil = torqueFor(p.row, g, 'oiled').nm;
-    $('shQ').innerHTML = `<span class="sh-qbig">${fmt(convert(dry, 'N·m', 'ft-lb'))}</span><span>ft-lb</span>
-      <span class="sh-qalt">${esc(p.row.label)} · ${fmt(dry)} N·m · oiled ${fmt(convert(oil, 'N·m', 'ft-lb'))} ft-lb</span>`;
-  };
-  inp.addEventListener('input', draw);
-  draw();
 }
 
 $('p-tools').addEventListener('click', (e) => {
