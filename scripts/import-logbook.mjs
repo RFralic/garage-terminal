@@ -102,6 +102,7 @@ lb = swap(lb, '<div class="wrap">\n  <header class="top">', `<div class="wrap">\
 lb = swapFirebaseModule(lb, BACKEND, 'index.html');
 // 4. links
 lb = swap(lb, 'href="/tracker"', 'href="/apps/job-board"', 'Job_Board link');
+lb = swap(lb, 'const TRACKER_HREF="/tracker";', 'const TRACKER_HREF="/apps/job-board";', 'Job_Board address for job links');
 // 6. scanner
 lb = swap(lb, SCANNER_FROM, SCANNER_TO, 'barcode scanner script');
 // 5. offline

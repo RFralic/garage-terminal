@@ -286,7 +286,8 @@ export function buildBrief({ records = [], projects = [], upkeep = [], pantries 
 
   if (on.maintenance) {
     const items = [];
-    for (const e of records.filter((r) => kindOf(r) !== 'part')) {
+    // customer machines (owner set, from Shop mode) are the customer's business: never in the brief
+    for (const e of records.filter((r) => kindOf(r) !== 'part' && !(r.owner && (r.owner.id || r.owner.name)))) {
       for (const d of dueList(e, today)) {
         if ((d.state !== 'over' && d.state !== 'soon') || d.snoozed || !d.brief) continue;
         items.push({ machine: machineName(e), item: d.task, detail: d.text, state: d.state, rank: d.state === 'over' ? 0 : 1 });
