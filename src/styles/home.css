@@ -9,12 +9,14 @@ h1{margin:0;font-family:var(--mono);font-weight:700;font-size:clamp(32px,6vw,62p
 .area:hover{border-color:var(--line-2);color:var(--fg)}
 .area h2{margin:4px 0 0;font-size:21px;font-weight:600}
 .area p:last-child{margin:0;color:var(--muted)}
-.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,270px),360px));gap:16px;align-items:start}
-.app{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
-.apphead{display:flex;gap:16px;align-items:flex-start}
-.apphead img{flex:none;width:48px;height:48px;border-radius:12px;display:block}
-.apphead div{display:flex;flex-direction:column;gap:4px;min-width:0}
-.app h3{margin:0;font-size:17px;font-weight:600}
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),320px));gap:12px;align-items:start}
+.app{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.apphead{display:flex;gap:12px;align-items:flex-start}
+.apphead img{flex:none;width:40px;height:40px;border-radius:10px;display:block}
+.apphead div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.app h3{margin:0;font-size:16px;font-weight:600}
+/* Standalone cards: description kept to 3 lines in Grid view */
+.apps:not([data-view="list"]) .app:not(.app-main) .apphead p:not(.meta){display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 /* Favorites star (added by src/pages/app-filter.js) */
 .fav-btn{flex:none;margin-left:auto;width:44px;height:44px;margin-top:-10px;margin-right:-10px;display:inline-flex;align-items:center;justify-content:center;background:none;border:0;border-radius:999px;color:var(--muted);cursor:pointer}
 .fav-btn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
@@ -24,9 +26,9 @@ h1{margin:0;font-family:var(--mono);font-weight:700;font-size:clamp(32px,6vw,62p
 .fav-btn:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
 .fav-empty{margin:4px 0 0;color:var(--muted);font-size:15px}
 .apps[data-view="list"] .fav-btn{margin:0 -10px 0 0}
-.app p{margin:0;color:var(--muted);font-size:15px}
+.app p{margin:0;color:var(--muted);font-size:14px}
 .meta{font-family:var(--mono);font-size:13px;margin-top:4px!important}
-.shot{height:280px;overflow:hidden;border-radius:10px;border:1px solid var(--line-2);background:var(--bar)}
+.shot{height:170px;overflow:hidden;border-radius:10px;border:1px solid var(--line-2);background:var(--bar)}
 .shot img{display:block;width:100%;height:100%;object-fit:cover;object-position:top}
 .dirs a{color:var(--soft);text-decoration:none;min-height:44px;display:inline-flex;align-items:center}
 .dirs a:hover{color:var(--fg)}
@@ -47,3 +49,37 @@ h1{margin:0;font-family:var(--mono);font-weight:700;font-size:clamp(32px,6vw,62p
 /* list rows keep just the "Open app" link (the "Web app ·" label is hidden) */
 .apps[data-view="list"] .meta{flex:none;margin-top:0!important;font-size:0}
 .apps[data-view="list"] .meta a{display:inline-flex;align-items:center;min-height:44px;font-size:13px;white-space:nowrap}
+
+/* The main Garage card (Garage Terminal shop app): full row, bigger, green edge */
+.app.app-main{grid-column:1/-1;max-width:none;padding:20px;border-color:var(--green);border-width:1px 1px 1px 4px;background:linear-gradient(135deg,rgba(91,228,155,.08),var(--panel) 60%)}
+.app-main .apphead{gap:18px}
+.app-main .apphead img{width:64px;height:64px;border-radius:14px}
+.app-main h3{font-size:22px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.app-main .apphead p{font-size:15px;color:var(--soft);max-width:640px}
+.app-main .beta{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--green);border:1px solid var(--green);border-radius:4px;padding:1px 5px}
+.app-main .includes{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.app-main .includes li{font:12px var(--mono);color:var(--muted);border:1px solid var(--line-2);border-radius:999px;padding:2px 9px}
+.app-main .meta{font-size:13px}
+.app-main .meta a{font-size:15px;font-weight:600;color:var(--green)}
+.app[data-sysop]{display:none}
+.sysop-on .app[data-sysop]:not([hidden]){display:flex}
+.apps[data-view="list"] .app.app-main{padding:8px 16px;border-width:1px 1px 1px 4px}
+.apps[data-view="list"] .app-main .apphead img{width:44px;height:44px}
+.apps[data-view="list"] .app-main h3{font-size:17px}
+.apps[data-view="list"] .app-main .includes{display:none}
+.app-main .meta .short{display:none}
+.apps[data-view="list"] .app-main .meta{font-size:0}
+.apps[data-view="list"] .app-main .meta a{font-size:13px;font-weight:400}
+.apps[data-view="list"] .app-main .meta .long{display:none}
+.apps[data-view="list"] .app-main .meta .short{display:inline}
+.apps[data-view="list"] .app-main h3{gap:4px 8px}
+/* Phones: icon, name and star on one row; the text uses the card's full width under them */
+@media (max-width:560px){
+  .apps:not([data-view="list"]) .app.app-main{padding:16px}
+  .apps:not([data-view="list"]) .app-main .apphead{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:10px 14px;align-items:center}
+  .apps:not([data-view="list"]) .app-main .apphead > div{display:contents}
+  .apps:not([data-view="list"]) .app-main .apphead img{width:52px;height:52px;grid-column:1;grid-row:1}
+  .apps:not([data-view="list"]) .app-main h3{grid-column:2;grid-row:1;font-size:21px}
+  .apps:not([data-view="list"]) .app-main .fav-btn{grid-column:3;grid-row:1;margin:0 -10px 0 0}
+  .apps:not([data-view="list"]) .app-main .apphead p,.apps:not([data-view="list"]) .app-main .includes{grid-column:1/-1}
+}

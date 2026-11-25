@@ -25,18 +25,26 @@ const countLabel = document.getElementById('apps-count');
 const cards = [...list.querySelectorAll('.app')];
 const categoryOf = (card) => (card.dataset.category || 'other').trim().toLowerCase();
 
-// Which categories are in use, and how many apps each has.
-const counts = new Map();
-for (const card of cards) counts.set(categoryOf(card), (counts.get(categoryOf(card)) ?? 0) + 1);
+// Cards marked data-sysop (the Garage Terminal shop app while it's in beta) only show,
+// and only count, for the signed-in sysop.
+let sysop = false;
+const shown = () => cards.filter((c) => !c.hasAttribute('data-sysop') || sysop);
+
+// Which categories are in use, and how many apps each has (worked out again when the sysop signs in).
+let counts = new Map();
+let order = [];
+function countUp() {
+  counts = new Map();
+  for (const card of shown()) counts.set(categoryOf(card), (counts.get(categoryOf(card)) ?? 0) + 1);
+  order = [
+    ...KNOWN.map(([id]) => id).filter((id) => counts.has(id)),
+    ...[...counts.keys()].filter((id) => !KNOWN.some(([k]) => k === id)).sort(),
+  ];
+  countLabel.textContent = plural(shown().length);
+}
 
 const labelOf = (id) => KNOWN.find(([k]) => k === id)?.[1] ?? id.charAt(0).toUpperCase() + id.slice(1);
-const order = [
-  ...KNOWN.map(([id]) => id).filter((id) => counts.has(id)),
-  ...[...counts.keys()].filter((id) => !KNOWN.some(([k]) => k === id)).sort(),
-];
-
 const plural = (n) => `${n} app${n === 1 ? '' : 's'}`;
-countLabel.textContent = plural(cards.length);
 
 function button(id, label, count) {
   const b = document.createElement('button');
@@ -86,7 +94,7 @@ for (const card of cards) {
     if (favs.has(k)) favs.delete(k); else favs.add(k);
     saveFavs();
     paintStar(card);
-    favCount.textContent = String(favs.size);
+    favCount.textContent = String(shown().filter((c) => favs.has(appKey(c))).length);
     if (current === FAV) select(FAV); // un-starring on the Favorites tab hides the card
   });
   card.querySelector('.apphead').append(b);
@@ -104,24 +112,42 @@ let current = '';
 function select(id) {
   current = id;
   for (const b of bar.querySelectorAll('.chip')) b.setAttribute('aria-pressed', String(b.dataset.category === id));
-  for (const card of cards) card.hidden = id === FAV ? !favs.has(appKey(card)) : id !== '' && categoryOf(card) !== id;
-  empty.hidden = !(id === FAV && !cards.some((c) => favs.has(appKey(c))));
+  const vis = shown();
+  for (const card of cards) card.hidden = !vis.includes(card) || (id === FAV ? !favs.has(appKey(card)) : id !== '' && categoryOf(card) !== id);
+  empty.hidden = !(id === FAV && !vis.some((c) => favs.has(appKey(c))));
   try { localStorage.setItem(TAB_KEY, id); } catch { /* fine */ }
 }
 
 const favButton = button(FAV, '★ Favorites', favs.size);
 favButton.classList.add('fav-chip');
 const favCount = favButton.querySelector('.chip-count');
-bar.replaceChildren(
-  button('', 'All', cards.length),
-  favButton,
-  ...order.map((id) => button(id, labelOf(id), counts.get(id))),
-);
+function buildBar() {
+  countUp();
+  favCount.textContent = String(shown().filter((c) => favs.has(appKey(c))).length);
+  bar.replaceChildren(
+    button('', 'All', shown().length),
+    favButton,
+    ...order.map((id) => button(id, labelOf(id), counts.get(id))),
+  );
+}
+buildBar();
 bar.hidden = false;
 // Open on the tab used last time (All the first time).
 let startTab = '';
 try { startTab = localStorage.getItem(TAB_KEY) || ''; } catch { /* All */ }
 select(startTab === FAV || counts.has(startTab) ? startTab : '');
+
+// Sysop signs in (or out): show or hide the sysop-only cards and redo the counts.
+if (cards.some((c) => c.hasAttribute('data-sysop'))) {
+  import('../lib/session.js').then(({ watchSession }) => watchSession((st) => {
+    const now = st.state === 'member' && !!st.isSysop;
+    if (now === sysop) return;
+    sysop = now;
+    list.classList.toggle('sysop-on', sysop);
+    buildBar();
+    select(current === FAV || current === '' || counts.has(current) ? current : '');
+  })).catch(() => { /* stays hidden */ });
+}
 
 // ---------- Grid / List view ----------------------------------------------------
 // Grid: the full cards. List: one compact row per app (icon, name, Open link),
