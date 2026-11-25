@@ -770,7 +770,7 @@ function current(){return engines.find(e=>e.id===view.id)||(draft&&draft.id===vi
 /* Job_Board jobs and projects on this machine (newest first); customer machines get + New job */
 function jobsBox(e){if(!jbLoaded||e._new)return"";const js=jobsFor(e),cust=isCust(e)&&custOn();if(!js.length&&!cust)return"";
   const when=p=>{const d=(p.customer&&p.customer.dropOff)||(p.createdAt?new Date(p.createdAt).toISOString().slice(0,10):"");return d?fmtDate(d):""};
-  const row=p=>`<a class="jobrow" href="${esc(jbHref("job="+encodeURIComponent(p.id)))}"><span><b>${p.kind==="customer"&&p.jobNo?esc(fmtJobNo(p.jobNo))+" · ":""}${esc(p.title||"Untitled")}</b><small>${esc([when(p),p.status].filter(Boolean).join(" · "))}</small></span><span aria-hidden="true">›</span></a>`;
+  const row=p=>`<a class="jobrow" href="${esc(jbHref("job="+encodeURIComponent(p.id)))}"><span><b>${esc([p.kind==="customer"&&p.jobNo?fmtJobNo(p.jobNo):"",String(p.title||"").trim()].filter(Boolean).join(" · ")||"Untitled")}</b><small>${esc([when(p),p.status].filter(Boolean).join(" · "))}</small></span><span aria-hidden="true">›</span></a>`;
   return `<section class="jobsbox" aria-label="Jobs on this machine"><div class="jbh"><b>${cust?"Jobs on this machine":"Job_Board"}</b><span class="muted">${js.length} ${js.length===1?"job":"jobs"}</span></div>
     ${js.slice(0,6).map(row).join("")}${js.length>6?`<span class="muted small">+ ${js.length-6} older</span>`:""}
     ${cust?`<a class="btn primary" href="${esc(jbHref("newjob="+encodeURIComponent(e.id)))}">+ New job for this machine</a>`:""}</section>`}
