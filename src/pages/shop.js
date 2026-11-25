@@ -180,7 +180,7 @@ async function findShop(u) {
   shopOf = { owner: inv.owner, ownerName: inv.ownerName, shopName: inv.shopName, memberId: mem.memberId, role: mem.role, perms: mem.perms || {} };
   // removed, or Employees switched off: drop back to your own data right away
   memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner, 'members', u.uid), (d) => { if (!d.exists()) leftShop('You were removed from ' + (inv.shopName || 'the shop') + '.'); else if (shopOf) { const was = JSON.stringify([shopOf.role, shopOf.perms]); shopOf.role = d.data().role; shopOf.perms = d.data().perms || {}; if (was !== JSON.stringify([shopOf.role, shopOf.perms])) { rememberShop(); for (const k of Object.keys(FRAMES)) { const f = $('p-' + k).querySelector('iframe'); if (f) f.src = FRAMES[k]; } renderHome(); } } }, () => leftShop('')));
-  memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner), (d) => { if (!d.exists() || d.data().on !== true) leftShop((inv.shopName || 'The shop') + ' switched Employees off.'); }, () => leftShop('')));
+  memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner), (d) => { shopOpts = (d.exists() && d.data().options) || {}; peopleOf = (d.exists() && d.data().people) || []; if (!d.exists() || d.data().on !== true) leftShop((inv.shopName || 'The shop') + ' switched Employees off.'); }, () => leftShop('')));
 }
 let leftMsg = '';
 function leftShop(msg) { if (!shopOf) return; leftMsg = msg; startData(); }
@@ -254,7 +254,15 @@ const allParts = (p) => [
   ...(Array.isArray(p.parts) ? p.parts : []),
   ...(Array.isArray(p.tasks) ? p.tasks : []).flatMap((t) => (t && Array.isArray(t.parts) ? t.parts : [])),
 ];
-const running = (p) => (p && p.time && Array.isArray(p.time.log) ? p.time.log : []).find((e) => e && !e.manual && !e.end && e.start);
+// your own clock: entries say who (e.by = person id; missing = the owner) once Employees' own-time is on
+const myPid = () => (shopOf ? shopOf.memberId : 'owner');
+const tlog = (p) => (p && p.time && Array.isArray(p.time.log) ? p.time.log : []);
+const running = (p) => tlog(p).find((e) => e && !e.manual && !e.end && e.start && (e.by || 'owner') === myPid());
+// time waiting for approval (Employees step 4): who may approve, and the shop's options
+let shopOpts = {};
+let peopleOf = []; // member: the shop's people (names for the approval list)
+const canApproveTime = () => (shopOf ? !!(shopOf.perms && shopOf.perms.approveTime) && shopOpts.approveTime !== false : team.on && team.options.approveTime !== false);
+const tMsOf = (e) => (e.manual ? (Number(e.minutes) || 0) * 60000 : Math.max(0, (e.end || Date.now()) - e.start));
 const jobNo = (p) => (p.kind === 'customer' && p.jobNo ? 'J-' + String(p.jobNo).padStart(3, '0') : '');
 const dur = (ms) => { const m = Math.max(0, Math.floor(ms / 60000)); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
 const shortDay = (key) => new Date(key + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
@@ -384,15 +392,31 @@ function renderHome() {
       ? mine.map((p) => { const left = (p.tasks || []).filter((t) => !t.done).length; const pr = p.customer && p.customer.promised ? whenLabel(String(p.customer.promised).slice(0, 10), today) : null;
         return card('jobs', esc([jobNo(p), p.title || 'Untitled job'].filter(Boolean).join(' ')), esc([p.machine && p.machine !== p.title ? p.machine : '', left ? `${left} task${left === 1 ? '' : 's'} left` : 'all tasks done', p.status].filter(Boolean).join(' · ')), pr ? `<span class="sh-right ${pr.cls}">${esc(pr.text)}</span>` : ''); }).join('')
       : '<p class="sh-empty">Nothing assigned to you right now.</p>'}</section>` : '';
+  const waiting = canApproveTime() ? projects.flatMap((p) => tlog(p).filter((e) => e && e.ok === false && !e.rejected && (e.manual || e.end)).map((e) => ({ p, e }))) : [];
+  const nameOfP = (id) => { const list = shopOf ? peopleOf : [{ id: 'owner', name: user.displayName || 'You' }, ...team.members]; const x = list.find((q) => q.id === (id || 'owner')); return x ? x.name : 'Someone'; };
+  const approveHtml = waiting.length ? `<section aria-labelledby="h-ok"><h2 class="sh-h2" id="h-ok">Time to approve <small>${waiting.length} · ${dur(waiting.reduce((n, w) => n + tMsOf(w.e), 0))}</small></h2>
+      ${waiting.slice(0, 8).map(({ p, e }) => `<div class="sh-card"><span style="flex:1;min-width:0"><b>${esc(nameOfP(e.by))} · ${dur(tMsOf(e))}</b><span class="sh-sub">${esc([jobNo(p), p.title].filter(Boolean).join(' '))} · ${esc(e.manual ? (e.date || '') : dayKey(e.start))}${e.manual ? ' · added by hand' : ''}${e.note ? ' · ' + esc(e.note) : ''}</span></span>${e.manual ? '<span class="sh-pill warn">By hand</span>' : ''}</div>`).join('')}
+      <button type="button" class="sh-btn" data-okall>Approve all ${waiting.length}</button><p class="sh-foot" id="shOkMsg" role="status" style="margin:0">To check one first, open its job in Job_Board.</p></section>` : '';
   const note = leftMsg ? `<p class="sh-empty" role="status">${esc(leftMsg)} You're back in your own shop.</p>` : '';
   const inShop = shopOf ? `<p class="sh-foot" style="margin:0">You're in <b>${esc(shopOf.shopName || 'the shop')}</b> as ${esc((ROLES[shopOf.role] || ROLES.tech).label)}.</p>` : '';
-  box.innerHTML = note + inShop + myJobs + clock + stats + schedHtml + comingHtml + partsHtml + (shopOf ? '' : dueHtml)
+  box.innerHTML = note + inShop + approveHtml + myJobs + clock + stats + schedHtml + comingHtml + partsHtml + (shopOf ? '' : dueHtml)
     + `<p class="sh-foot">Beta: Jobs, Machines and Parts are your Job_Board and Logbook, so everything you do there shows here.</p>`;
   box.scrollTop = scroll;
 }
 
 const inviteLater = () => { try { return sessionStorage.getItem('gt-join-later') === (pendingInvite && pendingInvite.owner); } catch { return false; } };
 $('p-home').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-okall]')) {
+    const owner = shopOf ? shopOf.owner : user.uid, now = new Date().toISOString(); let n = 0;
+    try {
+      for (const p of projects) {
+        const log = tlog(p); if (!log.some((x) => x && x.ok === false && !x.rejected && (x.manual || x.end))) continue;
+        const next = log.map((x) => (x && x.ok === false && !x.rejected && (x.manual || x.end) ? (n++, { ...x, ok: true, okBy: myPid(), okAt: now }) : x));
+        await setDoc(doc(db, 'logbook', owner, 'projects', p.id), { time: { log: next } }, { merge: true });
+      }
+    } catch (err) { const m = $('shOkMsg'); if (m) m.textContent = "Couldn't approve: " + (err.message || err.code); return; }
+    return;
+  }
   if (e.target.closest('[data-joinlater]')) { try { sessionStorage.setItem('gt-join-later', pendingInvite.owner); } catch { /* fine */ } renderHome(); return; }
   if (e.target.closest('[data-join]') && pendingInvite) {
     const inv = pendingInvite;
