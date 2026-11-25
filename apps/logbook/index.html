@@ -504,6 +504,7 @@ const TRACKER_HREF="/apps/job-board";
    (counts still go down when parts are used; firestore.rules allow only that). */
 const SHOP_OF=(()=>{try{if(!SHOP)return null;const v=JSON.parse(localStorage.getItem("gt-shop-of")||"null");return v&&v.owner&&v.member?v:null}catch(e){return null}})();
 const invEditOk=!SHOP_OF||!SHOP_OF.perms||SHOP_OF.perms.inventory===true;
+const hideOwn=!!(SHOP_OF&&SHOP_OF.hideMine); // the owner hides their own machines from employees: customers' machines only
 if(!invEditOk)document.documentElement.classList.add("noinv"); // Job_Board's address (Garage Terminal's import script points it at /apps/job-board)
 const jbHref=q=>TRACKER_HREF+"?"+q+(SHOP?"&shop=1":"");
 const fmtJobNo=n=>"J-"+String(n).padStart(3,"0");
@@ -718,7 +719,7 @@ function renderScreen(){
 }
 function renderList(){
   const app=$("#app");
-  const anyC=custOn()&&engines.some(e=>!isPart(e)&&isCust(e)),w=anyC?whose:"mine";
+  const anyC=custOn()&&engines.some(e=>!isPart(e)&&isCust(e))&&!hideOwn,w=hideOwn?"cust":anyC?whose:"mine";
   const inList=e=>isPart(e)||(w==="cust"?isCust(e):!isCust(e));
   const count=kd=>engines.filter(e=>kindOf(e)===kd&&inList(e)).length;
   const kt=`<nav class="tabs kindtabs" role="tablist">${[...Object.entries(KINDS).map(([kd,c])=>[kd,c.plural]),["part","Inventory"],["due","Due"]].map(([kd,lab])=>{const n=kd==="due"?dueNow().length:count(kd);
@@ -1235,7 +1236,7 @@ const forName=()=>invFor?nameOf(invFor):null; // null once that machine is gone
 const tagFor=p=>{const n=forName();return n&&!allFits(p).includes(invFor)?{...p,fits:[...(p.fits||[]),invFor]}:p};
 const isPart=e=>kindOf(e)==="part";
 const partsOf=()=>engines.filter(isPart);
-const machines=()=>engines.filter(e=>!isPart(e)&&(!isCust(e)||custOn())).sort(byName);
+const machines=()=>engines.filter(e=>!isPart(e)&&(!isCust(e)||custOn())&&(!hideOwn||isCust(e))).sort(byName);
 const nameOf=id=>{const m=engines.find(e=>e.id===id&&!isPart(e));return m?dname(m):null};
 /* cross reference: machine part numbers <-> inventory */
 const normPN=v=>String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"");

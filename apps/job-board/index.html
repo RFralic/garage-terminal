@@ -290,6 +290,7 @@ function parseQty(v,unit){const n=parseFloat(v);if(unit==='qt'||unit==='gal')ret
    firestore.rules enforce the changes; prices and phones inside a job can only be hidden on screen. */
 const SHOP_OF=(()=>{try{if(new URLSearchParams(location.search).get('shop')!=='1')return null;const v=JSON.parse(localStorage.getItem('gt-shop-of')||'null');return v&&v.owner&&v.member?v:null}catch(e){return null}})();
 const can=k=>!SHOP_OF||!SHOP_OF.perms||SHOP_OF.perms[k]===true;
+const hideMine=!!(SHOP_OF&&SHOP_OF.hideMine); // the owner hides My equipment from employees: customer jobs only
 const pricesOk=can('prices'),phonesOk=can('phones'),invOk=can('inventory'),settingsOk=can('settings'),deleteOk=!SHOP_OF||(SHOP_OF.perms&&'deleteJobs' in SHOP_OF.perms?SHOP_OF.perms.deleteJobs===true:SHOP_OF.role==='manager');
 /* Employees (Garage Terminal shop app): the shop doc (shops/{owner}, read through db.doc('shop/info'))
    lists the team, people = [{id, name, role}] (id 'owner' = the owner, else the person's memberId), and
@@ -818,7 +819,7 @@ function renderList(){
     <button class="btn ghost" data-act="open" data-pid="${rid}" style="flex:1;min-width:0;justify-content:flex-start;text-align:left;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0"><span class="eyebrow" style="color:var(--ok)">● On the clock</span><span style="font-weight:600;overflow-wrap:anywhere">${esc((jobLabel(rp)?jobLabel(rp)+' · ':'')+(rp.title||''))}</span><span class="mono" data-tick="${r.start}">${fmtClock(Date.now()-r.start)}</span></button>
     <button class="btn primary sm" data-act="clockout" data-pid="${rid}" style="flex:none">■ Clock out</button></div>`})()}
   ${custOn?`<div class="tabs" role="tablist" aria-label="Filter projects">
-    ${[['all','All'],['mine','My equipment'],['customer','Customers']].map(([k,l])=>`<button role="tab" aria-selected="${view.tab===k}" data-act="tab" data-tab="${k}">${l}<span class="cnt">${c[k]}</span></button>`).join('')}
+    ${[['all','All'],['mine','My equipment'],['customer','Customers']].filter(([k])=>!(hideMine&&k==='mine')).map(([k,l])=>`<button role="tab" aria-selected="${view.tab===k}" data-act="tab" data-tab="${k}">${l}<span class="cnt">${c[k]}</span></button>`).join('')}
   </div>`:''}`;
   if(assignOn()&&!(custOn&&view.tab==='customer'&&(view.cview==='people'||view.cview==='sched')))h+=`<div class="whochips" role="group" aria-label="Whose jobs">${[['all','Everyone'],['me','Assigned to me'],['none','Not assigned']].map(([k,l])=>`<button class="chip" data-act="who" data-v="${k}" aria-pressed="${(view.who||'all')===k}">${l}</button>`).join('')}</div>`;
   if(custOn&&view.tab==='customer')h+=`<div class="seg" style="grid-template-columns:repeat(3,minmax(0,1fr))" role="group" aria-label="Show">
@@ -894,10 +895,10 @@ function renderCustomer(){
   return h+'</section>';
 }
 function renderNew(){
-  const k=custOn&&view.kind==='customer'?'customer':'mine';
+  const k=(custOn&&view.kind==='customer')||hideMine?'customer':'mine';
   return `<div class="top"><button class="btn ghost" data-act="home">← Projects</button></div>
   <h1>New project</h1>
-  ${custOn?`<div class="seg" style="grid-template-columns:repeat(2,minmax(0,1fr))" role="group" aria-label="Project type">
+  ${custOn&&!hideMine?`<div class="seg" style="grid-template-columns:repeat(2,minmax(0,1fr))" role="group" aria-label="Project type">
     <button aria-pressed="${k==='mine'}" data-act="newkind" data-kind="mine">My equipment</button>
     <button aria-pressed="${k==='customer'}" data-act="newkind" data-kind="customer">Customer job</button>
   </div>`:''}
@@ -928,7 +929,7 @@ function renderProject(){
   if(view.editing==='p'){
     h+=`<form class="panel" data-form="editp">
       <label class="f">Project name<input type="text" name="title" required maxlength="120" value="${esc(p.title)}"></label>
-      <label class="f">Project type<select name="kind"><option value="mine" ${p.kind==='mine'?'selected':''}>My equipment</option>${custOn||p.kind==='customer'?`<option value="customer" ${p.kind==='customer'?'selected':''}>Customer job</option>`:''}</select></label>
+      <label class="f">Project type<select name="kind">${hideMine?'':`<option value="mine" ${p.kind==='mine'?'selected':''}>My equipment</option>`}${custOn||p.kind==='customer'?`<option value="customer" ${p.kind==='customer'?'selected':''}>Customer job</option>`:''}</select></label>
       <label class="f">Machine<input type="text" name="machine" maxlength="120" value="${esc(p.machine)}"></label>
       ${p.kind==='mine'?logbookSelect(p):
       `${custOn&&custOfJob(p)&&(custMachines(custOfJob(p).id).length||p.logbookId)?`<label class="f">Customer's machine<select name="mid"><option value="">(not linked)</option>${cmOptions(custOfJob(p).id,p.logbookId)}</select></label>`:''}

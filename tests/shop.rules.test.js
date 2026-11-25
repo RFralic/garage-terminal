@@ -4,7 +4,7 @@
 
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, getDocs, collection, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { startEnv, guestOf, asOf, seed } from './helpers.js';
 
 let env;
@@ -175,6 +175,28 @@ describe("a member using the owner's data", () => {
     await assertSucceeds(getDoc(doc(db, 'logbook', 'ryan', 'projects', 'j1')));
     await seed(env, (s) => deleteDoc(doc(s, 'shops', 'ryan', 'members', 'jake')));
     await assertFails(getDoc(doc(db, 'logbook', 'ryan', 'projects', 'j1')));
+  });
+
+  test('Hide My equipment: employees only see and change customer jobs', async () => {
+    await joined('jake', 'jake@example.com', 'm1', 'tech', { ...TECH, deleteJobs: true });
+    await seed(env, async (s) => {
+      await setDoc(doc(s, 'logbook', 'ryan', 'projects', 'mine1'), { title: 'My truck', kind: 'mine', tasks: [] });
+      await setDoc(doc(s, 'shops', 'ryan'), { on: true, name: 'x', options: { hideMine: true } });
+    });
+    const db = as('jake', 'jake@example.com');
+    await assertSucceeds(getDoc(doc(db, 'logbook', 'ryan', 'projects', 'j1')));
+    await assertFails(getDoc(doc(db, 'logbook', 'ryan', 'projects', 'mine1')));
+    await assertFails(getDocs(collection(db, 'logbook', 'ryan', 'projects'))); // must ask for customer jobs only
+    await assertSucceeds(getDocs(query(collection(db, 'logbook', 'ryan', 'projects'), where('kind', '==', 'customer'))));
+    await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'projects', 'mine1'), { title: 'x', kind: 'mine' }));
+    await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'projects', 'new1'), { title: 'x', kind: 'mine' }));
+    await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'projects', 'j1'), { ...job, kind: 'mine' })); // can't turn a job into My equipment
+    await assertSucceeds(setDoc(doc(db, 'logbook', 'ryan', 'projects', 'new2'), job));
+    await assertFails(deleteDoc(doc(db, 'logbook', 'ryan', 'projects', 'mine1')));
+    // switched back off: everything again
+    await seed(env, (s) => setDoc(doc(s, 'shops', 'ryan'), { on: true, name: 'x', options: { hideMine: false } }));
+    await assertSucceeds(getDoc(doc(db, 'logbook', 'ryan', 'projects', 'mine1')));
+    await assertSucceeds(getDocs(collection(db, 'logbook', 'ryan', 'projects')));
   });
 
   test("strangers and other shops' members still see nothing", async () => {
