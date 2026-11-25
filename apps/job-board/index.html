@@ -138,6 +138,7 @@ dl.kv dt{color:var(--muted)}dl.kv dd{margin:0;overflow-wrap:anywhere}
 /* "Add to maintenance log": the prompt on the project and the preview sheet */
 .lsbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .lshint{border-color:var(--ok)}.lshint b{font-size:16px}
+.nopr{display:none!important}
 .schedbar{display:flex;align-items:center;gap:6px}.schedbar b{font:700 16px var(--f-display);letter-spacing:.04em}
 .week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
 .week button{min-height:64px;padding:6px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:1px;font:600 11px var(--f-body);cursor:pointer}
@@ -276,7 +277,16 @@ const qtyShort=x=>isFluid(x)?`${numStr(x.qty)} ${x.unit}`:`× ${numStr(x.qty)}`;
 const perText=x=>isFluid(x)?`per ${x.unit}`:'each';
 const idText=x=>[x.brand,x.num].filter(Boolean).join(' · ');
 function parseQty(v,unit){const n=parseFloat(v);if(unit==='qt'||unit==='gal')return isFinite(n)&&n>0?Math.min(9999,Math.round(n*100)/100):1;return Math.max(1,Math.min(999,Math.round(isFinite(n)?n:1)))}
-const money=n=>(Number(n)||0).toLocaleString('en-US',{style:'currency',currency:'USD'});
+/* ---------- Working in someone else's shop (Garage Terminal shop app, employees) ----------
+   The shop app saves {member, owner, role, perms} in localStorage gt-shop-of; inside the shop app (?shop=1)
+   this page then opens the owner's data (logbook-backend.js) and hides what the member's role may not see:
+   perms.prices (prices, totals, labor, invoices), perms.phones (customer phone, email, address),
+   perms.inventory (Add to inventory), perms.settings (shop info), perms.deleteJobs (Delete project).
+   firestore.rules enforce the changes; prices and phones inside a job can only be hidden on screen. */
+const SHOP_OF=(()=>{try{if(new URLSearchParams(location.search).get('shop')!=='1')return null;const v=JSON.parse(localStorage.getItem('gt-shop-of')||'null');return v&&v.owner&&v.member?v:null}catch(e){return null}})();
+const can=k=>!SHOP_OF||!SHOP_OF.perms||SHOP_OF.perms[k]===true;
+const pricesOk=can('prices'),phonesOk=can('phones'),invOk=can('inventory'),settingsOk=can('settings'),deleteOk=!SHOP_OF||(SHOP_OF.perms&&'deleteJobs' in SHOP_OF.perms?SHOP_OF.perms.deleteJobs===true:SHOP_OF.role==='manager');
+const money=n=>pricesOk?(Number(n)||0).toLocaleString('en-US',{style:'currency',currency:'USD'}):'';
 /* ---------- time clock (customer jobs) ---------- */
 const timeLog=p=>(p&&p.time&&Array.isArray(p.time.log))?p.time.log:[];
 const entryStart=e=>e.manual?new Date((e.date||today())+'T12:00:00').getTime():e.start;
@@ -789,7 +799,7 @@ function renderList(){
       <div class="body"><span class="small muted">${sub}</span>
       <div class="row"><div class="bar"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n}</span></div>
       <span class="small"><span class="muted">Next:</span> ${next?esc(next.title):(pr.n?'All tasks done':'Add the first task')}</span>${invFor(p)&&inv?(()=>{const ps=allParts(p).filter(x=>x.num);if(!ps.length)return '';const n=ps.filter(x=>{const r=invLookup(x);return r&&r.found}).length;return `<span class="small" style="color:${n?'var(--ok)':'var(--muted)'}">${n} of ${ps.length} part${ps.length===1?'':'s'} in inventory</span>`})():''}</div>
-      ${p.kind==='mine'&&partsCost(p).count?`<span class="small"><span class="muted">Parts so far:</span> <span class="price">${money(partsCost(p).total)}</span></span>`:''}
+      ${pricesOk&&p.kind==='mine'&&partsCost(p).count?`<span class="small"><span class="muted">Parts so far:</span> <span class="price">${money(partsCost(p).total)}</span></span>`:''}
       <div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(p.status)}${running(p)?' <span style="color:var(--ok)">· ● on the clock</span>':''}</span><span>${to?to+' to order':od?od+' ordered':parts.length?'Parts in':'No parts yet'}</span></div>
     </button>`}).join('');
   return h;
@@ -802,13 +812,13 @@ function renderCustomerList(q){
   if(!list.length)return h+`<div class="empty">No customer matches that search.</div>`;
   return h+list.map(c=>{const js=jobsOf(c);const open=js.filter(([,p])=>p.status!=='Done').length;const last=js[0]&&js[0][1];
     return `<button class="card" data-act="opencust" data-cid="${esc(c.id)}"><div class="plate customer"><b>${esc(c.name||'No name')}</b><span>${js.length} job${js.length===1?'':'s'}</span></div>
-      <div class="body"><span class="small">${esc(c.phone||'No phone')}${c.email?' · '+esc(c.email):''}</span>
+      <div class="body"><span class="small">${phonesOk?esc(c.phone||'No phone')+(c.email?' · '+esc(c.email):''):''}</span>
       <div class="foot"><span>${open?`<b style="color:var(--accent)">${open} open</b>`:'No open jobs'}</span><span class="muted">${last?'Last: '+esc(jobLabel(last)||last.title||''):''}</span></div></div></button>`}).join('');
 }
 function renderCustomer(){
   const c=custById(view.cid);if(!c)return `<div class="top"><button class="btn ghost" data-act="custlist">← Customers</button></div><div class="empty">That customer was removed.</div>`;
   const js=jobsOf(c);const total=js.reduce((n,[,p])=>n+jobTotal(p),0);
-  let h=`<div class="top"><button class="btn ghost" data-act="custlist">← Customers</button>${view.editing==='cust'?'':`<button class="btn sm" data-act="editcust">Edit</button>`}</div>`;
+  let h=`<div class="top"><button class="btn ghost" data-act="custlist">← Customers</button>${view.editing==='cust'||!phonesOk?'':`<button class="btn sm" data-act="editcust">Edit</button>`}</div>`;
   if(view.editing==='cust'){
     h+=`<form class="panel" data-form="cust">
       <label class="f">Name<input type="text" name="name" maxlength="80" value="${esc(c.name)}" required></label>
@@ -821,8 +831,8 @@ function renderCustomer(){
     </form>`;
   }else{
     h+=`<div class="card" style="cursor:default"><div class="plate customer"><b>${esc(c.name||'No name')}</b><span>Customer</span></div><div class="body">
-      ${c.phone?`<a class="btn sm" href="tel:${esc(digitsOf(c.phone))}" style="align-self:flex-start">📞 ${esc(c.phone)}</a>`:''}
-      ${c.email?`<a class="small" href="mailto:${esc(c.email)}">${esc(c.email)}</a>`:''}${c.address?`<span class="small">${esc(c.address)}</span>`:''}
+      ${phonesOk&&c.phone?`<a class="btn sm" href="tel:${esc(digitsOf(c.phone))}" style="align-self:flex-start">📞 ${esc(c.phone)}</a>`:''}
+      ${phonesOk&&c.email?`<a class="small" href="mailto:${esc(c.email)}">${esc(c.email)}</a>`:''}${phonesOk&&c.address?`<span class="small">${esc(c.address)}</span>`:''}
       ${c.notes?`<span class="small muted" style="white-space:pre-wrap">${esc(c.notes)}</span>`:''}
       ${!c.phone&&!c.email&&!c.address&&!c.notes?`<span class="small muted">No contact details yet. Tap Edit to add them.</span>`:''}</div></div>`;
   }
@@ -844,7 +854,7 @@ function renderCustomer(){
   h+=`<section><div class="between"><h2>Jobs</h2><button class="btn primary sm" data-act="newforcust">+ New job</button></div>`;
   h+=js.length?js.map(([id,p])=>`<button class="card" data-act="open" data-pid="${id}"><div class="plate customer"><b>${esc(p.title||'Untitled job')}</b><span class="mono" style="font-size:14px;letter-spacing:0">${esc(jobLabel(p)||'')}</span></div>
       <div class="body">${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}<div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(p.status)}</span><span class="price">${jobTotal(p)?money(jobTotal(p)):''}</span></div></div></button>`).join('')
-    +`<div class="between small"><span class="muted">${js.length} job${js.length===1?'':'s'}</span><span>Total billed: <span class="price">${money(total)}</span></span></div>`
+    +`<div class="between small"><span class="muted">${js.length} job${js.length===1?'':'s'}</span><span>${pricesOk?`Total billed: <span class="price">${money(total)}</span>`:''}</span></div>`
     :`<div class="empty">No jobs for ${esc(c.name||'this customer')} yet.</div>`;
   return h+'</section>';
 }
@@ -860,8 +870,8 @@ function renderNew(){
     <label class="f">Project name<input id="n-title" type="text" name="title" required maxlength="120" placeholder="${k==='mine'?'e.g. Ford 8N restoration':'e.g. Craftsman mower: no start'}"></label>
     ${k==='mine'?`<label class="f">Machine<input type="text" name="machine" maxlength="120" placeholder="Make, model, serial"></label>`:''}
     ${k==='mine'?logbookSelect(view.mid?{logbookId:view.mid}:undefined):
-    `${customers.length?`<label class="f">Customer<select name="cid" data-input="pickcust"><option value="">New customer</option>${[...customers].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).map(c=>`<option value="${esc(c.id)}" ${view.cid===c.id?'selected':''}>${esc(c.name||'No name')}${c.phone?' · '+esc(c.phone):''}</option>`).join('')}</select></label>`:''}
-    <div class="grid2"><label class="f">${customers.length?'Name':'Customer'}<input type="text" name="cname" id="n-cname" maxlength="80" value="${esc((custById(view.cid)||{}).name||'')}"></label><label class="f">Phone<input type="tel" name="cphone" id="n-cphone" maxlength="40" value="${esc((custById(view.cid)||{}).phone||'')}"></label></div>
+    `${customers.length?`<label class="f">Customer<select name="cid" data-input="pickcust"><option value="">New customer</option>${[...customers].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).map(c=>`<option value="${esc(c.id)}" ${view.cid===c.id?'selected':''}>${esc(c.name||'No name')}${phonesOk&&c.phone?' · '+esc(c.phone):''}</option>`).join('')}</select></label>`:''}
+    <div class="grid2"><label class="f">${customers.length?'Name':'Customer'}<input type="text" name="cname" id="n-cname" maxlength="80" value="${esc((custById(view.cid)||{}).name||'')}"></label><label class="f" ${phonesOk?'':'hidden'}>Phone<input type="${phonesOk?'tel':'hidden'}" name="cphone" id="n-cphone" maxlength="40" value="${esc((custById(view.cid)||{}).phone||'')}"></label></div>
     ${true?(()=>{const cid=view.cid||(machineById(view.mid)&&machineById(view.mid).owner&&machineById(view.mid).owner.id)||'';const has=custMachines(cid).length;
       return `<label class="f" id="n-midwrap" ${has?'':'hidden'}>Customer's machine<select name="mid" id="n-mid"><option value="">Not listed (type it below)</option>${cmOptions(cid,view.mid||'')}</select></label>
       ${view.mid?lastTimeBox(view.mid,null,null):''}`})():''}
@@ -892,7 +902,7 @@ function renderProject(){
       <div class="grid2"><label class="f">Pickup day<input type="date" name="pickup" value="${esc(c.pickup||'')}"></label><label class="f">Time<input type="time" name="pickupTime" step="900" value="${esc(c.pickupTime||'')}"></label></div>
       <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px">${esc(c.complaint)}</textarea></label>`}
       <button class="btn primary" type="submit">Save details</button>
-      ${view.confirm==='delp'?`<div class="confirm"><span>Delete this project and all its tasks?</span><button type="button" class="btn danger sm" data-act="delp-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:`<button type="button" class="btn danger" data-act="delp">Delete project</button>`}
+      ${view.confirm==='delp'?`<div class="confirm"><span>Delete this project and all its tasks?</span><button type="button" class="btn danger sm" data-act="delp-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:(deleteOk?`<button type="button" class="btn danger" data-act="delp">Delete project</button>`:'')}
     </form>`;
   }
   h+=`
@@ -925,7 +935,7 @@ function renderProject(){
   if(p.kind==='customer')h+=renderClock(id,p);
   if(p.kind==='customer'){
     const hasInfo=(c.name||'').trim()||(c.phone||'').trim();
-    h+=`<section><div class="between"><h2>Customer info</h2><div class="row">${custOfJob(p)&&view.editing!=='c'?`<button class="btn ghost sm" data-act="opencust" data-cid="${esc(custOfJob(p).id)}">All their jobs</button>`:''}${hasInfo&&view.editing!=='c'?`<button class="btn sm" data-act="editc">Edit</button>`:''}</div></div>`;
+    h+=`<section><div class="between"><h2>Customer info</h2><div class="row">${custOfJob(p)&&view.editing!=='c'?`<button class="btn ghost sm" data-act="opencust" data-cid="${esc(custOfJob(p).id)}">All their jobs</button>`:''}${phonesOk&&hasInfo&&view.editing!=='c'?`<button class="btn sm" data-act="editc">Edit</button>`:''}</div></div>`;
     if(jobLabel(p))h+=`<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px;border-color:var(--tan)">
         <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="eyebrow">Job number</span><span class="mono" style="font-size:28px;font-weight:500;line-height:1.1;user-select:all">${esc(jobLabel(p))}</span><span class="note">Write this on tags for the machine and its parts.</span></div>
         <button class="btn sm" data-act="copyjob" style="flex:none">Copy</button></div>`;
@@ -938,8 +948,8 @@ function renderProject(){
     } else {
       h+=`<div class="panel" style="gap:10px">
         <div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Name</span><span style="font-size:17px;font-weight:600;overflow-wrap:anywhere">${esc(c.name||'—')}</span></div>
-        <div class="between"><div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="eyebrow">Phone</span><span class="mono" style="font-size:17px;user-select:all;overflow-wrap:anywhere">${esc(c.phone||'—')}</span></div>
-        ${c.phone?`<button class="btn sm" data-act="copyphone">Copy number</button>`:''}</div>
+        ${phonesOk?`<div class="between"><div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="eyebrow">Phone</span><span class="mono" style="font-size:17px;user-select:all;overflow-wrap:anywhere">${esc(c.phone||'—')}</span></div>
+        ${c.phone?`<button class="btn sm" data-act="copyphone">Copy number</button>`:''}</div>`:''}
       </div>`;
     }
     h+=`</section>`;
@@ -962,17 +972,17 @@ function renderProject(){
   </form>`:`<button class="btn" data-act="jobpart">+ Add a part</button>`}
   <span class="note">Parts added on a task show here too, with a Task tag.</span>
   </section>
-  <section><h2>${p.kind==='customer'?'Parts &amp; labor':'Parts for this project'}</h2>
-  ${p.kind==='customer'?(()=>{const pc=partsCost(p);return `<div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;gap:12px;border-color:var(--tan)">
+  <section><h2>${p.kind==='customer'?(pricesOk?'Parts &amp; labor':'Parts'):'Parts for this project'}</h2>
+  ${pricesOk&&p.kind==='customer'?(()=>{const pc=partsCost(p);return `<div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;gap:12px;border-color:var(--tan)">
     <div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Parts total</span><span class="mono" style="font-size:24px">${money(pc.total)}</span></div>
     <span class="small ${pc.missing?'':'muted'}" style="text-align:right;${pc.missing?'color:var(--warn)':''}">${pc.missing?`${pc.missing} part${pc.missing>1?'s':''} without a price`:pc.count?`${pc.count} part${pc.count>1?'s':''} priced`:'No parts yet'}</span></div>`})():''}
-  ${p.kind==='mine'?(()=>{const pc=partsCost(p);const n=pc.count+pc.missing;return pc.count?`<div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;gap:12px">
+  ${pricesOk&&p.kind==='mine'?(()=>{const pc=partsCost(p);const n=pc.count+pc.missing;return pc.count?`<div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;gap:12px">
     <div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Spent on parts</span><span class="mono price" style="font-size:24px">${money(pc.total)}</span></div>
     <span class="small muted" style="text-align:right">${pc.count} of ${n} part${n>1?'s':''} priced</span></div>`:(n?`<span class="small muted">Add a price to any part to keep track of what this project costs. Optional.</span>`:'')})():''}
-  ${p.kind==='customer'?renderLabor(p):''}
+  ${pricesOk&&p.kind==='customer'?renderLabor(p):''}
   <div class="stats"><div class="stat ${to?'hot':''}"><small>To order</small><b>${to}</b></div><div class="stat"><small>Ordered</small><b>${od}</b></div><div class="stat"><small>In stock</small><b>${st}</b></div></div>
   <button class="btn" data-act="shop" data-job="${id}">Shopping list, filtered to this project →</button></section>
-  ${p.kind==='customer'?renderDocs(p):''}
+  ${pricesOk&&p.kind==='customer'?renderDocs(p):''}
   <section><h2>Project notes</h2><label for="p-notes" style="position:absolute;left:-9999px">Project notes</label><textarea id="p-notes" data-input="pnotes" maxlength="20000" placeholder="Plans, serial numbers, anything about the whole project">${esc(p.notes)}</textarea><span class="note">Saves as you type.</span></section>`;
   return h;
 }
@@ -1007,8 +1017,9 @@ function renderShopInfo(){
     <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><b>Customer jobs</b><span class="small muted">Job numbers, customer info, time clock, labor, invoices and work reports. Turn off to use Job_Board for your own projects only.</span></div>
     <button class="switch ${custOn?'on':''}" role="switch" aria-checked="${custOn}" aria-label="Customer jobs" data-act="custtoggle"><span></span></button></div>
     <span class="note">${custOn?'Saved on this device.':`Off on this device.${hidden===1?' 1 customer job is hidden, not deleted, and comes back when you turn this on.':hidden?` ${hidden} customer jobs are hidden, not deleted, and come back when you turn this on.`:''}`}</span></section>
-  ${custOn?`<section><h2>Shop info</h2><span class="small muted">Your shop's name and contact details for customer invoices and work reports.</span>${shopForm()}</section>`:''}
-  <section><h2>Import from test version</h2><div class="panel" style="gap:10px"><span class="small muted">Bring in the projects, job numbers and shop info from the claude.ai test version: in the test version, save your backup file, then pick it here. Projects you already have are skipped.</span>${importButton()}</div></section>
+  ${custOn&&settingsOk?`<section><h2>Shop info</h2><span class="small muted">Your shop's name and contact details for customer invoices and work reports.</span>${shopForm()}</section>`:''}
+  ${SHOP_OF&&!settingsOk?`<p class="small muted">Shop info is changed by the shop's owner or a manager.</p>`:''}
+  ${SHOP_OF?'':`<section><h2>Import from test version</h2><div class="panel" style="gap:10px"><span class="small muted">Bring in the projects, job numbers and shop info from the claude.ai test version: in the test version, save your backup file, then pick it here. Projects you already have are skipped.</span>${importButton()}</div></section>`}
   ${user?`<p class="small muted">Signed in as ${esc(user.email||user.displayName||'')}. <button class="btn ghost sm" data-act="signout">Sign out</button></p>`:''}`;
 }
 function importButton(){return `<label class="btn">Import from test version<input type="file" accept=".json,application/json" data-importfile="1" class="sr"></label>`}
@@ -1213,8 +1224,8 @@ function partItem(p,pid,tid,x,sups,showTask,taskTitle){return view.editPart===x.
   </form>`:`<div class="item" style="padding:10px 12px;gap:10px;align-items:flex-start">
     <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><span style="font-weight:500;overflow-wrap:anywhere">${esc(x.name)}</span>
     <span class="mono small muted">${x.brand?`<span style="color:var(--text)">${esc(x.brand)}</span> · `:''}${esc(x.num||'no part #')} · ${esc(qtyText(x))}</span>${invChip(p,x)}${x.supplier||(showTask&&tid)?`<span class="row" style="gap:6px;flex-wrap:wrap">${x.supplier?`<span class="tag sup">${esc(x.supplier)}</span>`:''}${showTask&&tid?`<button class="tag task" data-act="task" data-tid="${tid}" aria-label="Open task ${esc(taskTitle)}">Task: ${esc(taskTitle)}</button>`:''}</span>`:''}
-    <label class="exp" for="pr-${x.id}"><span>Price ${perText(x)}</span><span class="row" style="gap:4px"><span class="mono">$</span><input id="pr-${x.id}" class="mono" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${hasPrice(x)?Number(x.price).toFixed(2):''}" data-price="1" data-tid="${tid}" data-xid="${x.id}" style="width:96px"></span>${hasPrice(x)&&(x.qty||1)!==1?`<span class="mono muted">= ${money(x.price*(x.qty||1))}</span></label>`:''}
-    ${x.status==='Ordered'?`<span class="small ${x.expected&&x.expected<today()?'':'muted'}" style="${x.expected&&x.expected<today()?'color:var(--danger);font-weight:600':''}">${x.expected?(x.expected<today()?'Late: expected ':'Expected ')+esc(fmtDate(x.expected)):'No expected date yet'}</span>`:''}${x.status==='In stock'&&x.receivedOn?`<span class="small muted">Received ${esc(fmtDate(x.receivedOn))}</span>`:''}${shelfUI(p,tid,x)}${p.kind==='mine'&&x.status==='In stock'&&!x.taken?invAddUI(pid,tid,x):''}</div>
+    <label class="exp${pricesOk?'':' nopr'}" for="pr-${x.id}"><span>Price ${perText(x)}</span><span class="row" style="gap:4px"><span class="mono">$</span><input id="pr-${x.id}" class="mono" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${hasPrice(x)?Number(x.price).toFixed(2):''}" data-price="1" data-tid="${tid}" data-xid="${x.id}" style="width:96px"></span>${hasPrice(x)&&(x.qty||1)!==1?`<span class="mono muted">= ${money(x.price*(x.qty||1))}</span>`:''}</label>
+    ${x.status==='Ordered'?`<span class="small ${x.expected&&x.expected<today()?'':'muted'}" style="${x.expected&&x.expected<today()?'color:var(--danger);font-weight:600':''}">${x.expected?(x.expected<today()?'Late: expected ':'Expected ')+esc(fmtDate(x.expected)):'No expected date yet'}</span>`:''}${x.status==='In stock'&&x.receivedOn?`<span class="small muted">Received ${esc(fmtDate(x.receivedOn))}</span>`:''}${shelfUI(p,tid,x)}${invOk&&p.kind==='mine'&&x.status==='In stock'&&!x.taken?invAddUI(pid,tid,x):''}</div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><button class="chip ${PART_CLASS[x.status]}" data-act="cyclepart" data-tid="${tid}" data-xid="${x.id}" aria-label="Status ${esc(x.status)}, tap to change">${esc(x.status)}</button><div class="row" style="gap:4px"><button class="btn ghost sm" data-act="editpart" data-tid="${tid}" data-xid="${x.id}" aria-label="Edit ${esc(x.name)}">Edit</button><button class="btn ghost sm" data-act="delpart" data-tid="${tid}" data-xid="${x.id}" aria-label="Remove ${esc(x.name)}">Remove</button></div></div></div>`}
 function renderTask(){
   const p=projects[view.pid],t=p.tasks.find(x=>x.id===view.tid),i=p.tasks.indexOf(t);

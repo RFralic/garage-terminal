@@ -97,7 +97,8 @@ let dayLimit = 0; // Job_Board shop info: warn when a day has this many drop-off
 
 // ---------- Employees (step 1 of 4: the switch and the team list) ----------
 // Saved at logbook/{owner uid}/trackerSettings/team:
-//   { on, members: [{ id, name, email, role, perms: {prices, phones, inventory, settings}, status, addedAt }],
+//   { on, members: [{ id, name, email, role, perms, status, addedAt }], roles: {tech, counter, manager: perms},
+//   (perms = {prices, phones, inventory, settings, deleteJobs, approveTime}; each person gets their role's perms)
 //     options: { assign, doneBy, ownTime, approveTime } }
 // The owner is the account the shop's data lives under (whoever runs this shop app); never in members.
 // Off (the default) = a one-person shop: nothing about employees shows anywhere.
@@ -108,13 +109,16 @@ let dayLimit = 0; // Job_Board shop info: warn when a day has this many drop-off
 // decide what each role may do. Removing someone, or switching Employees off, cuts access at once.
 // Coming next: 3 Assigned to / Done by, 4 time per person + approval (approveTime: a Tech's time needs the Owner's or a Manager's OK before it goes on an invoice).
 const ROLES = {
-  tech: { label: 'Tech', perms: { prices: false, phones: false, inventory: false, settings: false }, does: 'Works their assigned jobs, clocks in and out, takes parts off the shelf' },
-  counter: { label: 'Front counter', perms: { prices: true, phones: true, inventory: false, settings: false }, does: 'Books drop-offs and pickups, customers, invoices' },
-  manager: { label: 'Manager', perms: { prices: true, phones: true, inventory: true, settings: true }, does: 'Everything, and approves time' },
+  tech: { label: 'Tech', perms: { prices: false, phones: false, inventory: false, settings: false, deleteJobs: false, approveTime: false }, does: 'Works jobs, clocks in and out, takes parts off the shelf' },
+  counter: { label: 'Front counter', perms: { prices: true, phones: true, inventory: false, settings: false, deleteJobs: false, approveTime: false }, does: 'Books drop-offs and pickups, customers, invoices' },
+  manager: { label: 'Manager', perms: { prices: true, phones: true, inventory: true, settings: true, deleteJobs: true, approveTime: true }, does: 'Runs the shop with you' },
 };
-const PERMS = [['prices', 'See prices, invoices and totals'], ['phones', "See customers' phone numbers"], ['inventory', 'Edit inventory'], ['settings', 'Change settings']];
+const PERMS = [['prices', 'See prices, invoices and totals'], ['phones', "See customers' phone, email and address"], ['inventory', 'Add and edit inventory parts'], ['settings', 'Change shop info'], ['deleteJobs', 'Delete jobs'], ['approveTime', "Approve employees' time"]];
+const roleDefaults = () => Object.fromEntries(Object.entries(ROLES).map(([k, r]) => [k, { ...r.perms }]));
+const permsOf = (role) => ({ ...ROLES.tech.perms, ...((team.roles || {})[role] || (ROLES[role] || ROLES.tech).perms) });
 const OPTS = [['assign', 'Assign jobs to people'], ['doneBy', 'Mark who did each task (Done by)'], ['ownTime', 'Each person clocks their own time'], ['approveTime', "Time needs a manager's OK before it goes on an invoice"]];
-let team = { on: false, members: [], options: { assign: true, doneBy: true, ownTime: true, approveTime: true } };
+let team = { on: false, members: [], roles: roleDefaults(), options: { assign: true, doneBy: true, ownTime: true, approveTime: true } };
+let roleOpen = ''; // the role whose permissions are open in Settings
 let teamEdit = null; // null, 'new' or a member id
 let shopName = ''; // Job_Board shop info name
 let joinedBy = {}; // owner: memberId -> joined uid (from shops/{me}/members)
@@ -125,6 +129,7 @@ let memberUnsubs = [];
 const lower = (e) => String(e || '').trim().toLowerCase();
 const myShopName = () => shopName || ((user && user.displayName ? user.displayName.split(' ')[0] + "'s" : 'My') + ' shop');
 const saveTeam = async () => {
+  for (const m of team.members) m.perms = permsOf(m.role); // everyone follows their role
   await setDoc(doc(db, 'logbook', user.uid, 'trackerSettings', 'team'), JSON.parse(JSON.stringify(team)));
   await syncShop();
 };
@@ -172,13 +177,13 @@ async function findShop(u) {
   if (!on) return; // Employees switched off: back to your own data
   shopOf = { owner: inv.owner, ownerName: inv.ownerName, shopName: inv.shopName, memberId: mem.memberId, role: mem.role, perms: mem.perms || {} };
   // removed, or Employees switched off: drop back to your own data right away
-  memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner, 'members', u.uid), (d) => { if (!d.exists()) leftShop('You were removed from ' + (inv.shopName || 'the shop') + '.'); else if (shopOf) { shopOf.role = d.data().role; shopOf.perms = d.data().perms || {}; } }, () => leftShop('')));
+  memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner, 'members', u.uid), (d) => { if (!d.exists()) leftShop('You were removed from ' + (inv.shopName || 'the shop') + '.'); else if (shopOf) { const was = JSON.stringify([shopOf.role, shopOf.perms]); shopOf.role = d.data().role; shopOf.perms = d.data().perms || {}; if (was !== JSON.stringify([shopOf.role, shopOf.perms])) { rememberShop(); for (const k of Object.keys(FRAMES)) { const f = $('p-' + k).querySelector('iframe'); if (f) f.src = FRAMES[k]; } renderHome(); } } }, () => leftShop('')));
   memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner), (d) => { if (!d.exists() || d.data().on !== true) leftShop((inv.shopName || 'The shop') + ' switched Employees off.'); }, () => leftShop('')));
 }
 let leftMsg = '';
 function leftShop(msg) { if (!shopOf) return; leftMsg = msg; startData(); }
 function rememberShop() {
-  try { if (shopOf && user) localStorage.setItem('gt-shop-of', JSON.stringify({ member: user.uid, owner: shopOf.owner })); else localStorage.removeItem('gt-shop-of'); } catch { /* private window */ }
+  try { if (shopOf && user) localStorage.setItem('gt-shop-of', JSON.stringify({ member: user.uid, owner: shopOf.owner, role: shopOf.role, perms: shopOf.perms || {} })); else localStorage.removeItem('gt-shop-of'); } catch { /* private window */ }
 }
 /* Work out whose data to open, then open it (and reload any open Job_Board / Logbook tabs) */
 let starting = 0;
@@ -205,7 +210,7 @@ function listen(uid) {
     // Job_Board's shop info (only the daily drop-off limit is used here)
     ...(user && uid === user.uid ? [onSnapshot(doc(db, 'logbook', uid, 'trackerSettings', 'team'), (d) => {
       const v = d.exists() ? d.data() || {} : {};
-      team = { on: !!v.on, members: Array.isArray(v.members) ? v.members.filter((m) => m && m.id) : [], options: { assign: true, doneBy: true, ownTime: true, approveTime: true, ...(v.options || {}) } };
+      team = { on: !!v.on, members: Array.isArray(v.members) ? v.members.filter((m) => m && m.id) : [], roles: { ...roleDefaults(), ...Object.fromEntries(Object.entries(v.roles || {}).filter(([k]) => ROLES[k]).map(([k, p]) => [k, { ...ROLES[k].perms, ...p }])) }, options: { assign: true, doneBy: true, ownTime: true, approveTime: true, ...(v.options || {}) } };
       if (lastInvites === null && (team.on || team.members.length)) syncShop(); // first load: make sure the invites match the list
       if (tab === 'settings' && !teamEdit) renderSettings();
     }, () => {})] : []),
@@ -456,13 +461,14 @@ function teamSection() {
       <span style="flex:1;min-width:0"><b>${esc(m.name || 'No name')}</b><span class="sh-sub">${esc(ROLES[m.role] ? ROLES[m.role].label : 'Tech')} · ${esc(m.email)}</span></span>
       <span class="sh-pill ${joinedBy[m.id] ? 'ok' : inviteErr[m.id] ? 'over' : 'warn'}">${joinedBy[m.id] ? 'Joined' : inviteErr[m.id] ? 'Problem' : 'Invited'}</span></button>
       ${inviteErr[m.id] ? `<p class="sh-foot" style="margin:-2px 0 4px;color:var(--danger)">${esc(m.name)}: ${esc(inviteErr[m.id])}</p>` : joinedBy[m.id] ? '' : `<div class="sh-invrow"><a class="sh-btn ghost" href="${esc(inviteMail(m))}">Email the invite</a><button type="button" class="sh-btn ghost" data-copyinv="${esc(m.id)}">Copy invite</button></div>`}`;
-  const form = (m) => { const role = (m && m.role) || 'tech'; const perms = (m && m.perms) || ROLES[role].perms;
+  const can = (role) => PERMS.filter(([k]) => permsOf(role)[k]).map(([, l]) => l.toLowerCase()).join(', ') || 'nothing more';
+  const form = (m) => { const role = (m && m.role) || 'tech';
     return `<form class="sh-teamform" data-teamform="${m ? esc(m.id) : 'new'}">
       <b>${m ? 'Edit ' + esc(m.name || 'employee') : 'Add an employee'}</b>
       <label>Name<input name="name" required maxlength="60" value="${esc(m ? m.name : '')}" autocomplete="off"></label>
       <label>Their Google email<input name="email" type="email" required maxlength="120" value="${esc(m ? m.email : '')}" autocomplete="off" inputmode="email"></label>
-      <fieldset class="sh-roles"><legend>Role</legend>${Object.entries(ROLES).map(([k, r]) => `<label class="sh-role"><input type="radio" name="role" value="${k}" ${k === role ? 'checked' : ''}><span><b>${r.label}</b><span class="sh-sub">${r.does}</span></span></label>`).join('')}</fieldset>
-      <fieldset class="sh-perms"><legend>What they can do</legend>${PERMS.map(([k, l]) => `<label><input type="checkbox" name="p_${k}" ${perms[k] ? 'checked' : ''}> ${l}</label>`).join('')}</fieldset>
+      <fieldset class="sh-roles"><legend>Role</legend>${Object.entries(ROLES).map(([k, r]) => `<label class="sh-role"><input type="radio" name="role" value="${k}" ${k === role ? 'checked' : ''}><span><b>${r.label}</b><span class="sh-sub">${r.does}. Also: ${esc(can(k))}.</span></span></label>`).join('')}</fieldset>
+      <p class="sh-foot" style="margin:0">What each role can see and do is set below, under What each role can do.</p>
       <div class="sh-formbtns"><button type="submit" class="sh-btn">${m ? 'Save' : 'Add'}</button><button type="button" class="sh-btn ghost" data-teamcancel>Cancel</button></div>
       ${m ? `<button type="button" class="sh-linkbtn" data-teamremove="${esc(m.id)}">Remove ${esc(m.name || 'this person')}</button>` : ''}
       <p class="sh-foot" id="shTeamMsg" role="status" style="margin:0"></p></form>`; };
@@ -472,6 +478,12 @@ function teamSection() {
     ${team.members.map((m) => (editing && editing.id === m.id ? form(m) : row(m))).join('')}
     ${teamEdit === 'new' ? form(null) : `<button type="button" class="sh-btn ghost" data-teamadd>+ Add an employee</button>`}
     <p class="sh-foot" style="margin:0">Each person signs in at garageterminal.com/shop with the Google email you entered here, then taps Join. They see your shop's jobs, machines and parts; their role decides what they can change.</p>
+    <div class="sh-opts"><b>What each role can do</b>
+      <p class="sh-foot" style="margin:0 0 4px">Everyone with that role follows it; changes reach them right away. Every role can work jobs, clock in, add machines and log services, and take parts off the shelf.</p>
+      ${Object.entries(ROLES).map(([k, r]) => { const n = team.members.filter((m) => m.role === k).length; const open = roleOpen === k;
+        return `<div class="sh-rolebox"><button type="button" class="sh-rolehead" data-roleopen="${k}" aria-expanded="${open}"><b>${r.label}</b><span class="sh-sub">${n} ${n === 1 ? 'person' : 'people'} · ${PERMS.filter(([p]) => permsOf(k)[p]).length} of ${PERMS.length} on</span><span aria-hidden="true">${open ? '▴' : '▾'}</span></button>
+          ${open ? `<div class="sh-perms">${PERMS.map(([p, l]) => `<label><input type="checkbox" data-roleperm="${k}.${p}" ${permsOf(k)[p] ? 'checked' : ''}> ${l}</label>`).join('')}<button type="button" class="sh-linkbtn" style="color:var(--steel)" data-roledefault="${k}">Back to the usual for ${r.label}</button></div>` : ''}</div>`; }).join('')}
+    </div>
     <div class="sh-opts"><b>Turn on</b>${OPTS.map(([k, l]) => `<label><input type="checkbox" data-teamopt="${k}" ${team.options[k] ? 'checked' : ''}> ${l}</label>`).join('')}
       <p class="sh-foot" style="margin:0">These start working as each part is built. Your own time never needs approval.</p></div>
     <p class="sh-foot" style="margin:0">Turning Employees off hides all of this. Nothing is deleted.</p></section>`;
@@ -530,7 +542,7 @@ $('p-settings').addEventListener('submit', async (e) => {
     if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $('shTeamMsg').textContent = 'Add a name and a full email address.'; return; }
     const id = tf.dataset.teamform;
     if (team.members.some((m) => m.email === email && m.id !== id) || (user && String(user.email || '').toLowerCase() === email)) { $('shTeamMsg').textContent = 'That email is already on your team.'; return; }
-    const perms = Object.fromEntries(PERMS.map(([k]) => [k, fd.get('p_' + k) === 'on']));
+    const perms = permsOf(role);
     if (id === 'new') team.members.push({ id: Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4), name, email, role, perms, status: 'added', addedAt: new Date().toISOString() });
     else { const was = team.members.find((m) => m.id === id); if (was && lower(was.email) !== email) await dropMember(was); Object.assign(was || {}, { name, email, role, perms }); }
     teamEdit = null;
@@ -552,9 +564,9 @@ $('p-settings').addEventListener('submit', async (e) => {
 $('p-settings').addEventListener('change', (e) => {
   const o = e.target.closest('[data-teamopt]');
   if (o) { team.options[o.dataset.teamopt] = o.checked; saveTeam().catch(() => {}); return; }
-  // picking a role fills in that role's usual permissions
-  const r = e.target.closest('.sh-teamform input[name="role"]');
-  if (r && ROLES[r.value]) for (const [k] of PERMS) { const c = r.form.querySelector(`[name="p_${k}"]`); if (c) c.checked = ROLES[r.value].perms[k]; }
+  // What each role can do: applies to everyone with that role
+  const rp = e.target.closest('[data-roleperm]');
+  if (rp) { const [role, k] = rp.dataset.roleperm.split('.'); team.roles = team.roles || roleDefaults(); team.roles[role] = { ...permsOf(role), [k]: rp.checked }; saveTeam().catch(() => {}); return; }
 });
 
 $('p-settings').addEventListener('click', (e) => {
@@ -563,6 +575,8 @@ $('p-settings').addEventListener('click', (e) => {
   if (t('[data-teamadd]')) { teamEdit = 'new'; renderSettings(); $('p-settings').querySelector('[data-teamform] input[name="name"]').focus(); return; }
   if (t('[data-member]')) { teamEdit = t('[data-member]').dataset.member; renderSettings(); $('p-settings').querySelector('[data-teamform] input[name="name"]').focus(); return; }
   if (t('[data-teamcancel]')) { teamEdit = null; renderSettings(); return; }
+  if (t('[data-roleopen]')) { const k = t('[data-roleopen]').dataset.roleopen; roleOpen = roleOpen === k ? '' : k; renderSettings(); return; }
+  if (t('[data-roledefault]')) { const k = t('[data-roledefault]').dataset.roledefault; team.roles = team.roles || roleDefaults(); team.roles[k] = { ...ROLES[k].perms }; saveTeam().catch(() => {}); renderSettings(); return; }
   if (t('[data-copyinv]')) { const m = team.members.find((x) => x.id === t('[data-copyinv]').dataset.copyinv); const b = t('[data-copyinv]');
     if (m) { (navigator.clipboard ? navigator.clipboard.writeText(inviteText(m)) : Promise.reject()).then(() => { b.textContent = 'Copied'; }, () => { b.textContent = 'Copy failed'; }); } return; }
   if (t('[data-leaveshop]')) {

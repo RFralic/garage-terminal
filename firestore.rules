@@ -454,7 +454,7 @@ service cloud.firestore {
     //              (qty only), job numbers and the customer list
     //   inventory  add, change and delete parts and receipts
     //   settings   change shop info (trackerSettings/shop)
-    //   manager    delete jobs
+    //   deleteJobs delete jobs (each role's permissions are set by the owner in the shop app)
     // Prices and phone numbers live inside the jobs, so hiding them from a role is done
     // on screen, not here.
     function shopPath(o) { return /databases/$(database)/documents/shops/$(o); }
@@ -467,8 +467,9 @@ service cloud.firestore {
     function verifiedEmail() { return signedIn() && request.auth.token.email is string && request.auth.token.email_verified == true; }
     function shopRoles() { return ['tech', 'counter', 'manager']; }
     function validPerms(p) {
-      return p is map && p.keys().hasOnly(['prices', 'phones', 'inventory', 'settings'])
-        && p.prices is bool && p.phones is bool && p.inventory is bool && p.settings is bool;
+      return p is map && p.keys().hasOnly(['prices', 'phones', 'inventory', 'settings', 'deleteJobs', 'approveTime'])
+        && p.prices is bool && p.phones is bool && p.inventory is bool && p.settings is bool
+        && (!('deleteJobs' in p) || p.deleteJobs is bool) && (!('approveTime' in p) || p.approveTime is bool);
     }
     function onlyQty() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['qty', 'updatedAt']);
@@ -482,7 +483,7 @@ service cloud.firestore {
         || (part == 'trackerSettings' && (docId in ['counter', 'customers'] || (docId == 'shop' && memberPerm(o, 'settings'))));
     }
     function memberDelete(o, part) {
-      return (part == 'projects' && memberRole(o) == 'manager')
+      return (part == 'projects' && memberPerm(o, 'deleteJobs'))
         || (part in ['records', 'receipts'] && memberPerm(o, 'inventory'));
     }
     function validReceipt() {
