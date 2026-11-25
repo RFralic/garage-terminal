@@ -172,13 +172,13 @@ async function findShop(u) {
   if (!on) return; // Employees switched off: back to your own data
   shopOf = { owner: inv.owner, ownerName: inv.ownerName, shopName: inv.shopName, memberId: mem.memberId, role: mem.role, perms: mem.perms || {} };
   // removed, or Employees switched off: drop back to your own data right away
-  memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner, 'members', u.uid), (d) => { if (!d.exists()) leftShop('You were removed from ' + (inv.shopName || 'the shop') + '.'); else if (shopOf) { shopOf.role = d.data().role; shopOf.perms = d.data().perms || {}; } }, () => leftShop('')));
+  memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner, 'members', u.uid), (d) => { if (!d.exists()) leftShop('You were removed from ' + (inv.shopName || 'the shop') + '.'); else if (shopOf) { const was = JSON.stringify([shopOf.role, shopOf.perms]); shopOf.role = d.data().role; shopOf.perms = d.data().perms || {}; if (was !== JSON.stringify([shopOf.role, shopOf.perms])) { rememberShop(); for (const k of Object.keys(FRAMES)) { const f = $('p-' + k).querySelector('iframe'); if (f) f.src = FRAMES[k]; } renderHome(); } } }, () => leftShop('')));
   memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner), (d) => { if (!d.exists() || d.data().on !== true) leftShop((inv.shopName || 'The shop') + ' switched Employees off.'); }, () => leftShop('')));
 }
 let leftMsg = '';
 function leftShop(msg) { if (!shopOf) return; leftMsg = msg; startData(); }
 function rememberShop() {
-  try { if (shopOf && user) localStorage.setItem('gt-shop-of', JSON.stringify({ member: user.uid, owner: shopOf.owner })); else localStorage.removeItem('gt-shop-of'); } catch { /* private window */ }
+  try { if (shopOf && user) localStorage.setItem('gt-shop-of', JSON.stringify({ member: user.uid, owner: shopOf.owner, role: shopOf.role, perms: shopOf.perms || {} })); else localStorage.removeItem('gt-shop-of'); } catch { /* private window */ }
 }
 /* Work out whose data to open, then open it (and reload any open Job_Board / Logbook tabs) */
 let starting = 0;
