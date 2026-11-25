@@ -161,3 +161,5 @@ button.sh-icon { background: none; cursor: pointer; padding: 0; }
 .sh-formbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sh-linkbtn { background: none; border: 0; color: var(--danger); font: 600 14px var(--f-body); min-height: 40px; align-self: flex-start; padding: 0; cursor: pointer; }
 .sh-role .sh-sub, .sh-person .sh-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 1px; }
+.sh-invrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: -2px 0 6px; }
+.sh-invrow .sh-btn { min-height: 42px; font-size: 14px; display: flex; align-items: center; justify-content: center; text-decoration: none; }

@@ -49,7 +49,19 @@ watchSession((s) => {
 
 // ---------- storage -------------------------------------------------------------
 
-const userCol = (uid, name) => collection(db, 'logbook', uid, name);
+// Shop app, signed in as an employee of someone else's shop: the shop app (/shop) saves
+// {member, owner} in localStorage gt-shop-of, and these pages, when opened inside it (?shop=1),
+// open the owner's data instead of the member's own. firestore.rules decide what the member may
+// do (shops/{owner}/members). Opened on their own, the Logbook and Job_Board stay the member's own.
+const SHOP_OF = (() => {
+  try {
+    if (new URLSearchParams(location.search).get('shop') !== '1') return null;
+    const v = JSON.parse(localStorage.getItem('gt-shop-of') || 'null');
+    return v && typeof v.member === 'string' && typeof v.owner === 'string' && ID.test(v.owner) ? v : null;
+  } catch { return null; }
+})();
+const dataUid = (uid) => (SHOP_OF && SHOP_OF.member === uid ? SHOP_OF.owner : uid);
+const userCol = (uid, name) => collection(db, 'logbook', dataUid(uid), name);
 
 /** Logbook: same shape as before, doc(id).set/delete and a live listener. */
 function records(uid) {
