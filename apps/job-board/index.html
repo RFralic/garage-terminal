@@ -630,7 +630,7 @@ function renderList(){
   const all=Object.entries(projects).filter(visible).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));
   const q=view.q.trim().toLowerCase();
   const match=([id,p])=>{if(view.tab!=='all'&&p.kind!==view.tab)return false;if(!q)return true;
-    const hay=[jobLabel(p),p.jobNo,p.title,p.machine,p.logbook,p.notes,p.customer&&p.customer.name,...(p.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier]),...(p.tasks||[]).flatMap(t=>[t.title,t.notes,...(t.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier])])].join(' ').toLowerCase();return hay.includes(q)};
+    const hay=[jobLabel(p),p.jobNo,p.title,p.machine,p.logbook,p.notes,p.customer&&p.customer.name,p.custNotes,...(p.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier]),...(p.tasks||[]).flatMap(t=>[t.title,t.notes,...(t.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier])])].join(' ').toLowerCase();return hay.includes(q)};
   const shown=all.filter(match);
   const c={all:all.length,mine:all.filter(x=>x[1].kind==='mine').length,customer:all.filter(x=>x[1].kind==='customer').length};
   const toOrder=all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='To order').length,0);
@@ -874,10 +874,14 @@ async function importBackup(text){
   toast(`Imported ${added} project${added===1?'':'s'}${shopNote}${skipped?` · ${skipped} already here`:''}${bad?` · ${bad} unreadable`:''}`);
   Promise.all(writes).catch(()=>toast('Some imported items could not be saved. Check your connection.'));
 }
+/* Notes for the customer (p.custNotes): prints at the end of the invoice and work report. Project notes (p.notes) never print */
+const custNotes=p=>String(p.custNotes||'').trim();
 function renderDocs(p){
   const pc=partsCost(p);const done=(p.tasks||[]).filter(t=>t.done).length;
   let h=`<section><div class="between"><h2>Invoice &amp; report</h2><button class="btn ghost sm" data-act="editshop">${view.editing==='shop'?'Close':'Shop info'}</button></div>`;
   if(view.editing==='shop')h+=shopForm();
+  h+=`<label class="f" for="c-notes">Notes for the customer<textarea id="c-notes" data-input="custnotes" maxlength="4000" style="min-height:90px" placeholder="e.g. Blades are worn, replace next season. Ran it 20 minutes, starts and idles fine.">${esc(p.custNotes||'')}</textarea></label>
+  <span class="note">Prints at the end of the invoice and the work report (PDF, print and receipt). Saves as you type. Project notes below stay private.</span>`;
   h+=`<div class="panel" style="gap:10px">
     <div class="grid2">
       <button class="btn primary" data-act="pdf" data-kind="invoice">Invoice (PDF)</button>
@@ -888,7 +892,7 @@ function renderDocs(p){
       <button class="btn ghost" data-act="receipt" data-kind="report">Work report receipt</button>
     </div>
     <span class="small muted">Receipts are for a thermal receipt printer (${shop.receiptWidth==='58'?'58':'80'} mm paper; change it in Shop info). In the print dialog, set margins to None and scale to 100% if it comes out shrunk or cut off.</span>
-    <span class="small muted">Invoice: parts${laborCost(p).has?', labor':''} and the total${pc.missing?` <span style="color:var(--warn)">(${pc.missing} part${pc.missing>1?'s':''} still without a price)</span>`:''}. Work report: the complaint, ${done} completed task${done===1?'':'s'} and parts used, no prices. Save the PDF to send it, or Print to print it straight away.</span>
+    <span class="small muted">Invoice: parts${laborCost(p).has?', labor':''} and the total${pc.missing?` <span style="color:var(--warn)">(${pc.missing} part${pc.missing>1?'s':''} still without a price)</span>`:''}. Work report: the complaint, ${done} completed task${done===1?'':'s'} and parts used, no prices. Both end with your notes for the customer. Save the PDF to send it, or Print to print it straight away.</span>
     ${!shop.name?`<span class="small" style="color:var(--warn)">Add your shop info first so your name prints at the top.</span>`:''}
   </div></section>`;
   return h;
@@ -955,6 +959,8 @@ function buildPdf(p,kind){
     doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(20);txt('TOTAL',cols.each,y,{align:'right'});txt(money(pc.total+lc.total),cols.amt,y,{align:'right'});y+=20;
     if(pc.missing){doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(150);txt(pc.missing+' part'+(pc.missing>1?'s have':' has')+' no price and '+(pc.missing>1?'are':'is')+' not included.',R,y,{align:'right'});y+=14}
   }
+  if(custNotes(p)){y+=18;ensure(40);doc.setFontSize(9);doc.setTextColor(120);doc.setFont('helvetica','bold');txt('NOTES',M,y);y+=14;doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(20);
+    doc.splitTextToSize(pdfText(custNotes(p)),R-M).forEach(l=>{ensure(14);doc.text(l,M,y);y+=14})}
   // footer
   const foot=kind==='invoice'?(shop.footer||'Thank you for your business.'):'Thank you for your business.';
   doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(90);ensure(40);y=Math.max(y+30,792-M-10);txt(foot,W/2,y,{align:'center'});
@@ -991,6 +997,7 @@ function buildPrintHtml(p,kind){
     h+=`<table class="tot"><tr><td class="r">Parts</td><td class="r">${esc(money(pc.total))}</td></tr>${lc.has?`<tr><td class="r">Labor</td><td class="r">${esc(money(lc.total))}</td></tr>`:''}<tr class="big"><td class="r">TOTAL</td><td class="r">${esc(money(pc.total+lc.total))}</td></tr></table>`;
     if(pc.missing)h+=`<div class="sub" style="text-align:right">${pc.missing} part${pc.missing>1?'s have':' has'} no price and ${pc.missing>1?'are':'is'} not included.</div>`;
   }
+  if(custNotes(p))h+=`<div class="lab">Notes</div><div style="white-space:pre-wrap">${esc(custNotes(p))}</div>`;
   h+=`<div class="foot">${esc(kind==='invoice'?(shop.footer||'Thank you for your business.'):'Thank you for your business.')}</div>`;
   return h;
 }
@@ -1010,7 +1017,7 @@ function buildReceiptHtml(p,kind){
     h+=`<div class="rc-b">Work performed</div>${doneT.length?doneT.map(t=>`<div class="rc-w">[x] ${esc(t.title)}</div>`).join(''):'<div>No completed work recorded yet.</div>'}`;
     if(open.length)h+=hr+`<div class="rc-b">Not done / recommended</div>${open.map(t=>`<div class="rc-w">[ ] ${esc(t.title)}</div>`).join('')}`;
     if(parts.length)h+=hr+`<div class="rc-b">Parts used</div>${parts.map(x=>row(esc(x.name)+(idText(x)?`<div class="rc-ind">${esc(idText(x))}</div>`:''),esc(isFluid(x)?qtyText(x):'x'+numStr(x.qty||1)))).join('')}`;
-    h+=hr+`<div class="rc-c">Thank you for your business.</div>`;
+    h+=`${custNotes(p)?hr+`<div class="rc-b">Notes</div><div class="rc-w" style="white-space:pre-wrap">${esc(custNotes(p))}</div>`:''}`+hr+`<div class="rc-c">Thank you for your business.</div>`;
   }else{
     const pc=partsCost(p),lc=laborCost(p);
     h+=parts.length?parts.map(x=>{const q=x.qty||1;const each=hasPrice(x)?money(x.price)+(isFluid(x)?'/'+x.unit:''):'no price';
@@ -1018,7 +1025,7 @@ function buildReceiptHtml(p,kind){
     if(lc.has)h+=hr+`<div class="rc-w">Labor${lc.desc?': '+esc(lc.desc):''}</div>`+row(`<span class="rc-ind">${esc(numStr(lc.hours))} hr x ${esc(money(lc.rate))}</span>`,esc(money(lc.total)));
     h+=hr+row('Parts',esc(money(pc.total)))+(lc.has?row('Labor',esc(money(lc.total))):'')+row('TOTAL',esc(money(pc.total+lc.total)),'rc-big');
     if(pc.missing)h+=`<div class="rc-w">${pc.missing} part${pc.missing>1?'s have':' has'} no price and ${pc.missing>1?'are':'is'} not included.</div>`;
-    h+=hr+`<div class="rc-c rc-w">${esc(shop.footer||'Thank you for your business.')}</div>`;
+    h+=`${custNotes(p)?hr+`<div class="rc-b">Notes</div><div class="rc-w" style="white-space:pre-wrap">${esc(custNotes(p))}</div>`:''}`+hr+`<div class="rc-c rc-w">${esc(shop.footer||'Thank you for your business.')}</div>`;
   }
   return h+'<div class="rc-tail"></div>';
 }
@@ -1214,6 +1221,7 @@ app.addEventListener('input',e=>{
   const el=e.target;const k=el.dataset.input;if(!k)return;const p=projects[view.pid];
   if(k==='q'){view.q=el.value;render()}
   else if(k==='pnotes'){p.notes=el.value;save(view.pid)}
+  else if(k==='custnotes'){p.custNotes=el.value;save(view.pid)}
   else if(k==='tnotes'){const t=p.tasks.find(x=>x.id===view.tid);t.notes=el.value;save(view.pid)}
 });
 app.addEventListener('change',e=>{const el=e.target;if(el.dataset.input==='pickcust'){const c=custById(el.value);view.cid=el.value||null;const n=document.getElementById('n-cname'),ph=document.getElementById('n-cphone');if(n)n.value=c?c.name:'';if(ph)ph.value=c?c.phone:'';return}
