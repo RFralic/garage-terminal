@@ -138,6 +138,7 @@ dl.kv dt{color:var(--muted)}dl.kv dd{margin:0;overflow-wrap:anywhere}
 /* "Add to maintenance log": the prompt on the project and the preview sheet */
 .lsbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .lshint{border-color:var(--ok)}.lshint b{font-size:16px}
+.chkrow{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)}.chkrow input{width:22px;height:22px;margin-top:2px;flex:none}.chkrow b{font-size:15px}
 .lasttime{border-color:var(--steel);gap:4px}.lasttime .lt-h{font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--steel)}
 .linkrow{display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--line)}.linkrow select{width:100%}
 a.card{text-decoration:none;color:inherit}
@@ -343,7 +344,8 @@ function invLookup(x){if(!inv||!x||!x.num)return null;const hits=inv.parts.filte
 /* inventory check: always on your own projects; on customer jobs too in the shop app (?shop=1) with Customer jobs on */
 const invFor=p=>!!p&&(p.kind==='mine'||(SHOP&&custOn&&p.kind==='customer'));
 function invChip(p,x){if(!invFor(p)||!inv)return '';const r=invLookup(x);if(!r)return x.num?'':`<span class="small muted">Add a part # to check inventory</span>`;
-  return r.found?`<span class="small" style="color:var(--ok);font-weight:600">In inventory: ${esc(numStr(r.qty))}${r.unit?' '+r.unit:''}${r.locs.length?' · '+esc(r.locs.join(', ')):''}</span>`:`<span class="small muted">Not in inventory</span>`}
+  if(r.found&&!(r.qty>0))return `<span class="small" style="color:var(--warn);font-weight:600">In inventory: 0 (none on the shelf)</span>`;
+  return r.found?`<span class="small" style="color:var(--ok);font-weight:600">In inventory: ${esc(qStr(r.qty))}${r.unit?' '+r.unit:''}${r.locs.length?' · '+esc(r.locs.join(', ')):''}</span>`:`<span class="small muted">Not in inventory</span>`}
 /* Logbook machine names and record ids: copied from the Logbook (index.html) */
 const kindOf=e=>e&&e.kind==="vehicle"?"vehicle":e&&e.kind==="part"?"part":"engine";;
 const K=e=>({engine:{one:'engine'},vehicle:{one:'vehicle'},part:{one:'part'}})[kindOf(e)];
@@ -492,6 +494,35 @@ function sendToLogbook(){const p=projects[lsheet.pid],r=machineRecs[lsheet.mid],
 /** A toast with a link, shown a little longer so it can be tapped. */
 function toastLink(msg,href,label){const t=document.getElementById('toast');t.innerHTML=`<span>${esc(msg)}</span> <a href="${esc(href)}">${esc(label)}</a>`;t.hidden=false;clearTimeout(timers.toast);timers.toast=setTimeout(()=>{t.hidden=true},8000)}
 /* "Add to inventory" (My equipment, parts marked Received) */
+/* ---------- Parts used come off the shelf ----------
+   An In stock part that matches the Logbook inventory can be taken off the shelf: its amount comes off
+   the inventory part's On hand (never below 0) and the part remembers it, x.taken = {partId, n, unit, date},
+   so it's never taken twice and Put back can return it. When a job is marked Done, a panel offers to
+   take all of them at once. Quarts and gallons convert (4 qt = 1 gal). */
+const qStr=v=>String(Math.round((Number(v)||0)*100)/100); // like numStr, but 0 stays 0
+const isTakeable=(p,x)=>invFor(p)&&!!inv&&x.status==='In stock'&&!x.taken&&(()=>{const h=takeHit(x);return!!h&&(parseFloat(h.qty)||0)>0})();
+const toTake=p=>invFor(p)&&inv?allParts(p).filter(x=>isTakeable(p,x)):[];
+function takeHit(x){const r=invLookup(x);if(!r||!r.found)return null;return [...r.hits].sort((a,b)=>(parseFloat(b.qty)||0)-(parseFloat(a.qty)||0))[0]}
+function takeAmount(x,hit){let n=Number(x.qty)||1;const xu=x.unit||'',hu=hit.unit||'';if(xu==='qt'&&hu==='gal')n=n/4;else if(xu==='gal'&&hu==='qt')n=n*4;return Math.round(n*100)/100}
+function takeOff(pid,list){if(!db)return;const now=new Date().toISOString();let done=0;
+  list.forEach(({tid,xid})=>{const {x}=findPart(pid,tid,xid);if(!x||x.taken)return;const hit=takeHit(x);if(!hit)return;
+    const cur=Math.max(0,parseFloat(hit.qty)||0),n=takeAmount(x,hit),next=Math.max(0,Math.round((cur-n)*100)/100);
+    hit.qty=String(next); // right away, so the next part sees the new count before the Logbook answers
+    db.records.merge(hit.id,{qty:String(next),updatedAt:now}).catch(()=>toast('Could not update your inventory'));
+    x.taken={partId:hit.id,n,unit:hit.unit||'',date:today()};done++});
+  if(done){save(pid);toast(`Took ${done} part${done===1?'':'s'} off your shelf`)}render()}
+function putBack(pid,tid,xid){const {x}=findPart(pid,tid,xid);if(!x||!x.taken||!db)return;const t=x.taken;const hit=inv&&inv.parts.find(h=>h.id===t.partId);
+  if(hit){const cur=Math.max(0,parseFloat(hit.qty)||0),next=Math.round((cur+(Number(t.n)||0))*100)/100;hit.qty=String(next);
+    db.records.merge(hit.id,{qty:String(next),updatedAt:new Date().toISOString()}).catch(()=>toast('Could not update your inventory'))}
+  delete x.taken;save(pid);toast(hit?'Put back on your shelf':"That inventory part is gone, so nothing was added back");render()}
+function shelfUI(p,tid,x){if(!invFor(p)||!inv)return'';
+  if(x.taken)return `<span class="row" style="gap:6px;flex-wrap:wrap"><span class="small" style="color:var(--ok)">Taken off shelf ${esc(fmtDate(x.taken.date))} (${esc(qStr(x.taken.n))}${x.taken.unit?' '+esc(x.taken.unit):''})</span><button class="btn ghost sm" data-act="putback" data-tid="${tid}" data-xid="${x.id}">Put back</button></span>`;
+  return isTakeable(p,x)?`<button class="btn sm" data-act="takeone" data-tid="${tid}" data-xid="${x.id}" style="align-self:flex-start">Take off shelf</button>`:''}
+function shelfPanel(p,pid){const list=p.status==='Done'&&view.shelfOff!==pid?toTake(p):[];if(!list.length)return'';
+  return `<form class="panel lshint" data-form="takeoff" data-pid="${pid}"><b>Take the parts you used off your shelf?</b>
+    ${list.map(x=>{const hit=takeHit(x),cur=Math.max(0,parseFloat(hit.qty)||0),n=takeAmount(x,hit),u=hit.unit?' '+hit.unit:'';
+      return `<label class="chkrow"><input type="checkbox" name="x" value="${esc(x.taskId)}|${esc(x.id)}" checked><span><b>${esc(x.name||x.num)}</b> <span class="mono small muted">${esc(x.num||'')}</span><br><span class="small muted">On hand ${esc(qStr(cur))}${u} → ${esc(qStr(Math.max(0,cur-n)))}${u}</span></span></label>`}).join('')}
+    <div class="row"><button class="btn primary" type="submit">Take off shelf</button><button class="btn" type="button" data-act="shelfoff">Not now</button></div></form>`}
 function invAddUI(pid,tid,x){
   if(!inv||!x||!(x.name||x.num))return '';const key='inv:'+pid+':'+x.id;
   if(view.confirm===key){const r=invLookup(x);const n=Math.max(1,Math.ceil(Number(x.qty)||1));
@@ -820,6 +851,7 @@ function renderProject(){
       <div class="row"><div class="bar big"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n} done</span></div>
     </div>
   </div>`;
+  h+=shelfPanel(p,id);
   if(p.kind==='mine'){const n=unsentDone(p).length;const btn=`<button class="btn primary" data-act="logexport">Add to maintenance log</button>`;
     h+=p.status==='Done'&&n&&view.lsHintOff!==id
       ?`<div class="panel lshint"><b>Log this work in your Logbook?</b><span class="small muted">${n} finished task${n>1?'s':''} not in ${lbName(p)?esc(lbName(p))+"'s":'a'} maintenance log yet.</span><div class="row">${btn}<button class="btn" data-act="lshintoff">Not now</button></div></div>`
@@ -1122,7 +1154,7 @@ function partItem(p,pid,tid,x,sups,showTask,taskTitle){return view.editPart===x.
     <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><span style="font-weight:500;overflow-wrap:anywhere">${esc(x.name)}</span>
     <span class="mono small muted">${x.brand?`<span style="color:var(--text)">${esc(x.brand)}</span> · `:''}${esc(x.num||'no part #')} · ${esc(qtyText(x))}</span>${invChip(p,x)}${x.supplier||(showTask&&tid)?`<span class="row" style="gap:6px;flex-wrap:wrap">${x.supplier?`<span class="tag sup">${esc(x.supplier)}</span>`:''}${showTask&&tid?`<button class="tag task" data-act="task" data-tid="${tid}" aria-label="Open task ${esc(taskTitle)}">Task: ${esc(taskTitle)}</button>`:''}</span>`:''}
     <label class="exp" for="pr-${x.id}"><span>Price ${perText(x)}</span><span class="row" style="gap:4px"><span class="mono">$</span><input id="pr-${x.id}" class="mono" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="${hasPrice(x)?Number(x.price).toFixed(2):''}" data-price="1" data-tid="${tid}" data-xid="${x.id}" style="width:96px"></span>${hasPrice(x)&&(x.qty||1)!==1?`<span class="mono muted">= ${money(x.price*(x.qty||1))}</span></label>`:''}
-    ${x.status==='Ordered'?`<span class="small ${x.expected&&x.expected<today()?'':'muted'}" style="${x.expected&&x.expected<today()?'color:var(--danger);font-weight:600':''}">${x.expected?(x.expected<today()?'Late: expected ':'Expected ')+esc(fmtDate(x.expected)):'No expected date yet'}</span>`:''}${x.status==='In stock'&&x.receivedOn?`<span class="small muted">Received ${esc(fmtDate(x.receivedOn))}</span>`:''}${p.kind==='mine'&&x.status==='In stock'?invAddUI(pid,tid,x):''}</div>
+    ${x.status==='Ordered'?`<span class="small ${x.expected&&x.expected<today()?'':'muted'}" style="${x.expected&&x.expected<today()?'color:var(--danger);font-weight:600':''}">${x.expected?(x.expected<today()?'Late: expected ':'Expected ')+esc(fmtDate(x.expected)):'No expected date yet'}</span>`:''}${x.status==='In stock'&&x.receivedOn?`<span class="small muted">Received ${esc(fmtDate(x.receivedOn))}</span>`:''}${shelfUI(p,tid,x)}${p.kind==='mine'&&x.status==='In stock'&&!x.taken?invAddUI(pid,tid,x):''}</div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><button class="chip ${PART_CLASS[x.status]}" data-act="cyclepart" data-tid="${tid}" data-xid="${x.id}" aria-label="Status ${esc(x.status)}, tap to change">${esc(x.status)}</button><div class="row" style="gap:4px"><button class="btn ghost sm" data-act="editpart" data-tid="${tid}" data-xid="${x.id}" aria-label="Edit ${esc(x.name)}">Edit</button><button class="btn ghost sm" data-act="delpart" data-tid="${tid}" data-xid="${x.id}" aria-label="Remove ${esc(x.name)}">Remove</button></div></div></div>`}
 function renderTask(){
   const p=projects[view.pid],t=p.tasks.find(x=>x.id===view.tid),i=p.tasks.indexOf(t);
@@ -1217,6 +1249,9 @@ app.addEventListener('click',async e=>{
   else if(a==='receipt'){printReceipt(p,b.dataset.kind)}
   else if(a==='logexport'){openLogSheet(view.pid)}
   else if(a==='lshintoff'){view.lsHintOff=view.pid;render()}
+  else if(a==='shelfoff'){view.shelfOff=view.pid;render()}
+  else if(a==='takeone')takeOff(view.pid,[{tid:b.dataset.tid||'',xid:b.dataset.xid}])
+  else if(a==='putback')putBack(view.pid,b.dataset.tid||'',b.dataset.xid)
   else if(a==='signin'){signIn()}
   else if(a==='signout'){if(FB)FB.signOut()}
   else if(a==='clockin'){clockIn(b.dataset.pid)}
@@ -1263,6 +1298,7 @@ app.addEventListener('submit',e=>{
       const picked=custById(d.cid);if(picked){np.customer.id=picked.id;if(!picked.phone&&np.customer.phone)picked.phone=np.customer.phone;if(!np.customer.name)np.customer.name=picked.name;saveCustomers()}else if(linkJob(np))saveCustomers();
       if(d.mid){const m=machineById(d.mid);if(m&&m.owner&&np.customer.id&&m.owner.id===np.customer.id)linkToMachine(np,m.id)}}
     projects[id]=np;save(id);go({name:'project',pid:id})}
+  else if(k==='takeoff'){const list=new FormData(f).getAll('x').map(v=>{const [tid,xid]=String(v).split('|');return{tid:tid||'',xid}});if(!list.length){view.shelfOff=view.pid;render();return}takeOff(f.dataset.pid,list)}
   else if(k==='addcm'){const cu=custById(view.cid);if(!cu||!(d.name||'').trim())return;newCustMachine(cu,d.name,d.type);view.editing=null;toast((d.name||'').trim()+' added to '+(cu.name||'the customer')+"'s machines");render()}
   else if(k==='linkm'){const lp=projects[f.dataset.pid],cu=custOfJob(lp);if(!lp||!cu)return;let mid=d.mid;
     if(mid==='__new'||!mid){const name=String(lp.machine||d.newname||'').trim();if(!name){toast("Type the machine's name");return}mid=newCustMachine(cu,name,d.type||'Other')}
