@@ -138,7 +138,9 @@ let lastInvites = null;
 async function syncShop() {
   if (!user || shopOf) return;
   const me = user.uid;
-  try { await setDoc(doc(db, 'shops', me), { on: !!team.on, name: myShopName().slice(0, 80), updatedAt: new Date().toISOString() }); } catch { /* shown via inviteErr below if it matters */ }
+  // the team members can see: names and roles (for Assigned to / Done by), and the options
+  const people = [{ id: 'owner', name: String(user.displayName || 'Owner').slice(0, 60), role: 'owner' }, ...team.members.map((m) => ({ id: m.id, name: String(m.name || '').slice(0, 60), role: m.role }))].slice(0, 50);
+  try { await setDoc(doc(db, 'shops', me), { on: !!team.on, name: myShopName().slice(0, 80), people, options: { ...team.options }, updatedAt: new Date().toISOString() }); } catch { /* shown via inviteErr below if it matters */ }
   if (!team.on && !team.members.length) return;
   const want = new Map(team.members.map((m) => [lower(m.email), m]));
   const had = lastInvites || new Set();
@@ -183,7 +185,7 @@ async function findShop(u) {
 let leftMsg = '';
 function leftShop(msg) { if (!shopOf) return; leftMsg = msg; startData(); }
 function rememberShop() {
-  try { if (shopOf && user) localStorage.setItem('gt-shop-of', JSON.stringify({ member: user.uid, owner: shopOf.owner, role: shopOf.role, perms: shopOf.perms || {} })); else localStorage.removeItem('gt-shop-of'); } catch { /* private window */ }
+  try { if (shopOf && user) localStorage.setItem('gt-shop-of', JSON.stringify({ member: user.uid, owner: shopOf.owner, memberId: shopOf.memberId, role: shopOf.role, perms: shopOf.perms || {} })); else localStorage.removeItem('gt-shop-of'); } catch { /* private window */ }
 }
 /* Work out whose data to open, then open it (and reload any open Job_Board / Logbook tabs) */
 let starting = 0;
@@ -377,9 +379,14 @@ function renderHome() {
     : '<p class="sh-empty">No maintenance coming due.</p>'}</section>`;
 
   const scroll = box.scrollTop;
+  const mine = shopOf ? open.filter((p) => p.assignee && p.assignee === shopOf.memberId) : [];
+  const myJobs = shopOf ? `<section aria-labelledby="h-mine"><h2 class="sh-h2" id="h-mine">My jobs <small>${mine.length}</small></h2>${mine.length
+      ? mine.map((p) => { const left = (p.tasks || []).filter((t) => !t.done).length; const pr = p.customer && p.customer.promised ? whenLabel(String(p.customer.promised).slice(0, 10), today) : null;
+        return card('jobs', esc([jobNo(p), p.title || 'Untitled job'].filter(Boolean).join(' ')), esc([p.machine && p.machine !== p.title ? p.machine : '', left ? `${left} task${left === 1 ? '' : 's'} left` : 'all tasks done', p.status].filter(Boolean).join(' · ')), pr ? `<span class="sh-right ${pr.cls}">${esc(pr.text)}</span>` : ''); }).join('')
+      : '<p class="sh-empty">Nothing assigned to you right now.</p>'}</section>` : '';
   const note = leftMsg ? `<p class="sh-empty" role="status">${esc(leftMsg)} You're back in your own shop.</p>` : '';
   const inShop = shopOf ? `<p class="sh-foot" style="margin:0">You're in <b>${esc(shopOf.shopName || 'the shop')}</b> as ${esc((ROLES[shopOf.role] || ROLES.tech).label)}.</p>` : '';
-  box.innerHTML = note + inShop + clock + stats + schedHtml + comingHtml + partsHtml + (shopOf ? '' : dueHtml)
+  box.innerHTML = note + inShop + myJobs + clock + stats + schedHtml + comingHtml + partsHtml + (shopOf ? '' : dueHtml)
     + `<p class="sh-foot">Beta: Jobs, Machines and Parts are your Job_Board and Logbook, so everything you do there shows here.</p>`;
   box.scrollTop = scroll;
 }
@@ -563,7 +570,7 @@ $('p-settings').addEventListener('submit', async (e) => {
 
 $('p-settings').addEventListener('change', (e) => {
   const o = e.target.closest('[data-teamopt]');
-  if (o) { team.options[o.dataset.teamopt] = o.checked; saveTeam().catch(() => {}); return; }
+  if (o) { team.options[o.dataset.teamopt] = o.checked; saveTeam().catch(() => {}); return; } // saveTeam also updates shops/{me}.options
   // What each role can do: applies to everyone with that role
   const rp = e.target.closest('[data-roleperm]');
   if (rp) { const [role, k] = rp.dataset.roleperm.split('.'); team.roles = team.roles || roleDefaults(); team.roles[role] = { ...permsOf(role), [k]: rp.checked }; saveTeam().catch(() => {}); return; }

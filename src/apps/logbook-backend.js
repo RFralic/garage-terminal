@@ -15,6 +15,7 @@
 //                    projects/{id}  -> logbook/{uid}/projects/{id}
 //                    settings/{x}   -> logbook/{uid}/trackerSettings/{x}  (counter, shop)
 //                    records        -> logbook/{uid}/records (inventory check)
+//                    shop/info      -> shops/{owner}: the team, for Assigned to / Done by
 //
 // Only the member can read or write their own records (see the LOGBOOK section
 // of firestore.rules). The pages turn on the offline cache
@@ -96,6 +97,7 @@ function forUser(uid) {
     if (extra === undefined && b) {
       if (a === 'projects') return doc(userCol(uid, 'projects'), safeId(b));
       if (a === 'settings') return doc(userCol(uid, 'trackerSettings'), safeId(b));
+      if (a === 'shop' && b === 'info') return doc(db, 'shops', dataUid(uid)); // the team (employees), read only
     }
     throw new Error('Unknown path ' + path);
   };

@@ -93,6 +93,15 @@ describe('joining a shop', () => {
     await assertSucceeds(deleteDoc(doc(as('ryan'), 'shops', 'ryan', 'members', 'mia')));
   });
 
+  test('members can read the team list on the shop; only the owner writes it', async () => {
+    await joined('jake', 'jake@example.com', 'm1', 'tech', TECH);
+    const people = [{ id: 'owner', name: 'Ryan', role: 'owner' }, { id: 'm1', name: 'Jake', role: 'tech' }];
+    await assertSucceeds(setDoc(doc(as('ryan'), 'shops', 'ryan'), { on: true, name: "Ryan's", people, options: { assign: true, doneBy: true } }));
+    await assertSucceeds(getDoc(doc(as('jake', 'jake@example.com'), 'shops', 'ryan')));
+    await assertFails(setDoc(doc(as('jake', 'jake@example.com'), 'shops', 'ryan'), { on: true, name: "Ryan's", people: [], options: {} }));
+    await assertFails(setDoc(doc(as('ryan'), 'shops', 'ryan'), { on: true, name: "Ryan's", people: 'everyone' }));
+  });
+
   test('only the owner can switch Employees on or off', async () => {
     await joined('mia', 'mia@example.com', 'm2', 'manager', ALL);
     await assertFails(setDoc(doc(as('mia', 'mia@example.com'), 'shops', 'ryan'), { on: false, name: 'x' }));

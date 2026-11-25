@@ -138,6 +138,11 @@ dl.kv dt{color:var(--muted)}dl.kv dd{margin:0;overflow-wrap:anywhere}
 /* "Add to maintenance log": the prompt on the project and the preview sheet */
 .lsbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .lshint{border-color:var(--ok)}.lshint b{font-size:16px}
+.av{display:inline-flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;border-radius:50%;background:var(--steel);color:var(--bg);font:700 10px var(--f-body);letter-spacing:0;vertical-align:middle;margin-right:2px}
+.av.own{background:var(--tan)}.av.big{width:36px;height:36px;font-size:13px}
+.item .av{margin:0 4px}
+.whochips{display:flex;gap:6px;flex-wrap:wrap}.whochips .chip{min-height:36px;padding:0 12px;cursor:pointer;background:var(--surface);border:1px solid var(--line);color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--f-body);font-size:13px}
+.whochips .chip[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 .nopr{display:none!important}
 .schedbar{display:flex;align-items:center;gap:6px}.schedbar b{font:700 16px var(--f-display);letter-spacing:.04em}
 .week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
@@ -286,6 +291,17 @@ function parseQty(v,unit){const n=parseFloat(v);if(unit==='qt'||unit==='gal')ret
 const SHOP_OF=(()=>{try{if(new URLSearchParams(location.search).get('shop')!=='1')return null;const v=JSON.parse(localStorage.getItem('gt-shop-of')||'null');return v&&v.owner&&v.member?v:null}catch(e){return null}})();
 const can=k=>!SHOP_OF||!SHOP_OF.perms||SHOP_OF.perms[k]===true;
 const pricesOk=can('prices'),phonesOk=can('phones'),invOk=can('inventory'),settingsOk=can('settings'),deleteOk=!SHOP_OF||(SHOP_OF.perms&&'deleteJobs' in SHOP_OF.perms?SHOP_OF.perms.deleteJobs===true:SHOP_OF.role==='manager');
+/* Employees (Garage Terminal shop app): the shop doc (shops/{owner}, read through db.doc('shop/info'))
+   lists the team, people = [{id, name, role}] (id 'owner' = the owner, else the person's memberId), and
+   the owner's options. With Employees on: options.assign -> Assigned to on jobs (p.assignee = a person id),
+   options.doneBy -> ticking a task records who did it (t.doneBy, t.doneAt). Off: nothing shows. */
+let shopTeam={on:false,people:[],options:{}};
+const myPid=SHOP_OF?String(SHOP_OF.memberId||''):'owner';
+const assignOn=()=>shopTeam.on&&shopTeam.options.assign!==false&&shopTeam.people.length>1;
+const doneByOn=()=>shopTeam.on&&shopTeam.options.doneBy!==false&&shopTeam.people.length>1;
+const personOf=id=>id?shopTeam.people.find(x=>x.id===id):null;
+const initialsOf=n=>String(n||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?';
+const avatar=(id,big)=>{const pp=personOf(id);if(!pp)return'';return `<span class="av${big?' big':''}${id==='owner'?' own':''}" title="${esc(pp.name)}" aria-label="${esc(pp.name)}">${esc(initialsOf(pp.name))}</span>`};
 const money=n=>pricesOk?(Number(n)||0).toLocaleString('en-US',{style:'currency',currency:'USD'}):'';
 /* ---------- time clock (customer jobs) ---------- */
 const timeLog=p=>(p&&p.time&&Array.isArray(p.time.log))?p.time.log:[];
@@ -726,7 +742,7 @@ function go(patch){view={...view,editing:null,confirm:null,editPart:null,editTim
    own browser history entry, so Back goes to the previous screen instead of leaving the Tracker. Back also closes an
    open scanner or sheet first. Tabs and filters within a screen replace the entry rather than adding one. */
 let navSkipPop=false, navRestoring=false, navReady=false;
-function navSnap(){const v={name:view.name,tab:view.tab,q:view.q,pid:view.pid,tid:view.tid,kind:view.kind,shopJob:view.shopJob,shopStatus:view.shopStatus,shopSup:view.shopSup,backPid:view.backPid,cid:view.cid,cview:view.cview,day:view.day,book:view.book};
+function navSnap(){const v={name:view.name,tab:view.tab,q:view.q,pid:view.pid,tid:view.tid,kind:view.kind,shopJob:view.shopJob,shopStatus:view.shopStatus,shopSup:view.shopSup,backPid:view.backPid,cid:view.cid,cview:view.cview,day:view.day,book:view.book,who:view.who};
   return{gtt:1,k:[view.name,view.name==='project'||view.name==='task'?view.pid:view.name==='customer'?view.cid:'',view.name==='task'?view.tid:''].join(':'),v}}
 function navSync(){if(signedOut||!ready)return;try{const s=navSnap(),c=history.state,ours=c&&c.gtt;
   if(!navReady||!ours||navRestoring){navReady=true;history.replaceState({...s,prevK:ours?c.prevK:null},'');return}
@@ -764,7 +780,7 @@ function renderList(){
   if(!custOn&&view.tab==='customer')view.tab='all';
   const all=Object.entries(projects).filter(visible).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));
   const q=view.q.trim().toLowerCase();
-  const match=([id,p])=>{if(view.tab!=='all'&&p.kind!==view.tab)return false;if(!q)return true;
+  const match=([id,p])=>{if(view.tab!=='all'&&p.kind!==view.tab)return false;if(assignOn()&&view.who==='me'&&p.assignee!==myPid)return false;if(assignOn()&&view.who==='none'&&p.assignee)return false;if(!q)return true;
     const hay=[jobLabel(p),p.jobNo,p.title,p.machine,p.logbook,p.notes,p.customer&&p.customer.name,p.custNotes,...(p.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier]),...(p.tasks||[]).flatMap(t=>[t.title,t.notes,...(t.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier])])].join(' ').toLowerCase();return hay.includes(q)};
   const shown=all.filter(match);
   const c={all:all.length,mine:all.filter(x=>x[1].kind==='mine').length,customer:all.filter(x=>x[1].kind==='customer').length};
@@ -786,6 +802,7 @@ function renderList(){
   ${custOn?`<div class="tabs" role="tablist" aria-label="Filter projects">
     ${[['all','All'],['mine','My equipment'],['customer','Customers']].map(([k,l])=>`<button role="tab" aria-selected="${view.tab===k}" data-act="tab" data-tab="${k}">${l}<span class="cnt">${c[k]}</span></button>`).join('')}
   </div>`:''}`;
+  if(assignOn()&&!(custOn&&view.tab==='customer'&&(view.cview==='people'||view.cview==='sched')))h+=`<div class="whochips" role="group" aria-label="Whose jobs">${[['all','Everyone'],['me','Assigned to me'],['none','Not assigned']].map(([k,l])=>`<button class="chip" data-act="who" data-v="${k}" aria-pressed="${(view.who||'all')===k}">${l}</button>`).join('')}</div>`;
   if(custOn&&view.tab==='customer')h+=`<div class="seg" style="grid-template-columns:repeat(3,minmax(0,1fr))" role="group" aria-label="Show">
     <button aria-pressed="${view.cview!=='people'&&view.cview!=='sched'}" data-act="cview" data-v="jobs">Jobs</button><button aria-pressed="${view.cview==='sched'}" data-act="cview" data-v="sched">Schedule</button><button aria-pressed="${view.cview==='people'}" data-act="cview" data-v="people" aria-label="Customer list, ${customers.length}">Customers</button></div>`;
   if(custOn&&view.tab==='customer'&&view.cview==='people')return h+renderCustomerList(q);
@@ -800,7 +817,7 @@ function renderList(){
       <div class="row"><div class="bar"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n}</span></div>
       <span class="small"><span class="muted">Next:</span> ${next?esc(next.title):(pr.n?'All tasks done':'Add the first task')}</span>${invFor(p)&&inv?(()=>{const ps=allParts(p).filter(x=>x.num);if(!ps.length)return '';const n=ps.filter(x=>{const r=invLookup(x);return r&&r.found}).length;return `<span class="small" style="color:${n?'var(--ok)':'var(--muted)'}">${n} of ${ps.length} part${ps.length===1?'':'s'} in inventory</span>`})():''}</div>
       ${pricesOk&&p.kind==='mine'&&partsCost(p).count?`<span class="small"><span class="muted">Parts so far:</span> <span class="price">${money(partsCost(p).total)}</span></span>`:''}
-      <div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(p.status)}${running(p)?' <span style="color:var(--ok)">· ● on the clock</span>':''}</span><span>${to?to+' to order':od?od+' ordered':parts.length?'Parts in':'No parts yet'}</span></div>
+      <div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${assignOn()&&p.assignee?avatar(p.assignee)+' ':''}${esc(p.status)}${running(p)?' <span style="color:var(--ok)">· ● on the clock</span>':''}</span><span>${to?to+' to order':od?od+' ordered':parts.length?'Parts in':'No parts yet'}</span></div>
     </button>`}).join('');
   return h;
 }
@@ -914,6 +931,7 @@ function renderProject(){
         return (p.machine?`<dt>Machine</dt><dd>${esc(p.machine)}</dd>`:'')+(custOn&&custOfJob(p)?`<dt></dt><dd><button class="btn ghost sm" data-act="linkm" style="padding-left:0">${view.editing==='linkm'?'Close':'Link to a machine'}</button></dd>`:'')})()}${c.dropOff?`<dt>Drop-off</dt><dd>${esc(c.dropOff)}${c.dropTime?' · '+esc(fmtTime(c.dropTime)):''}</dd>`:''}${c.pickup?`<dt>Pickup</dt><dd style="color:var(--ok);font-weight:600">${esc(c.pickup)}${c.pickupTime?' · '+esc(fmtTime(c.pickupTime)):''}</dd>`:''}${c.promised?`<dt>Promised</dt><dd style="color:var(--warn);font-weight:600">${esc(c.promised)}</dd>`:''}</dl>${c.complaint?`<p style="margin:0" class="small"><span class="muted">Complaint:</span> ${esc(c.complaint)}</p>`:''}`
       :`${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}${lbName(p)?`<span class="small">Logbook: <b>${esc(lbName(p))}</b></span>`:''}`}
       <label class="f">Status<select data-input="status" id="p-status">${STATUSES.map(s=>`<option ${s===p.status?'selected':''}>${s}</option>`).join('')}</select></label>
+      ${assignOn()?`<label class="f">Assigned to<span class="row" style="gap:8px">${avatar(p.assignee,true)}<select data-input="assignee" id="p-assignee" style="flex:1"><option value="">Nobody</option>${shopTeam.people.map(x=>`<option value="${esc(x.id)}" ${x.id===p.assignee?'selected':''}>${esc(x.name)}${x.id===myPid?' (me)':''}</option>`).join('')}${p.assignee&&!personOf(p.assignee)?`<option value="${esc(p.assignee)}" selected>Someone no longer on the team</option>`:''}</select></span></label>`:''}
       <div class="row"><div class="bar big"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n} done</span></div>
     </div>
   </div>`;
@@ -957,7 +975,7 @@ function renderProject(){
   h+=`<section><div class="between"><h2>Checklist</h2><span class="note">tap a task for notes, parts and links</span></div>
   ${(p.tasks||[]).length?`<div class="list">${p.tasks.map(t=>{const tp=t.parts||[];const lg=p.kind==='mine'&&loggedOf(p)[t.id];const meta=[lg?`In Logbook · ${esc(fmtDate(lg.date))}`:'',tp.length?`${tp.length} part${tp.length>1?'s':''}`:'',(t.links||[]).length?`${t.links.length} link${t.links.length>1?'s':''}`:'',t.notes&&t.notes.trim()?'notes':''].filter(Boolean).join(' · ');
     return `<div class="item"><button class="check" data-act="toggle" data-tid="${t.id}" aria-label="${t.done?'Mark not done':'Mark done'}: ${esc(t.title)}"><span class="box ${t.done?'on':''}">✓</span></button>
-    <button class="main" data-act="task" data-tid="${t.id}"><span class="t ${t.done?'done':''}">${esc(t.title)}</span>${meta?`<span class="small muted">${meta}</span>`:''}</button><span class="chev" aria-hidden="true">›</span></div>`}).join('')}</div>`:''}
+    <button class="main" data-act="task" data-tid="${t.id}"><span class="t ${t.done?'done':''}">${esc(t.title)}</span>${meta?`<span class="small muted">${meta}</span>`:''}</button>${t.done&&t.doneBy&&doneByOn()?avatar(t.doneBy):''}<span class="chev" aria-hidden="true">›</span></div>`}).join('')}</div>`:''}
   <form class="row" data-form="addtask"><label for="newtask" style="position:absolute;left:-9999px">New task</label><input id="newtask" type="text" name="title" maxlength="160" placeholder="+ Add a task" required><button class="btn sm" type="submit">Add</button></form>
   </section>
   <section><div class="between"><h2>Parts</h2><span class="note">${parts.length?'tap a status to change it':''}</span></div>
@@ -1231,7 +1249,7 @@ function renderTask(){
   const p=projects[view.pid],t=p.tasks.find(x=>x.id===view.tid),i=p.tasks.indexOf(t);
   const sups=suppliers();
   let h=`<div class="top"><button class="btn ghost" data-act="open" data-pid="${view.pid}">← ${esc(p.title||'Project')}</button><button class="btn sm" data-act="edittask">${view.editing==='t'?'Close':'Edit'}</button></div>
-  <div style="display:flex;flex-direction:column;gap:10px"><span class="eyebrow">${jobLabel(p)?`<span class="mono" style="letter-spacing:0;color:var(--tan)">${esc(jobLabel(p))}</span> · `:''}Task ${i+1} of ${p.tasks.length} · ${t.done?'<span style="color:var(--ok)">Done</span>':'Open'}</span><h1>${esc(t.title)}</h1>
+  <div style="display:flex;flex-direction:column;gap:10px"><span class="eyebrow">${jobLabel(p)?`<span class="mono" style="letter-spacing:0;color:var(--tan)">${esc(jobLabel(p))}</span> · `:''}Task ${i+1} of ${p.tasks.length} · ${t.done?`<span style="color:var(--ok)">Done${t.doneBy&&doneByOn()&&personOf(t.doneBy)?' by '+esc(personOf(t.doneBy).name):''}${t.doneAt?' · '+esc(fmtDate(t.doneAt)):''}</span>`:'Open'}</span><h1>${esc(t.title)}</h1>
   <button class="btn ${t.done?'':'ok'}" data-act="toggle" data-tid="${t.id}">${t.done?'Mark not done':'✓ Mark task done'}</button></div>`;
   if(view.editing==='t'){h+=`<form class="panel" data-form="edittask"><label class="f">Task name<input type="text" name="title" required maxlength="160" value="${esc(t.title)}"></label><button class="btn primary" type="submit">Save</button>
     ${view.confirm==='delt'?`<div class="confirm"><span>Delete this task, its notes, parts and links?</span><button type="button" class="btn danger sm" data-act="delt-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:`<button type="button" class="btn danger" data-act="delt">Delete task</button>`}</form>`}
@@ -1304,6 +1322,7 @@ app.addEventListener('click',async e=>{
   else if(a==='editc'){view.editing='c';render();const el=document.getElementById('c-name');if(el)el.focus()}
   else if(a==='cancelc'){view.editing=null;render()}
   else if(a==='cview'){view.cview=b.dataset.v;render()}
+  else if(a==='who'){view.who=b.dataset.v;render()}
   else if(a==='pickday'){view.day=b.dataset.day;render()}
   else if(a==='wk'){view.day=addDay(view.day||today(),+b.dataset.n||0);render()}
   else if(a==='book')go({name:'new',kind:'customer',day:view.day||today(),book:true,cid:null,mid:null})
@@ -1345,7 +1364,7 @@ app.addEventListener('click',async e=>{
   else if(a==='cancel'){view.confirm=null;render()}
   else if(a==='delp-yes'){await removeProject(view.pid);toast('Project deleted');go({name:'list'})}
   else if(a==='delt-yes'){p.tasks=p.tasks.filter(t=>t.id!==view.tid);save(view.pid);toast('Task deleted');go({name:'project'})}
-  else if(a==='toggle'){const t=p.tasks.find(x=>x.id===b.dataset.tid);t.done=!t.done;
+  else if(a==='toggle'){const t=p.tasks.find(x=>x.id===b.dataset.tid);t.done=!t.done;if(t.done){t.doneAt=today();if(doneByOn())t.doneBy=myPid}else{delete t.doneBy;delete t.doneAt}
     const pr=progress(p);if(pr.n&&pr.d===pr.n&&p.status==='In progress')toast('All tasks done. Update the status?');else if(t.done&&p.status==='Not started')p.status='In progress';
     save(view.pid);render()}
   else if(a==='cyclepart'){const {x}=findPart(view.pid,b.dataset.tid||'',b.dataset.xid);if(!x)return;setPartStatus(x,PART_ST[(PART_ST.indexOf(x.status)+1)%3]);save(view.pid);render()}
@@ -1417,6 +1436,7 @@ app.addEventListener('input',e=>{
 app.addEventListener('change',e=>{const el=e.target;if(el.dataset.input==='dropday'){const n=document.getElementById('n-limit');if(n)n.innerHTML=el.value?limitNote(el.value):'';return}if(el.dataset.input==='pickcust'){const c=custById(el.value);view.cid=el.value||null;view.mid=null;const n=document.getElementById('n-cname'),ph=document.getElementById('n-cphone');if(n)n.value=c?c.name:'';if(ph)ph.value=c?c.phone:'';
     const w=document.getElementById('n-midwrap'),sm=document.getElementById('n-mid');if(w&&sm){sm.innerHTML='<option value="">Not listed (type it below)</option>'+cmOptions(view.cid,'');w.hidden=!custMachines(view.cid).length}return}
   if(el.dataset.input==='status'){projects[view.pid].status=el.value;save(view.pid);render()}
+  else if(el.dataset.input==='assignee'){const p=projects[view.pid];if(el.value)p.assignee=el.value;else delete p.assignee;save(view.pid);toast(el.value?'Assigned to '+((personOf(el.value)||{}).name||'them'):'Not assigned');render()}
   else if(el.dataset.price){const {x}=findPart(view.pid,el.dataset.tid||'',el.dataset.xid);if(x){const v=el.value.trim();if(v===''||!isFinite(+v)||+v<0)delete x.price;else x.price=Math.round(+v*100)/100;save(view.pid);el.blur();render()}}
   else if(el.dataset.exp){const {x}=findPart(el.dataset.pid,el.dataset.tid,el.dataset.xid);if(x){if(el.value)x.expected=el.value;else delete x.expected;save(el.dataset.pid);el.blur();render()}}});
 
@@ -1437,6 +1457,7 @@ function connect(u){
   projects={};ready=false;inv=null;machines=[];machinesLoaded=false;machineRecs={};counterLast=0;counterLoaded=false;projectsLoaded=false;backfilled=false;render();
   unsubs.push(db.doc('settings/shop').onSnapshot(s=>{if(s.exists){const v=s.data()||{};shop={name:v.name||'',phone:v.phone||'',email:v.email||'',address:v.address||'',footer:v.footer||'',rate:v.rate||'',receiptWidth:v.receiptWidth==='58'?'58':'80',dayLimit:+v.dayLimit>0?Math.round(+v.dayLimit):''};if(view.editing!=='shop'&&view.name!=='shopinfo')render()}},()=>{}));
   unsubs.push(db.doc('settings/customers').onSnapshot(s=>{const v=s.exists?(s.data()||{}):null;customers=v&&Array.isArray(v.list)?v.list.filter(c=>c&&c.id):[];customersBuilt=customersBuilt||!!(v&&v.built);customersLoaded=true;buildCustomers();handleDeep();if(ready)render()},()=>{customersLoaded=true}));
+  try{unsubs.push(db.doc('shop/info').onSnapshot(s=>{const v=s.exists?(s.data()||{}):{};shopTeam={on:v.on===true,people:Array.isArray(v.people)?v.people.filter(x=>x&&x.id&&x.name):[],options:v.options&&typeof v.options==='object'?v.options:{}};if(ready)render()},()=>{}))}catch(e){/* this page's own backend has no shop doc: employees stay off */}
   unsubs.push(db.doc('settings/counter').onSnapshot(s=>{const v=s.exists?Number((s.data()||{}).lastJobNo)||0:0;counterLast=Math.max(counterLast,v);counterLoaded=true;backfillJobNos()},()=>{counterLoaded=true;backfillJobNos()}));
   /* The Logbook's records: parts for the inventory check, engines/vehicles for "Logbook entry" */
   unsubs.push(db.records.onSnapshot(rs=>{
