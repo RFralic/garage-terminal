@@ -439,24 +439,125 @@ service cloud.firestore {
     //   logbook/{uid}/projects/{id}         Project Tracker projects and jobs
     //   logbook/{uid}/trackerSettings/{id}  Project Tracker counter and shop info
     //   logbook/{uid}/receipts/{id}         a receipt photo or PDF on a part (one file per doc)
-    match /logbook/{uid}/{part}/{docId} {
-      allow read, delete: if isSelf(uid) && part in ['records', 'projects', 'trackerSettings', 'receipts'];
-      allow create, update: if isSelf(uid)
-        && part in ['records', 'projects', 'trackerSettings']
-        && docId.matches('^[A-Za-z0-9_-]{1,64}$')
-        && request.resource.data is map;
-      // Receipts: only these fields; the file is a data: URL string (a shrunk JPEG
-      // photo or a small PDF), kept under Firestore's 1 MiB doc limit.
-      allow create, update: if isSelf(uid)
-        && part == 'receipts'
-        && docId.matches('^[A-Za-z0-9_-]{1,64}$')
-        && request.resource.data.keys().hasOnly(['partId', 'name', 'type', 'data', 'size', 'createdAt'])
+    // ---------- shared shop: employees (Garage Terminal shop app) ------------
+    // A shop is an owner's Logbook + Job_Board data (logbook/{owner}/...). With Employees
+    // switched on (shops/{owner}.on), people the owner invited by email can join it:
+    //   shopInvites/{email}           the owner's invite: role + permissions; only the owner
+    //                                 and the person with that verified Google email can read it
+    //   shops/{owner}                 { on, name }  (owner only)
+    //   shops/{owner}/members/{uid}   made by the invited person when they join; must copy the
+    //                                 invite's role, permissions and memberId exactly
+    // Removing the member doc, or switching Employees off, cuts access at once.
+    // What members may do with the owner's data (see memberWrite below):
+    //   everyone   read records, projects and trackerSettings (not 'team'); work jobs
+    //              (projects), add machines, log services, take parts off the shelf
+    //              (qty only), job numbers and the customer list
+    //   inventory  add, change and delete parts and receipts
+    //   settings   change shop info (trackerSettings/shop)
+    //   manager    delete jobs
+    // Prices and phone numbers live inside the jobs, so hiding them from a role is done
+    // on screen, not here.
+    function shopPath(o) { return /databases/$(database)/documents/shops/$(o); }
+    function memberPath(o) { return /databases/$(database)/documents/shops/$(o)/members/$(request.auth.uid); }
+    function shopOn(o) { return exists(shopPath(o)) && get(shopPath(o)).data.on == true; }
+    function shopMember(o) { return signedIn() && request.auth.uid != o && exists(memberPath(o)) && shopOn(o); }
+    function memberPerm(o, k) { return get(memberPath(o)).data.perms[k] == true; }
+    function memberRole(o) { return get(memberPath(o)).data.role; }
+    function myEmail() { return request.auth.token.email.lower(); }
+    function verifiedEmail() { return signedIn() && request.auth.token.email is string && request.auth.token.email_verified == true; }
+    function shopRoles() { return ['tech', 'counter', 'manager']; }
+    function validPerms(p) {
+      return p is map && p.keys().hasOnly(['prices', 'phones', 'inventory', 'settings'])
+        && p.prices is bool && p.phones is bool && p.inventory is bool && p.settings is bool;
+    }
+    function onlyQty() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['qty', 'updatedAt']);
+    }
+    function memberWrite(o, part, docId) {
+      return (part == 'projects')
+        || (part == 'records' && (memberPerm(o, 'inventory')
+              || (resource == null && request.resource.data.kind != 'part')
+              || (resource != null && resource.data.kind != 'part' && request.resource.data.kind != 'part')
+              || (resource != null && resource.data.kind == 'part' && onlyQty())))
+        || (part == 'trackerSettings' && (docId in ['counter', 'customers'] || (docId == 'shop' && memberPerm(o, 'settings'))));
+    }
+    function memberDelete(o, part) {
+      return (part == 'projects' && memberRole(o) == 'manager')
+        || (part in ['records', 'receipts'] && memberPerm(o, 'inventory'));
+    }
+    function validReceipt() {
+      return request.resource.data.keys().hasOnly(['partId', 'name', 'type', 'data', 'size', 'createdAt'])
         && request.resource.data.partId is string && request.resource.data.partId.matches('^[A-Za-z0-9_-]{1,64}$')
         && request.resource.data.name is string && request.resource.data.name.size() <= 120
         && request.resource.data.type in ['image', 'pdf']
         && request.resource.data.data is string && request.resource.data.data.size() <= 1000000
         && request.resource.data.size is int
         && request.resource.data.createdAt is string;
+    }
+
+    match /logbook/{uid}/{part}/{docId} {
+      allow read: if part in ['records', 'projects', 'trackerSettings', 'receipts']
+        && (isSelf(uid) || (shopMember(uid) && !(part == 'trackerSettings' && docId == 'team')));
+      allow delete: if (isSelf(uid) && part in ['records', 'projects', 'trackerSettings', 'receipts'])
+        || (shopMember(uid) && memberDelete(uid, part));
+      allow create, update: if part in ['records', 'projects', 'trackerSettings']
+        && docId.matches('^[A-Za-z0-9_-]{1,64}$')
+        && request.resource.data is map
+        && (isSelf(uid) || (shopMember(uid) && memberWrite(uid, part, docId)));
+      // Receipts: only these fields; the file is a data: URL string (a shrunk JPEG
+      // photo or a small PDF), kept under Firestore's 1 MiB doc limit.
+      allow create, update: if part == 'receipts'
+        && docId.matches('^[A-Za-z0-9_-]{1,64}$')
+        && validReceipt()
+        && (isSelf(uid) || (shopMember(uid) && memberPerm(uid, 'inventory')));
+    }
+
+    match /shops/{o} {
+      allow read: if isSelf(o) || (signedIn() && exists(memberPath(o)));
+      allow create, update: if isSelf(o)
+        && request.resource.data.keys().hasOnly(['on', 'name', 'updatedAt'])
+        && request.resource.data.on is bool
+        && request.resource.data.name is string && request.resource.data.name.size() <= 80;
+      allow delete: if isSelf(o);
+
+      match /members/{m} {
+        allow read: if isSelf(o) || isSelf(m);
+        allow delete: if isSelf(o) || isSelf(m); // the owner removes; a member can leave
+        allow update: if isSelf(o)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'perms', 'name'])
+          && request.resource.data.role in shopRoles()
+          && validPerms(request.resource.data.perms)
+          && request.resource.data.name is string && request.resource.data.name.size() <= 60;
+        // Joining: only the invited Google account, copying its invite exactly.
+        allow create: if isSelf(m) && m != o && verifiedEmail()
+          && exists(/databases/$(database)/documents/shopInvites/$(myEmail()))
+          && get(/databases/$(database)/documents/shopInvites/$(myEmail())).data.owner == o
+          && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'perms', 'memberId', 'joinedAt'])
+          && request.resource.data.email == myEmail()
+          && request.resource.data.role == get(/databases/$(database)/documents/shopInvites/$(myEmail())).data.role
+          && request.resource.data.perms == get(/databases/$(database)/documents/shopInvites/$(myEmail())).data.perms
+          && request.resource.data.memberId == get(/databases/$(database)/documents/shopInvites/$(myEmail())).data.memberId
+          && request.resource.data.name is string && request.resource.data.name.size() <= 60
+          && request.resource.data.joinedAt == request.time;
+      }
+    }
+
+    // shopInvites/{email}: one shop per email; a second owner can't take over someone else's invite.
+    match /shopInvites/{email} {
+      allow read: if (signedIn() && resource.data.owner == request.auth.uid)
+        || (verifiedEmail() && myEmail() == email);
+      allow create, update: if signedIn()
+        && email.matches('^[^@/\\s]+@[^@/\\s]+[.][^@/\\s]+$') && email == email.lower()
+        && request.resource.data.owner == request.auth.uid
+        && (resource == null || resource.data.owner == request.auth.uid)
+        && request.resource.data.keys().hasOnly(['owner', 'ownerName', 'shopName', 'memberId', 'name', 'role', 'perms', 'updatedAt'])
+        && request.resource.data.role in shopRoles()
+        && validPerms(request.resource.data.perms)
+        && request.resource.data.memberId is string && request.resource.data.memberId.matches('^[A-Za-z0-9_-]{1,64}$')
+        && request.resource.data.name is string && request.resource.data.name.size() <= 60
+        && request.resource.data.ownerName is string && request.resource.data.ownerName.size() <= 80
+        && request.resource.data.shopName is string && request.resource.data.shopName.size() <= 80;
+      allow delete: if signedIn() && resource.data.owner == request.auth.uid;
     }
 
     // =========================================================================

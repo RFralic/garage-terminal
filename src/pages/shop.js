@@ -17,7 +17,7 @@
 const sysopOnly = false;
 
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.js';
 import { finishRedirectSignIn, signInWithGoogle, watchSession } from '../lib/session.js';
 import { buildBrief } from '../brief/brief.js';
@@ -101,8 +101,12 @@ let dayLimit = 0; // Job_Board shop info: warn when a day has this many drop-off
 //     options: { assign, doneBy, ownTime, approveTime } }
 // The owner is the account the shop's data lives under (whoever runs this shop app); never in members.
 // Off (the default) = a one-person shop: nothing about employees shows anywhere.
-// Coming next: 2 invites + sign-ins (members join the owner's shop), 3 Assigned to / Done by,
-// 4 time per person + approval (approveTime: a Tech's time needs the Owner's or a Manager's OK before it goes on an invoice).
+// Step 2 (invites + sign-ins): while Employees is on, each person gets an invite at shopInvites/{email}
+// (role + permissions) and shops/{owner} = {on, name}. The invited Google account opens /shop, sees
+// "Join <shop>?", and joining makes shops/{owner}/members/{their uid}. From then on the shop app (and the
+// Job_Board / Logbook inside it, via localStorage gt-shop-of) opens the owner's data; firestore.rules
+// decide what each role may do. Removing someone, or switching Employees off, cuts access at once.
+// Coming next: 3 Assigned to / Done by, 4 time per person + approval (approveTime: a Tech's time needs the Owner's or a Manager's OK before it goes on an invoice).
 const ROLES = {
   tech: { label: 'Tech', perms: { prices: false, phones: false, inventory: false, settings: false }, does: 'Works their assigned jobs, clocks in and out, takes parts off the shelf' },
   counter: { label: 'Front counter', perms: { prices: true, phones: true, inventory: false, settings: false }, does: 'Books drop-offs and pickups, customers, invoices' },
@@ -112,7 +116,84 @@ const PERMS = [['prices', 'See prices, invoices and totals'], ['phones', "See cu
 const OPTS = [['assign', 'Assign jobs to people'], ['doneBy', 'Mark who did each task (Done by)'], ['ownTime', 'Each person clocks their own time'], ['approveTime', "Time needs a manager's OK before it goes on an invoice"]];
 let team = { on: false, members: [], options: { assign: true, doneBy: true, ownTime: true, approveTime: true } };
 let teamEdit = null; // null, 'new' or a member id
-const saveTeam = () => setDoc(doc(db, 'logbook', user.uid, 'trackerSettings', 'team'), JSON.parse(JSON.stringify(team)));
+let shopName = ''; // Job_Board shop info name
+let joinedBy = {}; // owner: memberId -> joined uid (from shops/{me}/members)
+let inviteErr = {}; // owner: memberId -> why their invite couldn't be saved
+let shopOf = null; // signed in as a member of someone else's shop: {owner, ownerName, shopName, memberId, role, perms}
+let pendingInvite = null; // invited but not joined yet: the invite, plus its email
+let memberUnsubs = [];
+const lower = (e) => String(e || '').trim().toLowerCase();
+const myShopName = () => shopName || ((user && user.displayName ? user.displayName.split(' ')[0] + "'s" : 'My') + ' shop');
+const saveTeam = async () => {
+  await setDoc(doc(db, 'logbook', user.uid, 'trackerSettings', 'team'), JSON.parse(JSON.stringify(team)));
+  await syncShop();
+};
+/* Owner: keep shops/{me} and everyone's invites in step with the team list */
+let lastInvites = null;
+async function syncShop() {
+  if (!user || shopOf) return;
+  const me = user.uid;
+  try { await setDoc(doc(db, 'shops', me), { on: !!team.on, name: myShopName().slice(0, 80), updatedAt: new Date().toISOString() }); } catch { /* shown via inviteErr below if it matters */ }
+  if (!team.on && !team.members.length) return;
+  const want = new Map(team.members.map((m) => [lower(m.email), m]));
+  const had = lastInvites || new Set();
+  for (const email of had) if (!want.has(email)) { try { await deleteDoc(doc(db, 'shopInvites', email)); } catch { /* gone already */ } }
+  for (const [email, m] of want) {
+    try {
+      await setDoc(doc(db, 'shopInvites', email), { owner: me, ownerName: String((user.displayName || 'Your boss')).slice(0, 80), shopName: myShopName().slice(0, 80), memberId: m.id, name: String(m.name || '').slice(0, 60), role: m.role, perms: m.perms, updatedAt: new Date().toISOString() });
+      delete inviteErr[m.id];
+      const uid = joinedBy[m.id];
+      if (uid) await setDoc(doc(db, 'shops', me, 'members', uid), { role: m.role, perms: m.perms, name: String(m.name || '').slice(0, 60) }, { merge: true });
+    } catch { inviteErr[m.id] = 'That email is already on another shop\'s team.'; }
+  }
+  lastInvites = new Set(want.keys());
+  if (tab === 'settings' && !teamEdit) renderSettings();
+}
+/* Owner: remove a person (their invite and, if they joined, their membership) */
+async function dropMember(m) {
+  try { await deleteDoc(doc(db, 'shopInvites', lower(m.email))); } catch { /* not there */ }
+  const uid = joinedBy[m.id];
+  if (uid) { try { await deleteDoc(doc(db, 'shops', user.uid, 'members', uid)); } catch { /* not there */ } }
+}
+/* Signed in: am I a member of someone else's shop (or invited to one)? */
+async function findShop(u) {
+  memberUnsubs.forEach((x) => x()); memberUnsubs = [];
+  shopOf = null; pendingInvite = null;
+  const email = lower(u.email);
+  if (!email) return;
+  let inv = null;
+  try { const s = await getDoc(doc(db, 'shopInvites', email)); inv = s.exists() ? s.data() : null; } catch { inv = null; }
+  if (!inv || inv.owner === u.uid) return;
+  let mem = null;
+  try { const s = await getDoc(doc(db, 'shops', inv.owner, 'members', u.uid)); mem = s.exists() ? s.data() : null; } catch { mem = null; }
+  if (!mem) { pendingInvite = { ...inv, email }; return; }
+  let on = false;
+  try { const s = await getDoc(doc(db, 'shops', inv.owner)); on = s.exists() && s.data().on === true; } catch { on = false; }
+  if (!on) return; // Employees switched off: back to your own data
+  shopOf = { owner: inv.owner, ownerName: inv.ownerName, shopName: inv.shopName, memberId: mem.memberId, role: mem.role, perms: mem.perms || {} };
+  // removed, or Employees switched off: drop back to your own data right away
+  memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner, 'members', u.uid), (d) => { if (!d.exists()) leftShop('You were removed from ' + (inv.shopName || 'the shop') + '.'); else if (shopOf) { shopOf.role = d.data().role; shopOf.perms = d.data().perms || {}; } }, () => leftShop('')));
+  memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner), (d) => { if (!d.exists() || d.data().on !== true) leftShop((inv.shopName || 'The shop') + ' switched Employees off.'); }, () => leftShop('')));
+}
+let leftMsg = '';
+function leftShop(msg) { if (!shopOf) return; leftMsg = msg; startData(); }
+function rememberShop() {
+  try { if (shopOf && user) localStorage.setItem('gt-shop-of', JSON.stringify({ member: user.uid, owner: shopOf.owner })); else localStorage.removeItem('gt-shop-of'); } catch { /* private window */ }
+}
+/* Work out whose data to open, then open it (and reload any open Job_Board / Logbook tabs) */
+let starting = 0;
+async function startData() {
+  if (!user || access !== 'ok') return;
+  const n = ++starting;
+  if (shopOf && leftMsg) { shopOf = null; memberUnsubs.forEach((x) => x()); memberUnsubs = []; }
+  else await findShop(user);
+  if (n !== starting) return;
+  rememberShop();
+  $('shEyebrow').textContent = shopOf ? (shopOf.shopName || 'Shop') : 'Garage Terminal · Shop';
+  listen(shopOf ? shopOf.owner : user.uid);
+  for (const k of Object.keys(FRAMES)) { const f = $('p-' + k).querySelector('iframe'); if (f) f.src = FRAMES[k]; }
+  if (tab === 'settings') renderSettings();
+}
 
 function listen(uid) {
   unsubs.forEach((u) => u());
@@ -122,13 +203,20 @@ function listen(uid) {
     onSnapshot(collection(db, 'logbook', uid, 'records'), (q) => { records = q.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, fail),
     onSnapshot(collection(db, 'logbook', uid, 'projects'), (q) => { projects = q.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, fail),
     // Job_Board's shop info (only the daily drop-off limit is used here)
-    onSnapshot(doc(db, 'logbook', uid, 'trackerSettings', 'team'), (d) => {
+    ...(user && uid === user.uid ? [onSnapshot(doc(db, 'logbook', uid, 'trackerSettings', 'team'), (d) => {
       const v = d.exists() ? d.data() || {} : {};
       team = { on: !!v.on, members: Array.isArray(v.members) ? v.members.filter((m) => m && m.id) : [], options: { assign: true, doneBy: true, ownTime: true, approveTime: true, ...(v.options || {}) } };
+      if (lastInvites === null && (team.on || team.members.length)) syncShop(); // first load: make sure the invites match the list
       if (tab === 'settings' && !teamEdit) renderSettings();
-    }, () => {}),
-    onSnapshot(doc(db, 'logbook', uid, 'trackerSettings', 'shop'), (d) => { const v = d.exists() ? d.data() || {} : {}; dayLimit = +v.dayLimit > 0 ? Math.round(+v.dayLimit) : 0; if (tab === 'settings') renderSettings(); renderHome(); }, () => {}),
+    }, () => {})] : []),
+    onSnapshot(doc(db, 'logbook', uid, 'trackerSettings', 'shop'), (d) => { const v = d.exists() ? d.data() || {} : {}; dayLimit = +v.dayLimit > 0 ? Math.round(+v.dayLimit) : 0; shopName = String(v.name || ''); if (tab === 'settings') renderSettings(); renderHome(); }, () => {}),
   ];
+  if (user && uid === user.uid) {
+    unsubs.push(onSnapshot(collection(db, 'shops', uid, 'members'), (q) => {
+      joinedBy = {}; q.docs.forEach((d) => { const v = d.data() || {}; if (v.memberId) joinedBy[v.memberId] = d.id; });
+      if (tab === 'settings' && !teamEdit) renderSettings();
+    }, () => {}));
+  }
 }
 
 watchSession((s) => {
@@ -136,7 +224,7 @@ watchSession((s) => {
   access = s.state === 'loading' ? 'loading' : s.state === 'guest' ? 'guest' : (!sysopOnly || (s.state === 'member' && s.isSysop)) ? 'ok' : 'waiting';
   document.querySelector('.sh-tabs').hidden = access !== 'ok';
   $('shGear').hidden = access !== 'ok';
-  if (access === 'ok' && before !== 'ok' && user) listen(user.uid);
+  if (access === 'ok' && before !== 'ok' && user) startData();
   if (access !== 'ok') { unsubs.forEach((x) => x()); unsubs = []; records = projects = null; show('home'); }
   renderHome();
 });
@@ -144,10 +232,10 @@ watchSession((s) => {
 onAuthStateChanged(auth, (u) => {
   const was = user && user.uid;
   user = u;
-  if (u && access === 'ok') listen(u.uid);
-  else { unsubs.forEach((x) => x()); unsubs = []; records = projects = null; }
-  // pages already open in a tab sign in or out with the app
-  if ((u && u.uid) !== was) for (const n of Object.keys(FRAMES)) { const f = $('p-' + n).querySelector('iframe'); if (f) f.src = FRAMES[n]; }
+  if (u && access === 'ok') startData();
+  else { unsubs.forEach((x) => x()); unsubs = []; records = projects = null; memberUnsubs.forEach((x) => x()); memberUnsubs = []; shopOf = null; pendingInvite = null; rememberShop(); }
+  // pages already open in a tab sign in or out with the app (startData reloads them once it knows whose shop)
+  if (!u && was) for (const n of Object.keys(FRAMES)) { const f = $('p-' + n).querySelector('iframe'); if (f) f.src = FRAMES[n]; }
   renderHome();
 });
 finishRedirectSignIn().catch(() => { /* shown as signed out */ });
@@ -198,6 +286,13 @@ function renderHome() {
     return;
   }
   if (loadErr) { box.innerHTML = `<p class="sh-empty">Couldn't load your shop: ${esc(loadErr)}</p>`; return; }
+  if (pendingInvite && !inviteLater()) {
+    box.innerHTML = `<div class="sh-signin"><h2>Join ${esc(pendingInvite.shopName || 'the shop')}?</h2>
+      <p>${esc(pendingInvite.ownerName || 'The owner')} added you as <b>${esc((ROLES[pendingInvite.role] || ROLES.tech).label)}</b>. Joining opens their shop's jobs, machines and parts here. Your own Logbook stays yours.</p>
+      <button type="button" class="sh-btn" data-join>Join</button><button type="button" class="sh-btn ghost" data-joinlater>Not now</button>
+      <p class="sh-foot" id="shJoinMsg" role="status"></p></div>`;
+    return;
+  }
   if (!records || !projects) { box.innerHTML = '<p class="sh-muted sh-pad">Loading your shop…</p>'; return; }
 
   const today = dayKey();
@@ -277,12 +372,24 @@ function renderHome() {
     : '<p class="sh-empty">No maintenance coming due.</p>'}</section>`;
 
   const scroll = box.scrollTop;
-  box.innerHTML = clock + stats + schedHtml + comingHtml + partsHtml + dueHtml
+  const note = leftMsg ? `<p class="sh-empty" role="status">${esc(leftMsg)} You're back in your own shop.</p>` : '';
+  const inShop = shopOf ? `<p class="sh-foot" style="margin:0">You're in <b>${esc(shopOf.shopName || 'the shop')}</b> as ${esc((ROLES[shopOf.role] || ROLES.tech).label)}.</p>` : '';
+  box.innerHTML = note + inShop + clock + stats + schedHtml + comingHtml + partsHtml + (shopOf ? '' : dueHtml)
     + `<p class="sh-foot">Beta: Jobs, Machines and Parts are your Job_Board and Logbook, so everything you do there shows here.</p>`;
   box.scrollTop = scroll;
 }
 
-$('p-home').addEventListener('click', (e) => {
+const inviteLater = () => { try { return sessionStorage.getItem('gt-join-later') === (pendingInvite && pendingInvite.owner); } catch { return false; } };
+$('p-home').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-joinlater]')) { try { sessionStorage.setItem('gt-join-later', pendingInvite.owner); } catch { /* fine */ } renderHome(); return; }
+  if (e.target.closest('[data-join]') && pendingInvite) {
+    const inv = pendingInvite;
+    try {
+      await setDoc(doc(db, 'shops', inv.owner, 'members', user.uid), { email: inv.email, name: String(user.displayName || inv.name || '').slice(0, 60), role: inv.role, perms: inv.perms, memberId: inv.memberId, joinedAt: serverTimestamp() });
+      leftMsg = ''; await startData(); renderHome();
+    } catch (err) { const m = $('shJoinMsg'); if (m) m.textContent = "Couldn't join: " + (err.message || err.code) + '. Ask the owner to check your email on their team list, and that Employees is on.'; }
+    return;
+  }
   const s = e.target.closest('[data-sched]');
   // a day opens Job_Board's Schedule on that day
   if (s) { frameFor('jobs').src = '/apps/job-board?shop=1&sched=' + encodeURIComponent(s.dataset.sched); show('jobs'); return; }
@@ -331,6 +438,12 @@ $('p-tools').addEventListener('click', (e) => {
 // ---------- settings ---------------------------------------------------------------------
 
 function teamSection() {
+  if (shopOf) {
+    return `<section class="sh-set" aria-labelledby="h-team"><h2 class="sh-h2" id="h-team">Your shop</h2>
+      <p class="sh-setnow">You're in ${esc(shopOf.shopName || 'the shop')} as ${esc((ROLES[shopOf.role] || ROLES.tech).label)}.</p>
+      <p class="sh-foot" style="margin:0">${esc(shopOf.ownerName || 'The owner')} manages the team. Your own Logbook (garageterminal.com/apps/logbook) stays yours.</p>
+      <button type="button" class="sh-btn ghost" data-leaveshop>Leave this shop</button></section>`;
+  }
   const me = user ? (user.displayName || user.email || 'You') : 'You';
   const head = `<div class="sh-setrow"><h2 class="sh-h2" id="h-team">Employees</h2>
       <button type="button" class="sh-switch${team.on ? ' on' : ''}" role="switch" aria-checked="${team.on}" aria-labelledby="h-team" data-teamon><span></span></button></div>`;
@@ -341,7 +454,8 @@ function teamSection() {
   }
   const row = (m) => `<button type="button" class="sh-card sh-person" data-member="${esc(m.id)}"><span class="sh-av">${esc(initials(m.name))}</span>
       <span style="flex:1;min-width:0"><b>${esc(m.name || 'No name')}</b><span class="sh-sub">${esc(ROLES[m.role] ? ROLES[m.role].label : 'Tech')} · ${esc(m.email)}</span></span>
-      <span class="sh-pill ${m.status === 'joined' ? 'ok' : 'warn'}">${m.status === 'joined' ? 'Joined' : 'Not invited yet'}</span></button>`;
+      <span class="sh-pill ${joinedBy[m.id] ? 'ok' : inviteErr[m.id] ? 'over' : 'warn'}">${joinedBy[m.id] ? 'Joined' : inviteErr[m.id] ? 'Problem' : 'Invited'}</span></button>
+      ${inviteErr[m.id] ? `<p class="sh-foot" style="margin:-2px 0 4px;color:var(--danger)">${esc(m.name)}: ${esc(inviteErr[m.id])}</p>` : joinedBy[m.id] ? '' : `<div class="sh-invrow"><a class="sh-btn ghost" href="${esc(inviteMail(m))}">Email the invite</a><button type="button" class="sh-btn ghost" data-copyinv="${esc(m.id)}">Copy invite</button></div>`}`;
   const form = (m) => { const role = (m && m.role) || 'tech'; const perms = (m && m.perms) || ROLES[role].perms;
     return `<form class="sh-teamform" data-teamform="${m ? esc(m.id) : 'new'}">
       <b>${m ? 'Edit ' + esc(m.name || 'employee') : 'Add an employee'}</b>
@@ -357,11 +471,13 @@ function teamSection() {
     <div class="sh-card sh-person" style="cursor:default"><span class="sh-av own">${esc(initials(me))}</span><span style="flex:1;min-width:0"><b>${esc(me)}</b><span class="sh-sub">Owner · this shop's data is on your account</span></span></div>
     ${team.members.map((m) => (editing && editing.id === m.id ? form(m) : row(m))).join('')}
     ${teamEdit === 'new' ? form(null) : `<button type="button" class="sh-btn ghost" data-teamadd>+ Add an employee</button>`}
-    <p class="sh-foot" style="margin:0">Coming next: invites and sign-ins. For now people are saved here; they can't sign in yet.</p>
+    <p class="sh-foot" style="margin:0">Each person signs in at garageterminal.com/shop with the Google email you entered here, then taps Join. They see your shop's jobs, machines and parts; their role decides what they can change.</p>
     <div class="sh-opts"><b>Turn on</b>${OPTS.map(([k, l]) => `<label><input type="checkbox" data-teamopt="${k}" ${team.options[k] ? 'checked' : ''}> ${l}</label>`).join('')}
       <p class="sh-foot" style="margin:0">These start working as each part is built. Your own time never needs approval.</p></div>
     <p class="sh-foot" style="margin:0">Turning Employees off hides all of this. Nothing is deleted.</p></section>`;
 }
+const inviteText = (m) => `${(user && user.displayName) || 'I'} added you to ${myShopName()} on Garage Terminal. Open https://garageterminal.com/shop, sign in with Google as ${m.email}, and tap Join.`;
+const inviteMail = (m) => `mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent('Join ' + myShopName() + ' on Garage Terminal')}&body=${encodeURIComponent(inviteText(m))}`;
 const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?';
 
 function renderSettings() {
@@ -388,7 +504,7 @@ function renderSettings() {
       <p class="sh-foot">Turning it off hides customer jobs; nothing is deleted, and they come back when you turn it on. Saved on this device, and the same switch as Customer jobs in Job_Board's ⚙ Settings. The Morning Brief has its own "Include Job_Board customer jobs" box.</p>
     </section>
     ${teamSection()}
-    ${on ? `<section class="sh-set" aria-labelledby="h-limit">
+    ${on && (!shopOf || shopOf.perms.settings) ? `<section class="sh-set" aria-labelledby="h-limit">
       <h2 class="sh-h2" id="h-limit">Daily drop-off limit</h2>
       <form class="sh-limit" data-limit><label for="shLimit" class="sh-foot" style="margin:0">Booking a drop-off warns when a day already has this many. It never blocks. Leave empty for no limit.</label>
         <div class="sh-limitrow"><input id="shLimit" type="number" min="1" max="99" step="1" inputmode="numeric" value="${dayLimit || ''}" placeholder="No limit"><button type="submit" class="sh-btn ghost">Save</button></div>
@@ -416,7 +532,7 @@ $('p-settings').addEventListener('submit', async (e) => {
     if (team.members.some((m) => m.email === email && m.id !== id) || (user && String(user.email || '').toLowerCase() === email)) { $('shTeamMsg').textContent = 'That email is already on your team.'; return; }
     const perms = Object.fromEntries(PERMS.map(([k]) => [k, fd.get('p_' + k) === 'on']));
     if (id === 'new') team.members.push({ id: Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4), name, email, role, perms, status: 'added', addedAt: new Date().toISOString() });
-    else Object.assign(team.members.find((m) => m.id === id) || {}, { name, email, role, perms });
+    else { const was = team.members.find((m) => m.id === id); if (was && lower(was.email) !== email) await dropMember(was); Object.assign(was || {}, { name, email, role, perms }); }
     teamEdit = null;
     try { await saveTeam(); } catch (err) { renderSettings(); $('p-settings').querySelector('.sh-set:nth-of-type(2) .sh-foot')?.append(" Couldn't save: " + (err.message || err.code)); return; }
     renderSettings();
@@ -447,9 +563,18 @@ $('p-settings').addEventListener('click', (e) => {
   if (t('[data-teamadd]')) { teamEdit = 'new'; renderSettings(); $('p-settings').querySelector('[data-teamform] input[name="name"]').focus(); return; }
   if (t('[data-member]')) { teamEdit = t('[data-member]').dataset.member; renderSettings(); $('p-settings').querySelector('[data-teamform] input[name="name"]').focus(); return; }
   if (t('[data-teamcancel]')) { teamEdit = null; renderSettings(); return; }
+  if (t('[data-copyinv]')) { const m = team.members.find((x) => x.id === t('[data-copyinv]').dataset.copyinv); const b = t('[data-copyinv]');
+    if (m) { (navigator.clipboard ? navigator.clipboard.writeText(inviteText(m)) : Promise.reject()).then(() => { b.textContent = 'Copied'; }, () => { b.textContent = 'Copy failed'; }); } return; }
+  if (t('[data-leaveshop]')) {
+    const b = t('[data-leaveshop]');
+    if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Tap again to leave ' + (shopOf.shopName || 'the shop'); return; }
+    deleteDoc(doc(db, 'shops', shopOf.owner, 'members', user.uid)).then(() => { leftMsg = 'You left ' + (shopOf.shopName || 'the shop') + '.'; startData(); show('home'); }, (err) => { b.textContent = "Couldn't leave: " + (err.code || err.message); });
+    return;
+  }
   if (t('[data-teamremove]')) {
     const id = t('[data-teamremove]').dataset.teamremove; const m = team.members.find((x) => x.id === id);
     if (m && t('[data-teamremove]').dataset.sure !== '1') { const b = t('[data-teamremove]'); b.dataset.sure = '1'; b.textContent = `Tap again to remove ${m.name || 'them'}`; return; }
+    if (m) dropMember(m);
     team.members = team.members.filter((x) => x.id !== id); teamEdit = null; saveTeam().catch(() => {}); renderSettings(); return;
   }
   if (!e.target.closest('[data-shopmode]')) return;
