@@ -124,3 +124,21 @@ button.sh-icon { background: none; cursor: pointer; padding: 0; }
 .sh-switch.on { background: var(--accent); border-color: var(--accent); }
 .sh-switch.on span { left: 27px; background: var(--on-accent); }
 @media (prefers-reduced-motion: reduce) { .sh-switch span { transition: none; } }
+
+/* home: today's schedule + the week */
+.sh-sched { justify-content: flex-start; }
+.sh-sched.pick { border-left: 3px solid var(--ok); }
+.sh-tm { flex: none; width: 46px; font: 500 13px var(--f-mono); color: var(--steel); }
+.sh-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.sh-week button { min-height: 60px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--muted); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font: 600 11px var(--f-body); cursor: pointer; padding: 4px 0; }
+.sh-week button b { font: 700 18px var(--f-display); color: var(--ink); }
+.sh-week button i { font-style: normal; color: var(--accent); font-size: 12px; line-height: 1; min-height: 12px; letter-spacing: 1px; }
+.sh-week button.today { border-color: var(--accent); }
+/* settings: drop-off limit + coming-soon email */
+.sh-limit { display: flex; flex-direction: column; gap: 8px; }
+.sh-limitrow { display: flex; gap: 8px; align-items: flex-end; }
+.sh-limitrow input, .sh-soonbox input, .sh-soonbox select { min-height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: 16px var(--f-body); min-width: 0; }
+.sh-limitrow input { flex: 1; }
+.sh-soon { opacity: .75; }
+.sh-soonbox { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sh-soonbox label { display: flex; flex-direction: column; gap: 6px; font: 500 11px var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--steel); flex: 1; min-width: 0; }
