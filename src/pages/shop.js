@@ -27,17 +27,20 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } })();
 const dayKey = (ms = Date.now()) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const addDays = (key, n) => { const d = new Date(key + 'T12:00:00'); d.setDate(d.getDate() + n); return dayKey(d.getTime()); };
+// Shop mode = Job_Board's "Customer jobs" switch (same saved setting on this device, so both stay in step)
 const custOn = () => { try { return localStorage.getItem('jb-customers') !== 'off'; } catch { return true; } };
+const setCustOn = (on) => { try { localStorage.setItem('jb-customers', on ? 'on' : 'off'); } catch { /* private window: this visit only */ } };
 
 // ---------- tabs ------------------------------------------------------------------------
 
-const TITLES = { home: 'Home', jobs: 'Jobs', machines: 'Machines', parts: 'Parts', tools: 'Tools' };
+const TITLES = { home: 'Home', jobs: 'Jobs', machines: 'Machines', parts: 'Parts', tools: 'Tools', settings: 'Settings' };
 const FRAMES = {
   jobs: '/apps/job-board?shop=1',
   machines: '/apps/logbook?shop=1&view=machines',
   parts: '/apps/logbook?shop=1&view=parts',
 };
 let tab = 'home';
+let lastTab = 'home';
 
 function frameFor(name) {
   const box = $('p-' + name);
@@ -61,7 +64,9 @@ function show(name, { again = false } = {}) {
     if (name === 'home') $('p-home').scrollTo({ top: 0 });
     return;
   }
+  if (name !== 'settings') lastTab = name;
   tab = name;
+  $('shGear').setAttribute('aria-pressed', String(name === 'settings'));
   $('shTitle').textContent = TITLES[name];
   for (const t of Object.keys(TITLES)) $('p-' + t).hidden = t !== name;
   for (const b of document.querySelectorAll('.sh-tabs [data-tab]')) {
@@ -71,6 +76,7 @@ function show(name, { again = false } = {}) {
   if (FRAMES[name]) frameFor(name);
   if (name === 'home') renderHome();
   if (name === 'tools' && !$('p-tools').childElementCount) renderTools();
+  if (name === 'settings') renderSettings();
   try { history.replaceState(null, '', name === 'home' ? location.pathname : '#' + name); } catch { /* fine */ }
 }
 
@@ -102,6 +108,7 @@ watchSession((s) => {
   const before = access;
   access = s.state === 'loading' ? 'loading' : s.state === 'guest' ? 'guest' : (!sysopOnly || (s.state === 'member' && s.isSysop)) ? 'ok' : 'waiting';
   document.querySelector('.sh-tabs').hidden = access !== 'ok';
+  $('shGear').hidden = access !== 'ok';
   if (access === 'ok' && before !== 'ok' && user) listen(user.uid);
   if (access !== 'ok') { unsubs.forEach((x) => x()); unsubs = []; records = projects = null; show('home'); }
   renderHome();
@@ -272,6 +279,52 @@ $('p-tools').addEventListener('click', (e) => {
     return;
   }
   if (e.target.closest('[data-toolsback]')) renderTools();
+});
+
+// ---------- settings ---------------------------------------------------------------------
+
+function renderSettings() {
+  const on = custOn();
+  $('p-settings').innerHTML = `<section class="sh-set" aria-labelledby="h-shopmode">
+      <div class="sh-setrow">
+        <h2 class="sh-h2" id="h-shopmode">Shop mode</h2>
+        <button type="button" class="sh-switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-labelledby="h-shopmode" data-shopmode><span></span></button>
+      </div>
+      <p class="sh-setnow">${on ? 'On: set up for working on other people\'s machines.' : 'Off: just your own machines, projects, parts and tools.'}</p>
+      <div class="sh-setlist">
+        <b>Shop mode turns on</b>
+        <ul>
+          <li><b>Customer jobs</b> in Jobs, with job numbers, promised dates and Ready for pickup</li>
+          <li>The <b>customer list</b>: name, phone, address and every job they've had</li>
+          <li><b>Invoices, work reports and receipts</b> (PDF, print, receipt printer), with Notes for the customer</li>
+          <li><b>Labor clock</b> and labor rate on jobs</li>
+          <li><b>Shop info</b>: your shop's name, address and phone on invoices</li>
+          <li><b>Inventory check on customer jobs</b>: which of their parts are on your shelf</li>
+          <li><b>Coming up</b> on Home: promised dates and pickups for the next 7 days</li>
+        </ul>
+      </div>
+      <p class="sh-foot">Turning it off hides customer jobs; nothing is deleted, and they come back when you turn it on. Saved on this device, and the same switch as Customer jobs in Job_Board's ⚙ Settings. The Morning Brief has its own "Include Job_Board customer jobs" box.</p>
+    </section>`;
+}
+
+$('p-settings').addEventListener('click', (e) => {
+  if (!e.target.closest('[data-shopmode]')) return;
+  setCustOn(!custOn());
+  // Job_Board reads the setting when it opens: reload it if it's already open
+  const f = $('p-jobs').querySelector('iframe');
+  if (f) f.src = FRAMES.jobs;
+  renderSettings();
+  renderHome();
+  $('p-settings').querySelector('[data-shopmode]').focus();
+});
+
+$('shGear').addEventListener('click', () => show(tab === 'settings' ? lastTab : 'settings'));
+
+// Flipped inside Job_Board (Jobs tab): keep Home and Settings in step
+window.addEventListener('storage', (e) => {
+  if (e.key !== 'jb-customers') return;
+  if (tab === 'settings') renderSettings();
+  renderHome();
 });
 
 // ---------- start --------------------------------------------------------------------------
