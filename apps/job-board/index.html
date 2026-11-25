@@ -337,7 +337,9 @@ function pnMatch(a,b){const x=normPN(a),y=normPN(b);if(!x||!y)return false;if(x=
 const partHits=(p,num)=>pnMatch(p.number,num)||(p.brand&&pnMatch((p.brand||"")+(p.number||""),num))||(p.alts||[]).some(a=>{const x=String(a||'').trim(),r=x.replace(/^\S+\s+/,'');return pnMatch(x,num)||(r!==x&&pnMatch(r,num))});; /* alts: the Logbook's "Also sold as" cross-reference */
 function invLookup(x){if(!inv||!x||!x.num)return null;const hits=inv.parts.filter(ip=>partHits(ip,x.num)||(x.brand&&partHits(ip,x.brand+x.num)));
   if(!hits.length)return{found:false,hits:[]};const qty=hits.reduce((n,h)=>n+(parseFloat(h.qty)||0),0);const locs=[...new Set(hits.map(h=>(h.location||'').trim()).filter(Boolean))];const us=[...new Set(hits.map(h=>h.unit||''))];return{found:true,qty:Math.round(qty*100)/100,unit:us.length===1?us[0]:'',locs,hits}}
-function invChip(p,x){if(!p||p.kind!=='mine'||!inv)return '';const r=invLookup(x);if(!r)return x.num?'':`<span class="small muted">Add a part # to check inventory</span>`;
+/* inventory check: always on your own projects; on customer jobs too in the shop app (?shop=1) with Customer jobs on */
+const invFor=p=>!!p&&(p.kind==='mine'||(SHOP&&custOn&&p.kind==='customer'));
+function invChip(p,x){if(!invFor(p)||!inv)return '';const r=invLookup(x);if(!r)return x.num?'':`<span class="small muted">Add a part # to check inventory</span>`;
   return r.found?`<span class="small" style="color:var(--ok);font-weight:600">In inventory: ${esc(numStr(r.qty))}${r.unit?' '+r.unit:''}${r.locs.length?' · '+esc(r.locs.join(', ')):''}</span>`:`<span class="small muted">Not in inventory</span>`}
 /* Logbook machine names and record ids: copied from the Logbook (index.html) */
 const kindOf=e=>e&&e.kind==="vehicle"?"vehicle":e&&e.kind==="part"?"part":"engine";;
@@ -662,7 +664,7 @@ function renderList(){
       <div class="plate ${p.kind}"><b>${esc(p.title||'Untitled project')}</b><span class="${jobLabel(p)?'mono':''}" style="${jobLabel(p)?'font-size:14px;letter-spacing:0':''}">${p.kind==='customer'?(jobLabel(p)||'Customer'):'Mine'}</span></div>
       <div class="body"><span class="small muted">${sub}</span>
       <div class="row"><div class="bar"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n}</span></div>
-      <span class="small"><span class="muted">Next:</span> ${next?esc(next.title):(pr.n?'All tasks done':'Add the first task')}</span>${p.kind==='mine'&&inv?(()=>{const ps=allParts(p).filter(x=>x.num);if(!ps.length)return '';const n=ps.filter(x=>{const r=invLookup(x);return r&&r.found}).length;return `<span class="small" style="color:${n?'var(--ok)':'var(--muted)'}">${n} of ${ps.length} part${ps.length===1?'':'s'} in inventory</span>`})():''}</div>
+      <span class="small"><span class="muted">Next:</span> ${next?esc(next.title):(pr.n?'All tasks done':'Add the first task')}</span>${invFor(p)&&inv?(()=>{const ps=allParts(p).filter(x=>x.num);if(!ps.length)return '';const n=ps.filter(x=>{const r=invLookup(x);return r&&r.found}).length;return `<span class="small" style="color:${n?'var(--ok)':'var(--muted)'}">${n} of ${ps.length} part${ps.length===1?'':'s'} in inventory</span>`})():''}</div>
       ${p.kind==='mine'&&partsCost(p).count?`<span class="small"><span class="muted">Parts so far:</span> <span class="price">${money(partsCost(p).total)}</span></span>`:''}
       <div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(p.status)}${running(p)?' <span style="color:var(--ok)">· ● on the clock</span>':''}</span><span>${to?to+' to order':od?od+' ordered':parts.length?'Parts in':'No parts yet'}</span></div>
     </button>`}).join('');
@@ -1107,7 +1109,7 @@ function renderShop(){
     return `<div class="item" style="align-items:flex-start"><button class="check cap" data-act="shoptick" ${ids} aria-label="${lab}: ${esc(r.name)}"><span class="box ${isStock?'on':isOrd&&view.shopStatus!=='ordered'?'ordered':''}">✓</span><small>${cap}</small></button>
   <div class="main" style="cursor:default"><div class="between" style="align-items:baseline"><span class="t ${isStock?'done':''}">${esc(r.name)}</span><span class="mono small muted" style="flex:none">${esc(qtyShort(r))}</span></div>
   ${hasPrice(r)?`<span class="price small">${money(r.price)} ${perText(r)}${(r.qty||1)!==1?` · ${money(r.price*(r.qty||1))}`:''}</span>`:''}
-  <span class="mono small muted">${esc(r.brand?r.brand+' · '+(r.num||'no part #'):(r.num||'no part #'))}</span>${r.kind==='mine'?invChip(projects[r.pid],r):''}
+  <span class="mono small muted">${esc(r.brand?r.brand+' · '+(r.num||'no part #'):(r.num||'no part #'))}</span>${invChip(projects[r.pid],r)}
   <span class="row" style="flex-wrap:wrap;gap:6px"><span class="tag ${r.kind}">${esc(r.ptitle)}</span>${r.supplier?`<span class="tag sup">${esc(r.supplier)}</span>`:''}<button class="chip ${PART_CLASS[r.status]}" data-act="shopcycle" ${ids}>${esc(r.status)}</button>${isLate?`<span class="chip late">Late</span>`:''}</span>
   ${isOrd?`<label class="exp" for="exp-${r.id}"><span>Expected</span><input id="exp-${r.id}" type="date" value="${esc(r.expected||'')}" data-exp="1" ${ids}>${r.orderedOn?`<span class="muted">ordered ${esc(fmtDate(r.orderedOn))}</span>`:''}</label>`:''}
   ${isStock&&r.receivedOn?`<span class="small muted">Received ${esc(fmtDate(r.receivedOn))}</span>`:''}${r.kind==='mine'&&isStock?invAddUI(r.pid,r.taskId,findPart(r.pid,r.taskId,r.id).x):''}</div></div>`}).join('')}</div>`}
