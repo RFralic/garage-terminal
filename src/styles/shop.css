@@ -163,3 +163,7 @@ button.sh-icon { background: none; cursor: pointer; padding: 0; }
 .sh-role .sh-sub, .sh-person .sh-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 1px; }
 .sh-invrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: -2px 0 6px; }
 .sh-invrow .sh-btn { min-height: 42px; font-size: 14px; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+.sh-rolebox { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.sh-rolehead { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; min-height: 48px; padding: 8px 12px; background: var(--surface); border: 0; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.sh-rolehead .sh-sub { font-size: 13px; color: var(--muted); }
+.sh-rolebox .sh-perms { padding: 8px 12px 10px; border-top: 1px solid var(--line); }

@@ -281,11 +281,11 @@ function parseQty(v,unit){const n=parseFloat(v);if(unit==='qt'||unit==='gal')ret
    The shop app saves {member, owner, role, perms} in localStorage gt-shop-of; inside the shop app (?shop=1)
    this page then opens the owner's data (logbook-backend.js) and hides what the member's role may not see:
    perms.prices (prices, totals, labor, invoices), perms.phones (customer phone, email, address),
-   perms.inventory (Add to inventory), perms.settings (shop info); deleting a job is for Managers.
+   perms.inventory (Add to inventory), perms.settings (shop info), perms.deleteJobs (Delete project).
    firestore.rules enforce the changes; prices and phones inside a job can only be hidden on screen. */
 const SHOP_OF=(()=>{try{if(new URLSearchParams(location.search).get('shop')!=='1')return null;const v=JSON.parse(localStorage.getItem('gt-shop-of')||'null');return v&&v.owner&&v.member?v:null}catch(e){return null}})();
 const can=k=>!SHOP_OF||!SHOP_OF.perms||SHOP_OF.perms[k]===true;
-const pricesOk=can('prices'),phonesOk=can('phones'),invOk=can('inventory'),settingsOk=can('settings'),deleteOk=!SHOP_OF||SHOP_OF.role==='manager';
+const pricesOk=can('prices'),phonesOk=can('phones'),invOk=can('inventory'),settingsOk=can('settings'),deleteOk=!SHOP_OF||(SHOP_OF.perms&&'deleteJobs' in SHOP_OF.perms?SHOP_OF.perms.deleteJobs===true:SHOP_OF.role==='manager');
 const money=n=>pricesOk?(Number(n)||0).toLocaleString('en-US',{style:'currency',currency:'USD'}):'';
 /* ---------- time clock (customer jobs) ---------- */
 const timeLog=p=>(p&&p.time&&Array.isArray(p.time.log))?p.time.log:[];

@@ -14,8 +14,8 @@ after(() => env.cleanup());
 const guest = () => guestOf(env)();
 const as = (...a) => asOf(env)(...a);
 
-const TECH = { prices: false, phones: false, inventory: false, settings: false };
-const ALL = { prices: true, phones: true, inventory: true, settings: true };
+const TECH = { prices: false, phones: false, inventory: false, settings: false, deleteJobs: false, approveTime: false };
+const ALL = { prices: true, phones: true, inventory: true, settings: true, deleteJobs: true, approveTime: true };
 const invite = (memberId, role, perms) => ({ owner: 'ryan', ownerName: 'Ryan', shopName: "Ryan's Small Engine", memberId, name: memberId === 'm1' ? 'Jake' : 'Mia', role, perms });
 const joinDoc = (email, memberId, role, perms) => ({ email, name: 'Me', role, perms, memberId, joinedAt: serverTimestamp() });
 
@@ -131,6 +131,18 @@ describe("a member using the owner's data", () => {
     await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'records', 'p2'), part));
     await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'records', 'e1'), { ...engine, kind: 'part' })); // can't turn a machine into a part
     await assertFails(deleteDoc(doc(db, 'logbook', 'ryan', 'records', 'p1')));
+  });
+
+  test('deleting jobs follows the deleteJobs permission, whatever the role', async () => {
+    await joined('jake', 'jake@example.com', 'm1', 'tech', { ...TECH, deleteJobs: true });
+    await joined('mia', 'mia@example.com', 'm2', 'manager', { ...ALL, deleteJobs: false });
+    await assertFails(deleteDoc(doc(as('mia', 'mia@example.com'), 'logbook', 'ryan', 'projects', 'j1')));
+    await assertSucceeds(deleteDoc(doc(as('jake', 'jake@example.com'), 'logbook', 'ryan', 'projects', 'j1')));
+  });
+
+  test("an invite can't carry unknown permissions", async () => {
+    await assertFails(setDoc(doc(as('ryan'), 'shopInvites', 'q@example.com'), invite('m6', 'tech', { ...TECH, everything: true })));
+    await assertSucceeds(setDoc(doc(as('ryan'), 'shopInvites', 'q@example.com'), invite('m6', 'tech', { prices: false, phones: false, inventory: false, settings: false })));
   });
 
   test('a Manager can delete jobs, edit inventory and change shop info', async () => {
