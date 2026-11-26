@@ -85,8 +85,23 @@ function syncNote() {
   return `<p class="caveat">${signedIn ? 'My plugs is saved to your account, so it shows on all your devices.' : `My plugs is saved on this device.${sync ? ' <button type="button" class="plink" style="font-size:.85rem" data-signin>Sign in</button> to have it on all your devices.' : ''}`}</p>`;
 }
 
+// Phone back button: each plug you open (tap a plug, a My plugs chip or an example) is its own
+// step in the browser history, so back returns to the search before it instead of leaving the app.
+// Typing only updates the current step.
+function urlFor(v) {
+  const u = new URL(location.href);
+  if (v) u.searchParams.set('q', v); else u.searchParams.delete('q');
+  return u.pathname + u.search + u.hash;
+}
+function step(v) { history.pushState({ sp: v }, '', urlFor(v)); }
+window.addEventListener('popstate', (e) => {
+  const v = e.state && typeof e.state.sp === 'string' ? e.state.sp : (new URLSearchParams(location.search).get('q') || '');
+  q.value = v; showAllMachines = false; openPlug = ''; noteFor = ''; render(); window.scrollTo({ top: 0 });
+});
+try { history.replaceState({ sp: q.value.trim() }, '', urlFor(q.value.trim())); } catch { /* fine */ }
+
 let t = 0;
-q.addEventListener('input', () => { showAllMachines = false; openPlug = ''; clearTimeout(t); t = setTimeout(render, 120); });
+q.addEventListener('input', () => { showAllMachines = false; openPlug = ''; clearTimeout(t); t = setTimeout(() => { render(); try { history.replaceState({ sp: q.value.trim() }, '', urlFor(q.value.trim())); } catch { /* fine */ } }, 120); });
 document.addEventListener('submit', (e) => {
   const f = e.target.closest('[data-note]'); if (!f) return; e.preventDefault();
   const it = mine.find((x) => key(x.p) === f.dataset.note); if (it) it.note = f.querySelector('input').value.trim().slice(0, 40);
@@ -106,9 +121,9 @@ document.addEventListener('click', (e) => {
   const en = e.target.closest('[data-editnote]');
   if (en) { noteFor = en.dataset.editnote; render(); setTimeout(() => { const i = document.getElementById('pn-' + noteFor); if (i) i.focus(); }, 0); return; }
   const eg = e.target.closest('[data-eg]');
-  if (eg) { q.value = eg.dataset.eg; showAllMachines = false; openPlug = ''; render(); return; }
+  if (eg) { if (eg.dataset.eg !== q.value.trim()) step(eg.dataset.eg); q.value = eg.dataset.eg; showAllMachines = false; openPlug = ''; render(); return; }
   const pl = e.target.closest('[data-plug]');
-  if (pl) { q.value = pl.dataset.plug; showAllMachines = false; openPlug = ''; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (pl) { if (pl.dataset.plug !== q.value.trim()) step(pl.dataset.plug); q.value = pl.dataset.plug; showAllMachines = false; openPlug = ''; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   const ms = e.target.closest('[data-machines]');
   if (ms) { openPlug = openPlug === ms.dataset.machines ? '' : ms.dataset.machines; render(); return; }
   if (e.target.closest('[data-more]')) { showAllMachines = true; render(); }
