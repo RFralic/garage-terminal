@@ -1,5 +1,5 @@
 // sw.js (served at /apps/sw.js): lets the Engine & Vehicle Logbook, Job_Board (was the
-// Project Tracker) and the Pantry open with no signal, out in the garage or the basement.
+// Project Tracker), the Pantry and the Spark Plug Finder open with no signal, out in the garage or the basement.
 // Registered by those pages (scripts/import-logbook.mjs; apps/pantry/index.html). The records themselves are kept
 // offline by Firestore (window.__gtOfflineCache); this keeps the pages.
 //
@@ -11,8 +11,8 @@
 // Every other request, and every other page under /apps/, passes straight through.
 //
 // Bump CACHE whenever this file changes so old copies are cleared.
-const CACHE = 'gt-apps-v4';
-const PAGES = ['/apps/logbook', '/apps/job-board', '/apps/pantry'];
+const CACHE = 'gt-apps-v5';
+const PAGES = ['/apps/logbook', '/apps/job-board', '/apps/pantry', '/apps/spark-plugs'];
 // Old addresses that now redirect: offline, they open the saved copy of the new page.
 const ALIASES = { '/apps/project-tracker': '/apps/job-board' };
 const FILES = ['/__/firebase/init.json', '/apps/scanner.js'];

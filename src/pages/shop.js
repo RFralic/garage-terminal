@@ -793,6 +793,8 @@ const TOOLS = [
     icon: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"></path>' },
   { id: 'fuel', name: 'Fuel Mix', sub: '2-stroke oil for any can and ratio', href: '/apps/fuel-mix?shop=1',
     icon: '<path d="M6 8l3-4h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"></path><path d="M10 11h5M10 15h5"></path>' },
+  { id: 'plugs', name: 'Spark Plug Finder', sub: 'Cross-reference any plug to NGK; plug + gap by machine', href: '/apps/spark-plugs?shop=1',
+    icon: '<path d="M10 2h4v3h-4zM9 5h6l-1 7h-4zM8 12h8v3H8zM10 15h4v4h-4zM12 19v3"></path>' },
   { id: 'tap', name: 'Tap Drill Chart', sub: 'Drill size for any tap', href: '/apps/tap-drill-chart?shop=1',
     icon: '<path d="M12 3v12M8 7l4-4 4 4M7 15h10l-2 6H9z"></path>' },
 ];
