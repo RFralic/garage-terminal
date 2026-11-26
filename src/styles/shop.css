@@ -199,3 +199,33 @@ button.sh-icon { background: none; cursor: pointer; padding: 0; }
 .sh-calkey i { display: inline-block; margin-left: 6px; }
 .sh-calkey i:first-child { margin-left: 0; }
 .sh-calkey .full { margin-left: 6px; border-bottom: 3px solid var(--warn); }
+
+/* shop clock */
+.sh-big { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.sh-big.on { border-color: var(--ok); }
+.sh-big.warn { border-color: var(--warn); }
+.sh-state { font: 600 12px var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.sh-bigtime { font: 700 40px var(--f-display); line-height: 1; }
+.sh-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.sh-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sh-kv { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 5px 0; border-top: 1px solid var(--line); }
+.sh-kv span { color: var(--muted); } .sh-kv b { font: 500 14px var(--f-mono); }
+.sh-btn.ok { background: var(--ok); color: #0e1a12; border-color: var(--ok); }
+.sh-big input[type="text"], .sh-big input[type="time"], .sh-tsform input { width: 100%; min-height: 44px; margin-top: 4px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: 16px var(--f-body); }
+.sh-formrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+.sh-tsrange { font: 700 17px var(--f-display); }
+.sh-tswrap { overflow-x: auto; margin: 0 -4px; }
+.sh-ts { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.sh-ts th:first-child { width: 22%; } .sh-ts th:last-child { width: 15%; }
+.sh-ts th { font: 500 10px var(--f-mono); color: var(--muted); padding: 2px 0 6px; text-align: center; }
+.sh-ts th:first-child { text-align: left; }
+.sh-ts td { text-align: center; padding: 4px 0; border-top: 1px solid var(--line); font: 500 13px var(--f-mono); color: var(--muted); }
+.sh-ts td.n { text-align: left; font: 600 14px var(--f-body); color: var(--ink); max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-ts td.tot { color: var(--ink); font-weight: 600; }
+.sh-ts .ot { display: block; color: var(--warn); font-size: 10px; }
+.sh-tsbtn { min-width: 34px; min-height: 36px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--ink); font: 500 13px var(--f-mono); cursor: pointer; padding: 0 2px; }
+.sh-tsbtn.flag { color: var(--warn); }
+.sh-tsbtn.on { border-color: var(--accent); }
+.sh-tsform { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.sh-tsform label { font-size: 13px; color: var(--muted); }
+.sh-tsform button { grid-column: 1 / -1; }

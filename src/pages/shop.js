@@ -18,6 +18,7 @@ const sysopOnly = false;
 
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+// (the shop clock below also uses these)
 import { auth, db } from '../lib/firebase.js';
 import { finishRedirectSignIn, logOff, signInWithGoogle, watchSession } from '../lib/session.js';
 import { buildBrief } from '../brief/brief.js';
@@ -34,7 +35,7 @@ const setCustOn = (on) => { try { localStorage.setItem('jb-customers', on ? 'on'
 
 // ---------- tabs ------------------------------------------------------------------------
 
-const TITLES = { home: 'Home', jobs: 'Job_Board', schedule: 'Schedule', machines: 'Machines', parts: 'Parts', tools: 'Tools', settings: 'Settings' };
+const TITLES = { home: 'Home', jobs: 'Job_Board', schedule: 'Schedule', timesheet: 'Timesheet', machines: 'Machines', parts: 'Parts', tools: 'Tools', settings: 'Settings' };
 const FRAMES = {
   jobs: '/apps/job-board?shop=1',
   machines: '/apps/logbook?shop=1&view=machines',
@@ -79,6 +80,7 @@ function show(name, { again = false } = {}) {
   if (name === 'tools' && !$('p-tools').childElementCount) renderTools();
   if (name === 'settings') renderSettings();
   if (name === 'schedule') renderSchedule();
+  if (name === 'timesheet') renderTimesheet();
   try { history.replaceState(null, '', name === 'home' ? location.pathname : '#' + name); } catch { /* fine */ }
 }
 
@@ -386,14 +388,242 @@ document.addEventListener('click', (e) => {
 });
 // Job_Board (inside the Jobs tab) says when a booking started here was saved: come back to the Schedule on that day
 window.addEventListener('message', (e) => {
-  if (e.origin !== location.origin || !e.data || e.data.gt !== 'booked') return;
+  if (e.origin !== location.origin || !e.data) return;
+  if (e.data.gt === 'go' && e.data.tab === 'home') { show('home'); return; }
+  if (e.data.gt !== 'booked') return;
   if (/^\d{4}-\d{2}-\d{2}$/.test(e.data.day || '')) schedDay = e.data.day;
   frameFor('jobs').src = FRAMES.jobs;
   show('schedule');
 });
 
+// ---------- clocks ----------------------------------------------------------------------
+// Settings → Clocks (owner): Job clocks (time on a job, Job_Board's clock; on by default) for every
+// shop, and with Employees on the Shop clock (clock in / out for the day, for payroll; off by default):
+// Owner clocks in too, Job clocks need clock-in first, overtime hours, round to 15 minutes.
+// Saved in team.options → shops/{owner}.options. One doc per person per day:
+// logbook/{owner}/clock/{personId}_{YYYY-MM-DD} = {person, name, day, in, out, breaks:[{s,e}], note, edited, editedBy, ok, okBy, okAt}
+// (times are ISO strings; a shift past midnight stays on the day it started).
+const clockOpts = () => (shopOf ? shopOpts : team.options) || {};
+const jobClocksOn = () => clockOpts().jobClocks !== false;
+const shopClockOn = () => clockOpts().shopClock === true && (shopOf ? true : team.on);
+const mustClock = () => shopClockOn() && (!!shopOf || clockOpts().ownerClock === true);
+const clockOwner = () => (shopOf ? shopOf.owner : user && user.uid);
+const seesAllClock = () => !shopOf || !!(shopOf.perms && shopOf.perms.approveTime);
+let clockDays = {}; let clockKey = ''; let clockUnsub = null; let clockErr = '';
+let tsWeek = 0; let tsPick = ''; // timesheet: 0 this week, -1 last week; picked docId
+function syncClockListen() {
+  const owner = clockOwner();
+  const want = user && owner && shopClockOn() ? `${owner}|${seesAllClock() ? 'all' : myPid()}|${weekStart(dayKey())}` : '';
+  if (want === clockKey) return;
+  clockKey = want; if (clockUnsub) { clockUnsub(); clockUnsub = null; } clockDays = {}; clockErr = '';
+  if (!want) { noteClock(); return; }
+  const col = collection(db, 'logbook', owner, 'clock');
+  const q = seesAllClock() ? query(col, where('day', '>=', addDays(weekStart(dayKey()), -14))) : query(col, where('person', '==', myPid()));
+  clockUnsub = onSnapshot(q, (snap) => { clockDays = {}; snap.docs.forEach((d) => { clockDays[d.id] = d.data(); }); noteClock(); if (tab === 'home') renderHome(); if (tab === 'timesheet') renderTimesheet(); },
+    (err) => { clockErr = err.message || err.code || 'error'; if (tab === 'home') renderHome(); });
+}
+const isoAt = (day, hhmm) => new Date(`${day}T${hhmm}:00`).toISOString();
+const hhmmOf = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const clockT = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—');
+const r15 = (ms) => (clockOpts().round15 ? Math.round(ms / 900000) * 900000 : ms);
+function workedMs(d, now = Date.now()) {
+  if (!d || !d.in) return 0;
+  const a = r15(+new Date(d.in)), b = d.out ? r15(+new Date(d.out)) : now;
+  const br = (d.breaks || []).reduce((n, x) => n + Math.max(0, (x.e ? +new Date(x.e) : (d.out ? +new Date(d.out) : now)) - +new Date(x.s)), 0);
+  return Math.max(0, b - a - br);
+}
+const hrs = (ms) => (ms / 3600000).toFixed(1);
+const myOpenDay = () => Object.entries(clockDays).filter(([, d]) => d.person === myPid() && d.in && !d.out).sort((a, b) => b[1].day.localeCompare(a[1].day))[0] || null;
+// tell Job_Board (inside the Jobs tab, same site) whether job clocks are locked until clock-in
+function noteClock() {
+  try {
+    const need = !!user && mustClock() && clockOpts().clockFirst !== false;
+    localStorage.setItem('gt-on-clock', JSON.stringify({ uid: user ? user.uid : '', owner: clockOwner() || '', need, on: !!myOpenDay() }));
+  } catch { /* private window */ }
+}
+async function saveDay(id, d) {
+  const mine = d.person === myPid();
+  const data = { ...d, updatedAt: new Date().toISOString() };
+  if (shopOf && !seesAllClock()) data.ok = false; // employees can't approve their own time
+  else if (mine && !('ok' in d)) data.ok = true; // the owner's / an approver's own time
+  clockDays[id] = data; noteClock();
+  await setDoc(doc(db, 'logbook', clockOwner(), 'clock', id), JSON.parse(JSON.stringify(data)));
+}
+// clocking out also stops your running job clock
+async function stopMyJobClock() {
+  for (const p of projects || []) {
+    const r = running(p); if (!r) continue;
+    const log = tlog(p).map((e) => (e === r ? { ...e, end: Date.now() } : e));
+    try { await setDoc(doc(db, 'logbook', clockOwner(), 'projects', p.id), { time: { ...(p.time || {}), log } }, { merge: true }); } catch { /* shown in Job_Board */ }
+  }
+}
+let clockOutOpen = false;
+function shopClockHtml() {
+  if (!mustClock()) return shopClockOn() && seesAllClock() ? whosInHtml() : '';
+  if (clockErr) return `<p class="sh-empty">Shop clock: ${esc(clockErr)}</p>`;
+  const now = Date.now(), today = dayKey(), me = myPid();
+  const open = myOpenDay();
+  const weekMs = Object.values(clockDays).filter((d) => d.person === me && d.day >= weekStart(today)).reduce((n, d) => n + workedMs(d, now), 0);
+  const jobToday = (projects || []).reduce((n, p) => n + tlog(p).filter((e) => e && !e.manual && (e.by || 'owner') === me && e.start && dayKey(e.start) === today && !e.rejected).reduce((m, e) => m + tMsOf(e), 0), 0);
+  const split = (worked) => (jobClocksOn() ? `<div class="sh-kv"><span>On jobs (billable)</span><b>${dur(jobToday)}</b></div><div class="sh-kv"><span>Shop time</span><b>${dur(Math.max(0, worked - jobToday))}</b></div>` : '');
+  let h;
+  if (open && open[1].day < today && now - +new Date(open[1].in) > 16 * 3600000) {
+    const [id, d] = open;
+    h = `<div class="sh-big warn"><span class="sh-state" style="color:var(--warn)">Still clocked in</span>
+      <b>You didn't clock out on ${esc(shortDay(d.day))} (in at ${esc(clockT(d.in))}).</b>
+      <form class="sh-formrow" data-fixout="${esc(id)}"><label class="sh-foot" style="margin:0">What time did you leave?<input type="time" name="t" required value="17:00"></label><button type="submit" class="sh-btn">Save</button></form>
+      <p class="sh-foot" style="margin:0">It shows as Edited on the timesheet.</p></div>`;
+  } else if (open) {
+    const [id, d] = open; const worked = workedMs(d, now); const onBreak = (d.breaks || []).some((x) => !x.e);
+    const rj = jobClocksOn() ? (projects || []).map((p) => [p, running(p)]).find(([, r]) => r) : null;
+    h = clockOutOpen ? `<div class="sh-big"><span class="sh-state">Clock out · ${esc(shortDay(d.day))}</span>
+        <div class="sh-kv"><span>In</span><b>${esc(clockT(d.in))}</b></div>
+        ${(d.breaks || []).map((x) => `<div class="sh-kv"><span>Break</span><b>${esc(clockT(x.s))} – ${esc(x.e ? clockT(x.e) : 'now')}</b></div>`).join('')}
+        <div class="sh-kv"><span>Out</span><b>${esc(clockT(new Date().toISOString()))}</b></div>
+        <div class="sh-kv"><span><b>Worked</b></span><b>${dur(worked)}</b></div>
+        ${rj ? `<p class="sh-foot" style="margin:0;color:var(--warn)">Your job clock on ${esc([jobNo(rj[0]), rj[0].title].filter(Boolean).join(' · '))} is running; it stops when you clock out.</p>` : ''}
+        <label class="sh-foot" style="margin:0">Note (optional)<input type="text" id="shClockNote" maxlength="300" placeholder="e.g. left early for the parts run" value="${esc(d.note || '')}"></label>
+        <div class="sh-formbtns"><button type="button" class="sh-btn" data-clockout="${esc(id)}">Clock out now</button><button type="button" class="sh-btn ghost" data-clockcancel>Cancel</button></div></div>`
+      : `<div class="sh-big on"><div class="sh-row"><span class="sh-state" style="color:${onBreak ? 'var(--warn)' : 'var(--ok)'}">● ${onBreak ? 'On break' : 'On the clock'}</span><span class="sh-sub">since ${esc(clockT(d.in))}${d.day < today ? ' ' + esc(shortDay(d.day)) : ''}</span></div>
+        <span class="sh-bigtime">${dur(worked)}</span>
+        ${rj ? `<div class="sh-row"><span class="sh-sub">On a job now</span><b>${esc([jobNo(rj[0]), rj[0].title].filter(Boolean).join(' · '))}</b></div>` : ''}
+        <div class="sh-two"><button type="button" class="sh-btn ghost" data-break="${esc(id)}">${onBreak ? 'End break' : 'Start break'}</button><button type="button" class="sh-btn" data-clockoutask>Clock out</button></div>
+        <div class="sh-kv"><span>This week</span><b>${dur(weekMs)}</b></div>${d.day === today ? split(worked) : ''}</div>`;
+  } else {
+    const t = clockDays[me + '_' + today];
+    h = t && t.out ? `<div class="sh-big"><span class="sh-state">Clocked out at ${esc(clockT(t.out))}</span><span class="sh-bigtime">${dur(workedMs(t))}</span>
+        <div class="sh-kv"><span>This week</span><b>${dur(weekMs)}</b></div>${split(workedMs(t))}
+        <button type="button" class="sh-btn ghost" data-clockback="${esc(me + '_' + today)}">Clock back in</button></div>`
+      : `<div class="sh-big"><span class="sh-state">Not clocked in</span><span class="sh-bigtime">${esc(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</span>
+        <button type="button" class="sh-btn ok" data-clockin style="min-height:56px;font-size:17px">Clock in</button>
+        <span class="sh-sub">This week so far: ${dur(weekMs)}${jobClocksOn() && clockOpts().clockFirst !== false ? ' · job clocks unlock when you clock in' : ''}</span></div>`;
+  }
+  return `<section aria-label="Shop clock">${h}${seesAllClock() ? whosInHtml(true) : '<button type="button" class="sh-linkbtn" style="color:var(--accent)" data-timesheet>My hours →</button>'}</section>`;
+}
+function whosInHtml(small) {
+  const inNow = Object.values(clockDays).filter((d) => d.in && !d.out).map((d) => d.name || 'Someone');
+  const look = needsLook().length;
+  return `<button type="button" class="sh-card" data-timesheet${small ? ' style="margin-top:8px"' : ''}><span style="flex:1;min-width:0"><b>Timesheet</b><span class="sh-sub">${inNow.length ? 'In now: ' + esc(inNow.join(', ')) : 'Nobody clocked in'}${look ? ` · ${look} to look at` : ''}</span></span><span class="sh-pill ${look ? 'warn' : 'steel'}">${look ? 'Look' : 'Open'}</span></button>`;
+}
+function needsLook() {
+  const today = dayKey();
+  return Object.entries(clockDays).filter(([, d]) => (d.edited && !d.ok) || (d.in && !d.out && d.day < addDays(today, -1)));
+}
+function clockPeople() {
+  // owner row: when the owner clocks in (or has hours); employees: everyone for approvers, else just you
+  const list = shopOf ? peopleOf.map((p) => ({ id: p.id, name: p.name })) : [{ id: 'owner', name: user.displayName || 'You' }, ...team.members.map((m) => ({ id: m.id, name: m.name }))];
+  const has = new Set(Object.values(clockDays).map((d) => d.person));
+  return list.filter((p) => (seesAllClock() || p.id === myPid()) && (p.id !== 'owner' || clockOpts().ownerClock === true || has.has('owner')));
+}
+function renderTimesheet() {
+  const box = $('p-timesheet'); if (!box) return;
+  if (!shopClockOn()) { box.innerHTML = '<p class="sh-empty sh-pad">The shop clock is off.</p>'; return; }
+  const start = addDays(weekStart(dayKey()), tsWeek * 7), days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(start, i));
+  const ot = +clockOpts().otHours > 0 ? +clockOpts().otHours : 40;
+  const people = clockPeople();
+  const all = seesAllClock();
+  const cell = (p, k) => { const id = p.id + '_' + k, d = clockDays[id];
+    if (!d) return '<td>–</td>';
+    const flag = (d.edited && !d.ok) || (d.in && !d.out && k < dayKey());
+    return `<td><button type="button" class="sh-tsbtn${flag ? ' flag' : ''}${tsPick === id ? ' on' : ''}" data-tspick="${esc(id)}">${d.out ? hrs(workedMs(d)) : '•'}${flag ? '*' : ''}</button></td>`; };
+  const rows = people.map((p) => { const ms = days.reduce((n, k) => n + workedMs(clockDays[p.id + '_' + k]), 0); const over = ms / 3600000 - ot;
+    return `<tr><td class="n">${esc(p.name)}</td>${days.map((k) => cell(p, k)).join('')}<td class="tot">${hrs(ms)}${over > 0 ? `<span class="ot">+${over.toFixed(1)} OT</span>` : ''}</td></tr>`; }).join('');
+  const pick = tsPick && clockDays[tsPick];
+  const canEdit = pick && (all || pick.person === myPid());
+  const pickHtml = pick ? `<section class="sh-big" aria-label="Day details"><span class="sh-state">${esc(pick.name || '')} · ${esc(shortDay(pick.day))}</span>
+      ${canEdit ? `<form class="sh-tsform" data-tsedit="${esc(tsPick)}">
+        <label>In<input type="time" name="in" value="${pick.in ? hhmmOf(pick.in) : ''}" required></label>
+        <label>Out<input type="time" name="out" value="${pick.out ? hhmmOf(pick.out) : ''}"></label>
+        <button type="submit" class="sh-btn ghost">Save times</button></form>` : `<div class="sh-kv"><span>In</span><b>${esc(clockT(pick.in))}</b></div><div class="sh-kv"><span>Out</span><b>${esc(clockT(pick.out))}</b></div>`}
+      ${(pick.breaks || []).map((x) => `<div class="sh-kv"><span>Break</span><b>${esc(clockT(x.s))} – ${esc(clockT(x.e))}</b></div>`).join('')}
+      <div class="sh-kv"><span><b>Worked</b></span><b>${pick.out ? hrs(workedMs(pick)) + ' h' : 'still clocked in'}</b></div>
+      ${pick.note ? `<p class="sh-foot" style="margin:0">Note: ${esc(pick.note)}</p>` : ''}
+      ${pick.edited ? `<p class="sh-foot" style="margin:0;color:var(--warn)">Edited${pick.editedBy ? ' by ' + esc(pick.editedBy) : ''}${pick.ok ? ' · OK’d' : ''}</p>` : ''}
+      ${all && !pick.ok && pick.out ? `<button type="button" class="sh-btn" data-tsok="${esc(tsPick)}">OK this day</button>` : ''}
+      <p class="sh-foot" id="shTsMsg" role="status" style="margin:0"></p></section>` : '';
+  const look = needsLook().filter(([id]) => days.includes(clockDays[id].day) || tsWeek === 0);
+  const toOk = Object.entries(clockDays).filter(([, d]) => days.includes(d.day) && d.out && !d.ok);
+  box.innerHTML = `<div class="sh-pad sh-schedpage">
+    <div class="sh-seg" role="group" aria-label="Which week"><button type="button" data-tsweek="0" aria-pressed="${tsWeek === 0}">This week</button><button type="button" data-tsweek="-1" aria-pressed="${tsWeek === -1}">Last week</button></div>
+    <b class="sh-tsrange">${esc(new Date(start + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))} – ${esc(new Date(days[6] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}</b>
+    ${people.length ? `<div class="sh-tswrap"><table class="sh-ts"><thead><tr><th>Who</th>${days.map((k) => `<th>${esc(new Date(k + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' }))}<br>${new Date(k + 'T12:00:00').getDate()}</th>`).join('')}<th>Total</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="sh-foot" style="margin:0">Hours per day${clockOpts().round15 ? ', in and out rounded to 15 minutes' : ''}. • = still clocked in, * = needs a look. Overtime after ${ot} h a week. Tap a day for its times.</p>` : '<p class="sh-empty">No hours yet this week.</p>'}
+    ${pickHtml}
+    ${all && look.length ? `<section><h2 class="sh-h2">Needs a look <small>${look.length}</small></h2>${look.map(([id, d]) => `<button type="button" class="sh-card" data-tspick="${esc(id)}"><span style="flex:1;min-width:0"><b>${esc(d.name || '')} · ${esc(shortDay(d.day))}</b><span class="sh-sub">${d.out ? `Edited: ${esc(clockT(d.in))} – ${esc(clockT(d.out))}` : 'Never clocked out'}</span></span><span class="sh-pill warn">Look</span></button>`).join('')}</section>` : ''}
+    ${all ? `<div class="sh-two"><button type="button" class="sh-btn ghost" data-tscsv>Export CSV</button><button type="button" class="sh-btn" data-tsokall ${toOk.length ? '' : 'disabled'}>${toOk.length ? `OK week (${toOk.length})` : 'All OK’d'}</button></div><p class="sh-foot" id="shTsAll" role="status" style="margin:0"></p>` : ''}
+  </div>`;
+}
+document.addEventListener('click', async (e) => {
+  const t = (q) => e.target.closest(q);
+  if (t('[data-timesheet]')) { show('timesheet'); return; }
+  if (t('#p-home [data-clockin]')) {
+    const id = myPid() + '_' + dayKey();
+    try { await saveDay(id, { person: myPid(), name: String((shopOf ? (peopleOf.find((p) => p.id === myPid()) || {}).name : user.displayName) || user.displayName || 'Me').slice(0, 60), day: dayKey(), in: new Date().toISOString(), out: '', breaks: [] }); } catch (err) { clockErr = "couldn't clock in: " + (err.message || err.code); }
+    renderHome(); return;
+  }
+  if (t('#p-home [data-break]')) { const id = t('[data-break]').dataset.break, d = clockDays[id]; if (!d) return; const now = new Date().toISOString();
+    const br = [...(d.breaks || [])]; const i = br.findIndex((x) => !x.e); if (i >= 0) br[i] = { ...br[i], e: now }; else br.push({ s: now, e: '' });
+    try { await saveDay(id, { ...d, breaks: br }); } catch (err) { clockErr = err.message || err.code; } renderHome(); return; }
+  if (t('#p-home [data-clockoutask]')) { clockOutOpen = true; renderHome(); return; }
+  if (t('#p-home [data-clockcancel]')) { clockOutOpen = false; renderHome(); return; }
+  if (t('#p-home [data-clockout]')) { const id = t('[data-clockout]').dataset.clockout, d = clockDays[id]; if (!d) return; const now = new Date().toISOString();
+    const note = ($('shClockNote') && $('shClockNote').value.trim()) || '';
+    const br = (d.breaks || []).map((x) => (x.e ? x : { ...x, e: now }));
+    clockOutOpen = false;
+    try { await saveDay(id, { ...d, breaks: br, out: now, ...(note ? { note: note.slice(0, 300) } : {}) }); await stopMyJobClock(); } catch (err) { clockErr = err.message || err.code; }
+    renderHome(); return; }
+  if (t('#p-home [data-clockback]')) { const id = t('[data-clockback]').dataset.clockback, d = clockDays[id]; if (!d) return;
+    try { await saveDay(id, { ...d, breaks: [...(d.breaks || []), { s: d.out, e: new Date().toISOString() }], out: '' }); } catch (err) { clockErr = err.message || err.code; } renderHome(); return; }
+  if (t('#p-timesheet [data-tsweek]')) { tsWeek = +t('[data-tsweek]').dataset.tsweek; tsPick = ''; renderTimesheet(); return; }
+  if (t('[data-tspick]')) { const id = t('[data-tspick]').dataset.tspick; tsPick = tsPick === id ? '' : id; if (tab !== 'timesheet') show('timesheet'); else renderTimesheet(); return; }
+  if (t('#p-timesheet [data-tsok]')) { const id = t('[data-tsok]').dataset.tsok, d = clockDays[id];
+    try { await saveDay(id, { ...d, ok: true, okBy: myPid(), okAt: new Date().toISOString() }); } catch (err) { $('shTsMsg').textContent = "Couldn't save: " + (err.message || err.code); return; } renderTimesheet(); return; }
+  if (t('#p-timesheet [data-tsokall]')) { const start = addDays(weekStart(dayKey()), tsWeek * 7), end = addDays(start, 6); let n = 0;
+    for (const [id, d] of Object.entries(clockDays)) { if (d.day >= start && d.day <= end && d.out && !d.ok) { try { await saveDay(id, { ...d, ok: true, okBy: myPid(), okAt: new Date().toISOString() }); n++; } catch { /* keep going */ } } }
+    renderTimesheet(); if ($('shTsAll')) $('shTsAll').textContent = `OK'd ${n} day${n === 1 ? '' : 's'}.`; return; }
+  if (t('#p-timesheet [data-tscsv]')) { const start = addDays(weekStart(dayKey()), tsWeek * 7), end = addDays(start, 6);
+    const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [['Person', 'Day', 'In', 'Out', 'Break minutes', 'Hours', 'Edited', "OK'd", 'Note'].map(q).join(',')];
+    Object.values(clockDays).filter((d) => d.day >= start && d.day <= end).sort((a, b) => (a.name || '').localeCompare(b.name || '') || a.day.localeCompare(b.day)).forEach((d) => {
+      const brk = (d.breaks || []).reduce((n, x) => n + (x.e ? (+new Date(x.e) - +new Date(x.s)) / 60000 : 0), 0);
+      lines.push([d.name, d.day, d.in ? clockT(d.in) : '', d.out ? clockT(d.out) : '', Math.round(brk), d.out ? hrs(workedMs(d)) : '', d.edited ? 'yes' : '', d.ok ? 'yes' : '', d.note || ''].map(q).join(','));
+    });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })); a.download = `timesheet-${start}.csv`; document.body.append(a); a.click(); a.remove(); return; }
+});
+document.addEventListener('submit', async (e) => {
+  const fx = e.target.closest('[data-fixout]');
+  if (fx) { e.preventDefault(); const id = fx.dataset.fixout, d = clockDays[id]; if (!d) return; const t = new FormData(fx).get('t');
+    let out = isoAt(d.day, t); if (out <= d.in) out = isoAt(addDays(d.day, 1), t);
+    try { await saveDay(id, { ...d, out, breaks: (d.breaks || []).map((x) => (x.e ? x : { ...x, e: out })), edited: true, editedBy: String(d.name || '').slice(0, 60) }); } catch (err) { clockErr = err.message || err.code; }
+    renderHome(); return; }
+  const te = e.target.closest('[data-tsedit]');
+  if (te) { e.preventDefault(); const id = te.dataset.tsedit, d = clockDays[id]; if (!d) return; const f = new FormData(te);
+    const inIso = isoAt(d.day, f.get('in')); let out = f.get('out') ? isoAt(d.day, f.get('out')) : ''; if (out && out <= inIso) out = isoAt(addDays(d.day, 1), f.get('out'));
+    const me = shopOf ? ((peopleOf.find((p) => p.id === myPid()) || {}).name || user.displayName) : (user.displayName || 'Owner');
+    const approver = seesAllClock();
+    try { await saveDay(id, { ...d, in: inIso, out, edited: true, editedBy: String(me || '').slice(0, 60), ...(approver ? { ok: true, okBy: myPid(), okAt: new Date().toISOString() } : { ok: false }) }); } catch (err) { $('shTsMsg').textContent = "Couldn't save: " + (err.message || err.code); return; }
+    renderTimesheet(); return; }
+});
+function clocksSection() {
+  if (shopOf) return '';
+  const o = team.options || {};
+  const sw = (k, on, label, desc) => `<div class="sh-setrow"><span style="flex:1;min-width:0"><b>${label}</b><span class="sh-sub">${desc}</span></span><button type="button" class="sh-switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-label="${label}" data-clocksw="${k}"><span></span></button></div>`;
+  return `<section class="sh-set" aria-labelledby="h-clocks"><h2 class="sh-h2" id="h-clocks">Clocks</h2>
+    ${sw('jobClocks', o.jobClocks !== false, 'Job clocks', 'Clock in and out of a job in Job_Board to track time on it for labor. Off: type labor hours yourself.')}
+    ${team.on ? sw('shopClock', o.shopClock === true, 'Shop clock', 'Employees clock in and out for the day (for payroll), with breaks and a weekly timesheet.') : ''}
+    ${team.on && o.shopClock === true ? `<div class="sh-opts">
+      <label><input type="checkbox" data-teamopt="ownerClock" ${o.ownerClock ? 'checked' : ''}> The owner clocks in and out too</label>
+      ${o.jobClocks !== false ? `<label><input type="checkbox" data-teamopt="clockFirst" ${o.clockFirst !== false ? 'checked' : ''}> Job clocks need clock-in first (in the shop app)</label>` : ''}
+      <label><input type="checkbox" data-teamopt="round15" ${o.round15 ? 'checked' : ''}> Round in and out to the nearest 15 minutes</label>
+      <label>Overtime after <input type="number" min="1" max="99" inputmode="numeric" data-othours value="${+o.otHours > 0 ? +o.otHours : 40}" style="width:72px"> hours a week</label></div>` : ''}
+    ${!team.on ? '<p class="sh-foot" style="margin:0">Turn on Employees to get the shop clock (clock in / out for the day).</p>' : ''}
+  </section>`;
+}
+
 function renderHome() {
   if (tab === 'schedule') renderSchedule();
+  if (tab === 'timesheet') renderTimesheet();
+  try { syncClockListen(); } catch { /* first call can come before the clock code below has loaded */ }
   schedTabShown();
   if (tab !== 'home') return;
   const box = $('p-home');
@@ -435,7 +665,8 @@ function renderHome() {
   const due = (brief.sections.maintenance || []).slice(0, 4);
 
   // the clock
-  const rj = open.map((p) => [p, running(p)]).find(([, r]) => r);
+  // (with the shop clock on, its card already shows the job you're on)
+  const rj = jobClocksOn() && !mustClock() ? open.map((p) => [p, running(p)]).find(([, r]) => r) : null;
   const clock = rj ? `<button type="button" class="sh-card sh-clock" data-go="jobs"><span class="sh-dot" aria-hidden="true"></span>
       <span style="flex:1;min-width:0"><b>On the clock · <span class="sh-time">${dur(Date.now() - rj[1].start)}</span></b><span class="sh-sub">${esc([jobNo(rj[0]), rj[0].title].filter(Boolean).join(' · '))}</span></span>
       <span class="sh-pill ok">Open</span></button>` : '';
@@ -517,7 +748,7 @@ function renderHome() {
   const note = leftMsg ? `<p class="sh-empty" role="status">${esc(leftMsg)} You're back in your own shop.</p>` : '';
   const inShop = shopOf ? `<p class="sh-foot" style="margin:0">You're in <b>${esc(shopOf.shopName || 'the shop')}</b> as ${esc((ROLES[shopOf.role] || ROLES.tech).label)}.</p>`
     : awayFrom ? `<p class="sh-foot" style="margin:0">Your own garage · <button type="button" class="sh-linkbtn" style="color:var(--accent);min-height:0;font-size:inherit" data-toshop>Switch to ${esc(awayFrom.shopName || 'the shop')}</button></p>` : '';
-  box.innerHTML = note + inShop + approveHtml + myJobs + clock + stats + schedHtml + comingHtml + partsHtml + (shopOf ? '' : dueHtml)
+  box.innerHTML = note + inShop + shopClockHtml() + approveHtml + myJobs + clock + stats + schedHtml + comingHtml + partsHtml + (shopOf ? '' : dueHtml)
     + `<p class="sh-foot">Beta: Jobs, Machines and Parts are your Job_Board and Logbook, so everything you do there shows here.</p>`;
   box.scrollTop = scroll;
 }
@@ -684,6 +915,7 @@ function renderSettings() {
       <p class="sh-foot">Turning it off hides customer jobs; nothing is deleted, and they come back when you turn it on. Saved on this device, and the same switch as Customer jobs in Job_Board's ⚙ Settings. The Morning Brief has its own "Include Job_Board customer jobs" box.</p>
     </section>`) + `
     ${teamSection()}
+    ${clocksSection()}
     ${on && (!shopOf || shopOf.perms.settings) ? `<section class="sh-set" aria-labelledby="h-limit">
       <h2 class="sh-h2" id="h-limit">Daily drop-off limit</h2>
       <form class="sh-limit" data-limit><label for="shLimit" class="sh-foot" style="margin:0">Booking a drop-off warns when a day already has this many. It never blocks. Leave empty for no limit.</label>
@@ -730,6 +962,8 @@ $('p-settings').addEventListener('submit', async (e) => {
 });
 
 $('p-settings').addEventListener('change', (e) => {
+  const ot = e.target.closest('[data-othours]');
+  if (ot) { const n = Math.round(+ot.value); team.options.otHours = n > 0 && n < 100 ? n : 40; saveTeam().catch(() => {}); return; }
   const o = e.target.closest('[data-teamopt]');
   if (o) { team.options[o.dataset.teamopt] = o.checked; saveTeam().catch(() => {}); return; } // saveTeam also updates shops/{me}.options
   // What each role can do: applies to everyone with that role
@@ -738,6 +972,8 @@ $('p-settings').addEventListener('change', (e) => {
 });
 
 $('p-settings').addEventListener('click', (e) => {
+  const csw = e.target.closest('[data-clocksw]');
+  if (csw) { const k = csw.dataset.clocksw; team.options[k] = !(k === 'jobClocks' ? team.options.jobClocks !== false : team.options[k] === true); saveTeam().catch(() => {}); renderSettings(); renderHome(); return; }
   const t = (sel) => e.target.closest(sel);
   if (t('[data-signout]')) {
     const b = t('[data-signout]');

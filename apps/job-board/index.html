@@ -329,6 +329,13 @@ const okMs=p=>timeLog(p).filter(e=>(e.manual||e.end)&&countsT(e)).reduce((n,e)=>
 const waitMs=p=>timeLog(p).filter(e=>(e.manual||e.end)&&needsOk(e)).reduce((n,e)=>n+tMs(e),0);
 const newEntry=o=>({id:uid(),...o,...(ownTimeOn()?{by:myPid}:{}),...(approveOn()&&!canApprove()?{ok:false}:{})});
 const running=p=>timeLog(p).find(e=>!e.manual&&!e.end&&mineT(e));
+/* Clocks (shop app Settings → Clocks, saved in the shop doc's options): jobClocks false hides job clocks
+   (labor hours are typed by hand). Shop clock with "Job clocks need clock-in first": inside the shop app
+   the shop app writes localStorage gt-on-clock {uid, owner, need, on}; while need && !on, Clock in on a
+   job sends people to clock in for the day first. */
+const jobClocksOn=()=>shopTeam.options.jobClocks!==false;
+const clockLocked=()=>{if(!SHOP)return false;try{const v=JSON.parse(localStorage.getItem('gt-on-clock')||'null');return!!(v&&v.need&&!v.on)}catch(e){return false}};
+window.addEventListener('storage',ev=>{if(ev.key==='gt-on-clock'&&typeof render==='function')render()});
 const doneMs=p=>timeLog(p).filter(e=>e.manual||e.end).reduce((n,e)=>n+tMs(e),0);
 const totalMs=p=>timeLog(p).reduce((n,e)=>n+tMs(e),0);
 const fmtDur=ms=>{const m=Math.floor(ms/60000);return `${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m`};
@@ -356,6 +363,7 @@ function renderClock(id,p){
   h+=r?`<div class="panel" style="gap:10px;border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--surface))">
       <div class="between" style="align-items:center"><div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow" style="color:var(--ok)">● On the clock</span><span class="mono" style="font-size:34px;line-height:1.1" data-tick="${r.start}">${fmtClock(Date.now()-r.start)}</span><span class="small muted">since ${esc(clockT(r.start))}${dayOf(r.start)!==today()?' on '+esc(fmtDate(dayOf(r.start))):''}</span></div></div>
       <button class="btn primary" data-act="clockout" data-pid="${id}" style="min-height:52px;font-size:17px">■ Clock out</button></div>`
+    :clockLocked()?`<button class="btn" data-act="clockfirst" style="min-height:56px;font-size:16px">Clock in for the day first (Home)</button><span class="small muted">The shop clock is on: job clocks unlock once you clock in for the day.</span>`
     :`<button class="btn" data-act="clockin" data-pid="${id}" style="min-height:56px;font-size:17px;background:var(--ok);border-color:var(--ok);color:#151a17;font-weight:700">▶ Clock in</button>`;
   if(log.length){h+=`<div class="list">${log.map(e=>view.editTime===e.id?editTimeForm(e):`<div class="item" style="padding:10px 12px;gap:10px;align-items:center">
       <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-weight:500">${esc(fmtDate(e.manual?e.date:dayOf(e.start)))}</span>
@@ -824,7 +832,7 @@ function renderList(){
     <input id="q" type="search" placeholder="Search projects, parts, notes…" value="${esc(view.q)}" data-input="q">
     ${toOrder||lateN?`<button class="orderbar" data-act="shop" data-job="${ordProj.length===1&&!lateN?ordProj[0][0]:'all'}"><span>${toOrder?`<b>${toOrder} part${toOrder>1?'s':''} to order</b> <span class="muted">· ${ordProj.length===1?esc(projName(ordProj[0][1])):ordProj.length+' projects'}</span>`:''}${lateN?`${toOrder?' <span class="muted">·</span> ':''}<b>${lateN} late</b>`:''}</span><span class="go">View list →</span></button>`:''}
   </header>
-  ${(()=>{const rj=runningJob();if(!rj)return '';const [rid,rp]=rj;const r=running(rp);return `<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:10px;border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--surface))">
+  ${(()=>{const rj=jobClocksOn()?runningJob():null;if(!rj)return '';const [rid,rp]=rj;const r=running(rp);return `<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:10px;border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--surface))">
     <button class="btn ghost" data-act="open" data-pid="${rid}" style="flex:1;min-width:0;justify-content:flex-start;text-align:left;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0"><span class="eyebrow" style="color:var(--ok)">● On the clock</span><span style="font-weight:600;overflow-wrap:anywhere">${esc(labelName(rp))}</span><span class="mono" data-tick="${r.start}">${fmtClock(Date.now()-r.start)}</span></button>
     <button class="btn primary sm" data-act="clockout" data-pid="${rid}" style="flex:none">■ Clock out</button></div>`})()}
   ${custOn?`<div class="tabs" role="tablist" aria-label="Filter projects">
@@ -978,7 +986,7 @@ function renderProject(){
     <div class="grid2"><label class="f">Pickup day<input type="date" name="pickup" value="${today()}"></label><label class="f">Time<input type="time" name="pickupTime" step="900"></label></div>
     <button class="btn primary" type="submit">Set pickup</button><span class="note">It shows on the Schedule and the shop app's Home.</span></form>`;
   if(p.kind==='customer'&&p.logbookId)h+=lastTimeBox(p.logbookId,id,p.createdAt||0);
-  if(p.kind==='customer')h+=renderClock(id,p);
+  if(p.kind==='customer'&&jobClocksOn())h+=renderClock(id,p);
   if(p.kind==='customer'){
     const hasInfo=(c.name||'').trim()||(c.phone||'').trim();
     h+=`<section><div class="between"><h2>Customer info</h2><div class="row">${custOfJob(p)&&view.editing!=='c'?`<button class="btn ghost sm" data-act="opencust" data-cid="${esc(custOfJob(p).id)}">All their jobs</button>`:''}${phonesOk&&hasInfo&&view.editing!=='c'?`<button class="btn sm" data-act="editc">Edit</button>`:''}</div></div>`;
@@ -1040,7 +1048,7 @@ function renderLabor(p){const l=p.labor||{};const lc=laborCost(p);const pc=parts
     <label class="f">What was done (optional)<input id="lab-desc" type="text" maxlength="160" value="${esc(l.desc||'')}" placeholder="e.g. Carb rebuild and tune-up" data-labor="desc"></label>
     <div class="grid2"><label class="f">Hours<input id="lab-hours" type="number" min="0" step="0.25" inputmode="decimal" class="mono" value="${esc(l.hours||'')}" placeholder="0" data-labor="hours"></label>
     <label class="f">Rate ($/hr)<input id="lab-rate" type="number" min="0" step="0.01" inputmode="decimal" class="mono" value="${esc(rate)}" placeholder="0.00" data-labor="rate"></label></div>
-    ${(()=>{const ms=approveOn()?okMs(p):totalMs(p);return ms>=60000&&hrsQ(ms)!==+(l.hours||0)?`<button class="btn sm" data-act="usetime">Use ${approveOn()?'approved':'clocked'} time: ${numStr(hrsQ(ms))} hr${!approveOn()&&running(p)?' (so far)':''}</button>`:''})()}
+    ${(()=>{const ms=approveOn()?okMs(p):totalMs(p);return jobClocksOn()&&ms>=60000&&hrsQ(ms)!==+(l.hours||0)?`<button class="btn sm" data-act="usetime">Use ${approveOn()?'approved':'clocked'} time: ${numStr(hrsQ(ms))} hr${!approveOn()&&running(p)?' (so far)':''}</button>`:''})()}
     ${approveOn()&&waitMs(p)?`<span class="small" style="color:var(--warn)">${fmtDur(waitMs(p))} of clocked time is waiting for approval and isn't counted.</span>`:''}
     <span class="small muted">${lc.has?`${numStr(lc.hours)} hr × ${money(lc.rate)}/hr. `:'Leave hours empty and labor won\'t show on the invoice. '}${shop.rate?'':'Set a default rate under Shop info.'}</span>
   </div>
@@ -1376,7 +1384,8 @@ app.addEventListener('click',async e=>{
   else if(a==='putback')putBack(view.pid,b.dataset.tid||'',b.dataset.xid)
   else if(a==='signin'){signIn()}
   else if(a==='signout'){if(FB)FB.signOut()}
-  else if(a==='clockin'){clockIn(b.dataset.pid)}
+  else if(a==='clockin'){if(clockLocked()){toast('Clock in for the day first (shop app Home)');render();return}clockIn(b.dataset.pid)}
+  else if(a==='clockfirst'){try{window.parent.postMessage({gt:'go',tab:'home'},location.origin)}catch(x){}}
   else if(a==='clockout'){clockOut(b.dataset.pid)}
   else if(a==='addtime'){view.editing=view.editing==='addtime'?null:'addtime';view.editTime=null;render();const el=document.getElementById('at-date');if(el&&view.editing)el.scrollIntoView({block:'center'})}
   else if(a==='edittime'){view.editTime=b.dataset.tid||null;view.confirm=null;if(view.editing==='addtime')view.editing=null;render()}
