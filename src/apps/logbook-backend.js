@@ -22,7 +22,7 @@
 // (window.__gtOfflineCache) so they keep working without a signal.
 
 import { onAuthStateChanged, signOut, signInWithRedirect, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, onSnapshot, query, setDoc, where } from 'firebase/firestore';
 import { auth, db, isPreviewSite } from '../lib/firebase.js';
 import { finishRedirectSignIn, signInWithGoogle, watchSession } from '../lib/session.js';
 
@@ -112,7 +112,8 @@ function forUser(uid) {
       if (name !== 'projects') throw new Error('Unknown collection ' + name);
       return {
         onSnapshot: (next, err) =>
-          onSnapshot(userCol(uid, 'projects'), (q) => next({ docs: q.docs.map(snap) }), err),
+          // an employee of a shop that hides My equipment may only ask for customer jobs (firestore.rules)
+          onSnapshot(SHOP_OF && SHOP_OF.hideMine && SHOP_OF.member === uid ? query(userCol(uid, 'projects'), where('kind', '==', 'customer')) : userCol(uid, 'projects'), (q) => next({ docs: q.docs.map(snap) }), err),
       };
     },
     records: {

@@ -252,6 +252,9 @@ let counterLast=0, counterLoaded=false, projectsLoaded=false, backfilled=false;
 const JOB_PREFIX='J-';
 const fmtJob=n=>JOB_PREFIX+String(n).padStart(3,'0');
 const jobLabel=p=>p&&p.kind==='customer'&&p.jobNo?fmtJob(p.jobNo):'';
+/* A customer job's name is optional: with none typed, it goes by its job number (J-005) */
+const projName=p=>(p&&String(p.title||'').trim())||jobLabel(p)||'Untitled project';
+const labelName=p=>[jobLabel(p),String((p&&p.title)||'').trim()].filter(Boolean).join(' · ')||'Untitled';
 function nextJobNo(){
   const maxE=Math.max(0,counterLast,...Object.values(projects).map(p=>Number(p.jobNo)||0));
   const n=maxE+1;counterLast=n;
@@ -290,6 +293,7 @@ function parseQty(v,unit){const n=parseFloat(v);if(unit==='qt'||unit==='gal')ret
    firestore.rules enforce the changes; prices and phones inside a job can only be hidden on screen. */
 const SHOP_OF=(()=>{try{if(new URLSearchParams(location.search).get('shop')!=='1')return null;const v=JSON.parse(localStorage.getItem('gt-shop-of')||'null');return v&&v.owner&&v.member?v:null}catch(e){return null}})();
 const can=k=>!SHOP_OF||!SHOP_OF.perms||SHOP_OF.perms[k]===true;
+const hideMine=!!(SHOP_OF&&SHOP_OF.hideMine); // the owner hides My equipment from employees: customer jobs only
 const pricesOk=can('prices'),phonesOk=can('phones'),invOk=can('inventory'),settingsOk=can('settings'),deleteOk=!SHOP_OF||(SHOP_OF.perms&&'deleteJobs' in SHOP_OF.perms?SHOP_OF.perms.deleteJobs===true:SHOP_OF.role==='manager');
 /* Employees (Garage Terminal shop app): the shop doc (shops/{owner}, read through db.doc('shop/info'))
    lists the team, people = [{id, name, role}] (id 'owner' = the owner, else the person's memberId), and
@@ -466,14 +470,14 @@ function prefill(){const p=projects[lsheet.pid],r=machineRecs[lsheet.mid];if(!p|
   if(!lsheet.countsEdited)lsheet.counts=new Set(picked.flatMap(t=>matchNames(t.title,names)));
   if(!lsheet.hoursEdited)lsheet.hours=String(r.hours||'');
   if(!lsheet.notesEdited){const parts=picked.flatMap(t=>t.parts||[]).map(partLine).filter(Boolean);
-    lsheet.notes=[...picked.map(t=>t.title),...(parts.length?['Parts: '+parts.join(', ')]:[]),'From Job_Board: '+(p.title||'Untitled project')].join('\n')}}
+    lsheet.notes=[...picked.map(t=>t.title),...(parts.length?['Parts: '+parts.join(', ')]:[]),'From Job_Board: '+projName(p)].join('\n')}}
 function drawLogSheet(){const old=document.getElementById('lsWrap');if(old)old.remove();if(!lsheet)return;
   const p=projects[lsheet.pid];if(!p){closeLogSheet();return}
   const w=document.createElement('div');w.id='lsWrap';w.className='sheetwrap';
   const ms=Object.values(machineRecs).sort((a,b)=>dname(a).localeCompare(dname(b)));
   if(!lsheet.mid){ // no linked machine yet: pick one first
     w.innerHTML=`<form class="sheet" id="lsPick" role="dialog" aria-modal="true" aria-labelledby="lsTitle">
-      <div class="sheethead"><div><span class="eyebrow">${esc(p.title||'Untitled project')}</span><h2 id="lsTitle">Which Logbook machine is this for?</h2></div>
+      <div class="sheethead"><div><span class="eyebrow">${esc(projName(p))}</span><h2 id="lsTitle">Which Logbook machine is this for?</h2></div>
         <button type="button" class="btn ghost sheetx" data-ls="close" aria-label="Close">✕</button></div>
       ${ms.length?`<label class="f">Engine or vehicle<select id="ls-pick">${ms.map(r=>`<option value="${esc(r.id)}">${esc(dname(r))}</option>`).join('')}</select></label>
         <span class="note">The project will be linked to it, so next time this step is skipped.</span>
@@ -484,7 +488,7 @@ function drawLogSheet(){const old=document.getElementById('lsWrap');if(old)old.r
     const r=machineRecs[lsheet.mid],names=lbTaskNames(r),logged=loggedOf(p);
     const done=(p.tasks||[]).filter(t=>t.done&&!logged[t.id]),sent=(p.tasks||[]).filter(t=>logged[t.id]);
     w.innerHTML=`<form class="sheet" id="lsForm" role="dialog" aria-modal="true" aria-labelledby="lsTitle">
-      <div class="sheethead"><div><span class="eyebrow">${esc(p.title||'Untitled project')}</span><h2 id="lsTitle">Add to maintenance log</h2></div>
+      <div class="sheethead"><div><span class="eyebrow">${esc(projName(p))}</span><h2 id="lsTitle">Add to maintenance log</h2></div>
         <button type="button" class="btn ghost sheetx" data-ls="close" aria-label="Close">✕</button></div>
       <label class="f">Machine<select id="ls-machine">${ms.map(x=>`<option value="${esc(x.id)}" ${x.id===lsheet.mid?'selected':''}>${esc(dname(x))}</option>`).join('')}</select></label>
       <div class="grid2"><label class="f">Date<input type="date" id="ls-date" value="${esc(lsheet.date||today())}" required></label>
@@ -812,13 +816,13 @@ function renderList(){
     <div class="row" style="flex:none"><button class="btn cartbtn" data-act="shop" data-job="all" aria-label="Shopping list${toOrder?`, ${toOrder} to order`:''}" title="Shopping list">${CART}<span class="cartlbl">Shopping list</span>${toOrder?`<span class="cbadge" aria-hidden="true">${toOrder}</span>`:''}</button><button class="btn primary" data-act="new">+ New</button></div></div>
     <label for="q" class="f" style="position:absolute;left:-9999px">Search projects</label>
     <input id="q" type="search" placeholder="Search projects, parts, notes…" value="${esc(view.q)}" data-input="q">
-    ${toOrder||lateN?`<button class="orderbar" data-act="shop" data-job="${ordProj.length===1&&!lateN?ordProj[0][0]:'all'}"><span>${toOrder?`<b>${toOrder} part${toOrder>1?'s':''} to order</b> <span class="muted">· ${ordProj.length===1?esc(ordProj[0][1].title||'Untitled'):ordProj.length+' projects'}</span>`:''}${lateN?`${toOrder?' <span class="muted">·</span> ':''}<b>${lateN} late</b>`:''}</span><span class="go">View list →</span></button>`:''}
+    ${toOrder||lateN?`<button class="orderbar" data-act="shop" data-job="${ordProj.length===1&&!lateN?ordProj[0][0]:'all'}"><span>${toOrder?`<b>${toOrder} part${toOrder>1?'s':''} to order</b> <span class="muted">· ${ordProj.length===1?esc(projName(ordProj[0][1])):ordProj.length+' projects'}</span>`:''}${lateN?`${toOrder?' <span class="muted">·</span> ':''}<b>${lateN} late</b>`:''}</span><span class="go">View list →</span></button>`:''}
   </header>
   ${(()=>{const rj=runningJob();if(!rj)return '';const [rid,rp]=rj;const r=running(rp);return `<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:10px;border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--surface))">
-    <button class="btn ghost" data-act="open" data-pid="${rid}" style="flex:1;min-width:0;justify-content:flex-start;text-align:left;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0"><span class="eyebrow" style="color:var(--ok)">● On the clock</span><span style="font-weight:600;overflow-wrap:anywhere">${esc((jobLabel(rp)?jobLabel(rp)+' · ':'')+(rp.title||''))}</span><span class="mono" data-tick="${r.start}">${fmtClock(Date.now()-r.start)}</span></button>
+    <button class="btn ghost" data-act="open" data-pid="${rid}" style="flex:1;min-width:0;justify-content:flex-start;text-align:left;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0"><span class="eyebrow" style="color:var(--ok)">● On the clock</span><span style="font-weight:600;overflow-wrap:anywhere">${esc(labelName(rp))}</span><span class="mono" data-tick="${r.start}">${fmtClock(Date.now()-r.start)}</span></button>
     <button class="btn primary sm" data-act="clockout" data-pid="${rid}" style="flex:none">■ Clock out</button></div>`})()}
   ${custOn?`<div class="tabs" role="tablist" aria-label="Filter projects">
-    ${[['all','All'],['mine','My equipment'],['customer','Customers']].map(([k,l])=>`<button role="tab" aria-selected="${view.tab===k}" data-act="tab" data-tab="${k}">${l}<span class="cnt">${c[k]}</span></button>`).join('')}
+    ${[['all','All'],['mine','My equipment'],['customer','Customers']].filter(([k])=>!(hideMine&&k==='mine')).map(([k,l])=>`<button role="tab" aria-selected="${view.tab===k}" data-act="tab" data-tab="${k}">${l}<span class="cnt">${c[k]}</span></button>`).join('')}
   </div>`:''}`;
   if(assignOn()&&!(custOn&&view.tab==='customer'&&(view.cview==='people'||view.cview==='sched')))h+=`<div class="whochips" role="group" aria-label="Whose jobs">${[['all','Everyone'],['me','Assigned to me'],['none','Not assigned']].map(([k,l])=>`<button class="chip" data-act="who" data-v="${k}" aria-pressed="${(view.who||'all')===k}">${l}</button>`).join('')}</div>`;
   if(custOn&&view.tab==='customer')h+=`<div class="seg" style="grid-template-columns:repeat(3,minmax(0,1fr))" role="group" aria-label="Show">
@@ -830,7 +834,7 @@ function renderList(){
   else h+=shown.map(([id,p])=>{const pr=progress(p);const next=(p.tasks||[]).find(t=>!t.done);const parts=allParts(p);const to=parts.filter(x=>x.status==='To order').length;const od=parts.filter(x=>x.status==='Ordered').length;
     const sub=p.kind==='customer'?`Customer: ${esc((p.customer&&p.customer.name)||'—')}${p.machine?' · '+esc(p.machine):''}`:(lbName(p)||p.machine?`${lbName(p)?'Logbook: ':''}${esc(lbName(p)||p.machine)}`:'My equipment');
     return `<button class="card" data-act="open" data-pid="${id}">
-      <div class="plate ${p.kind}"><b>${esc(p.title||'Untitled project')}</b><span class="${jobLabel(p)?'mono':''}" style="${jobLabel(p)?'font-size:14px;letter-spacing:0':''}">${p.kind==='customer'?(jobLabel(p)||'Customer'):'Mine'}</span></div>
+      <div class="plate ${p.kind}"><b>${esc(projName(p))}</b><span class="${jobLabel(p)?'mono':''}" style="${jobLabel(p)?'font-size:14px;letter-spacing:0':''}">${p.kind==='customer'?(jobLabel(p)||'Customer'):'Mine'}</span></div>
       <div class="body"><span class="small muted">${sub}</span>
       <div class="row"><div class="bar"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n}</span></div>
       <span class="small"><span class="muted">Next:</span> ${next?esc(next.title):(pr.n?'All tasks done':'Add the first task')}</span>${invFor(p)&&inv?(()=>{const ps=allParts(p).filter(x=>x.num);if(!ps.length)return '';const n=ps.filter(x=>{const r=invLookup(x);return r&&r.found}).length;return `<span class="small" style="color:${n?'var(--ok)':'var(--muted)'}">${n} of ${ps.length} part${ps.length===1?'':'s'} in inventory</span>`})():''}</div>
@@ -887,22 +891,22 @@ function renderCustomer(){
         <div class="row"><label style="flex:1"><span class="sr">Machine for ${esc(jobLabel(p)||'this job')}</span><select name="mid">${(()=>{const hit=nameMatch(c.id,p.machine);return cmOptions(c.id,hit)+`<option value="__new" ${hit?'':'selected'}>New machine: "${esc(p.machine)}"</option>`})()}</select></label><button class="btn sm" type="submit">Link</button></div></form>`).join('')}</div>`;
     h+=`</section>`;}
   h+=`<section><div class="between"><h2>Jobs</h2><button class="btn primary sm" data-act="newforcust">+ New job</button></div>`;
-  h+=js.length?js.map(([id,p])=>`<button class="card" data-act="open" data-pid="${id}"><div class="plate customer"><b>${esc(p.title||'Untitled job')}</b><span class="mono" style="font-size:14px;letter-spacing:0">${esc(jobLabel(p)||'')}</span></div>
+  h+=js.length?js.map(([id,p])=>`<button class="card" data-act="open" data-pid="${id}"><div class="plate customer"><b>${esc(projName(p))}</b><span class="mono" style="font-size:14px;letter-spacing:0">${esc(jobLabel(p)||'')}</span></div>
       <div class="body">${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}<div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(p.status)}</span><span class="price">${jobTotal(p)?money(jobTotal(p)):''}</span></div></div></button>`).join('')
     +`<div class="between small"><span class="muted">${js.length} job${js.length===1?'':'s'}</span><span>${pricesOk?`Total billed: <span class="price">${money(total)}</span>`:''}</span></div>`
     :`<div class="empty">No jobs for ${esc(c.name||'this customer')} yet.</div>`;
   return h+'</section>';
 }
 function renderNew(){
-  const k=custOn&&view.kind==='customer'?'customer':'mine';
+  const k=(custOn&&view.kind==='customer')||hideMine?'customer':'mine';
   return `<div class="top"><button class="btn ghost" data-act="home">← Projects</button></div>
   <h1>New project</h1>
-  ${custOn?`<div class="seg" style="grid-template-columns:repeat(2,minmax(0,1fr))" role="group" aria-label="Project type">
+  ${custOn&&!hideMine?`<div class="seg" style="grid-template-columns:repeat(2,minmax(0,1fr))" role="group" aria-label="Project type">
     <button aria-pressed="${k==='mine'}" data-act="newkind" data-kind="mine">My equipment</button>
     <button aria-pressed="${k==='customer'}" data-act="newkind" data-kind="customer">Customer job</button>
   </div>`:''}
   <form class="panel" data-form="new">
-    <label class="f">Project name<input id="n-title" type="text" name="title" required maxlength="120" placeholder="${k==='mine'?'e.g. Ford 8N restoration':'e.g. Craftsman mower: no start'}"></label>
+    <label class="f">${k==='mine'?'Project name':'Job name (optional)'}<input id="n-title" type="text" name="title" ${k==='mine'?'required':''} maxlength="120" placeholder="${k==='mine'?'e.g. Ford 8N restoration':`Leave empty to use the job number (${fmtJob(Math.max(0,counterLast,...Object.values(projects).map(q=>Number(q.jobNo)||0))+1)})`}"></label>
     ${k==='mine'?`<label class="f">Machine<input type="text" name="machine" maxlength="120" placeholder="Make, model, serial"></label>`:''}
     ${k==='mine'?logbookSelect(view.mid?{logbookId:view.mid}:undefined):
     `${customers.length?`<label class="f">Customer<select name="cid" data-input="pickcust"><option value="">New customer</option>${[...customers].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).map(c=>`<option value="${esc(c.id)}" ${view.cid===c.id?'selected':''}>${esc(c.name||'No name')}${phonesOk&&c.phone?' · '+esc(c.phone):''}</option>`).join('')}</select></label>`:''}
@@ -927,8 +931,8 @@ function renderProject(){
   // the details form opens right under its button (it used to open far down the page, out of sight)
   if(view.editing==='p'){
     h+=`<form class="panel" data-form="editp">
-      <label class="f">Project name<input type="text" name="title" required maxlength="120" value="${esc(p.title)}"></label>
-      <label class="f">Project type<select name="kind"><option value="mine" ${p.kind==='mine'?'selected':''}>My equipment</option>${custOn||p.kind==='customer'?`<option value="customer" ${p.kind==='customer'?'selected':''}>Customer job</option>`:''}</select></label>
+      <label class="f">${p.kind==='customer'?'Job name (optional)':'Project name'}<input type="text" name="title" ${p.kind==='customer'?'':'required'} maxlength="120" value="${esc(p.title)}" placeholder="${p.kind==='customer'?'Leave empty to use '+esc(jobLabel(p)||'the job number'):''}"></label>
+      <label class="f">Project type<select name="kind">${hideMine?'':`<option value="mine" ${p.kind==='mine'?'selected':''}>My equipment</option>`}${custOn||p.kind==='customer'?`<option value="customer" ${p.kind==='customer'?'selected':''}>Customer job</option>`:''}</select></label>
       <label class="f">Machine<input type="text" name="machine" maxlength="120" value="${esc(p.machine)}"></label>
       ${p.kind==='mine'?logbookSelect(p):
       `${custOn&&custOfJob(p)&&(custMachines(custOfJob(p).id).length||p.logbookId)?`<label class="f">Customer's machine<select name="mid"><option value="">(not linked)</option>${cmOptions(custOfJob(p).id,p.logbookId)}</select></label>`:''}
@@ -942,7 +946,7 @@ function renderProject(){
   }
   h+=`
   <div class="card" style="cursor:default">
-    <div class="plate ${p.kind}" style="flex-direction:column;align-items:flex-start;gap:2px"><span>${p.kind==='customer'?'Customer job'+(jobLabel(p)?' · <span class="mono" style="font-size:14px;letter-spacing:0">'+esc(jobLabel(p))+'</span>':''):'My equipment'}</span><b style="font-size:24px">${esc(p.title||'Untitled project')}</b></div>
+    <div class="plate ${p.kind}" style="flex-direction:column;align-items:flex-start;gap:2px"><span>${p.kind==='customer'?'Customer job'+(jobLabel(p)?' · <span class="mono" style="font-size:14px;letter-spacing:0">'+esc(jobLabel(p))+'</span>':''):'My equipment'}</span><b style="font-size:24px">${esc(projName(p))}</b></div>
     <div class="body">
       ${p.kind==='customer'?`<dl class="kv">${(()=>{const m=machineById(p.logbookId);
         if(m&&m.owner)return `<dt>Machine</dt><dd><a href="${esc(lbMachineHref(m.id))}">${esc(m.name)} ›</a> <span class="muted small">${jobsOnMachine(m.id).length} job${jobsOnMachine(m.id).length===1?'':'s'}</span></dd>`;
@@ -1137,7 +1141,7 @@ function buildPdf(p,kind){
   if(c.dropOff){txt('Dropped off: '+longDate(c.dropOff),M+270,my);my+=13}
   y=Math.max(cy,my)+22;
   if(kind==='report'){
-    doc.setFontSize(11);doc.setTextColor(20);doc.setFont('helvetica','bold');txt(p.title||'Work report',M,y);y+=18;doc.setFont('helvetica','normal');
+    doc.setFontSize(11);doc.setTextColor(20);doc.setFont('helvetica','bold');txt(String(p.title||'').trim()||'Work report',M,y);y+=18;doc.setFont('helvetica','normal');
     if(c.complaint){doc.setFontSize(9);doc.setTextColor(120);doc.setFont('helvetica','bold');txt("CUSTOMER'S COMPLAINT",M,y);y+=14;doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(20);
       const L=doc.splitTextToSize(pdfText(c.complaint),R-M);ensure(L.length*14);doc.text(L,M,y);y+=L.length*14+14}
     const doneT=(p.tasks||[]).filter(t=>t.done),open=(p.tasks||[]).filter(t=>!t.done);
@@ -1267,7 +1271,7 @@ function partItem(p,pid,tid,x,sups,showTask,taskTitle){return view.editPart===x.
 function renderTask(){
   const p=projects[view.pid],t=p.tasks.find(x=>x.id===view.tid),i=p.tasks.indexOf(t);
   const sups=suppliers();
-  let h=`<div class="top"><button class="btn ghost" data-act="open" data-pid="${view.pid}">← ${esc(p.title||'Project')}</button><button class="btn sm" data-act="edittask">${view.editing==='t'?'Close':'Edit'}</button></div>
+  let h=`<div class="top"><button class="btn ghost" data-act="open" data-pid="${view.pid}">← ${esc(projName(p))}</button><button class="btn sm" data-act="edittask">${view.editing==='t'?'Close':'Edit'}</button></div>
   <div style="display:flex;flex-direction:column;gap:10px"><span class="eyebrow">${jobLabel(p)?`<span class="mono" style="letter-spacing:0;color:var(--tan)">${esc(jobLabel(p))}</span> · `:''}Task ${i+1} of ${p.tasks.length} · ${t.done?`<span style="color:var(--ok)">Done${t.doneBy&&doneByOn()&&personOf(t.doneBy)?' by '+esc(personOf(t.doneBy).name):''}${t.doneAt?' · '+esc(fmtDate(t.doneAt)):''}</span>`:'Open'}</span><h1>${esc(t.title)}</h1>
   <button class="btn ${t.done?'':'ok'}" data-act="toggle" data-tid="${t.id}">${t.done?'Mark not done':'✓ Mark task done'}</button></div>`;
   if(view.editing==='t'){h+=`<form class="panel" data-form="edittask"><label class="f">Task name<input type="text" name="title" required maxlength="160" value="${esc(t.title)}"></label><button class="btn primary" type="submit">Save</button>
@@ -1290,8 +1294,8 @@ function renderTask(){
 }
 
 function renderShop(){
-  const rows=[];Object.entries(projects).filter(visible).forEach(([pid,p])=>allParts(p).forEach(x=>rows.push({...x,pid,ptitle:(jobLabel(p)?jobLabel(p)+' · ':'')+(p.title||'Untitled'),kind:p.kind})));
-  const jobs=Object.entries(projects).filter(visible).filter(([pid,p])=>allParts(p).length).map(([pid,p])=>({pid,label:(jobLabel(p)?jobLabel(p)+' · ':'')+(p.title||'Untitled'),kind:p.kind}));
+  const rows=[];Object.entries(projects).filter(visible).forEach(([pid,p])=>allParts(p).forEach(x=>rows.push({...x,pid,ptitle:labelName(p),kind:p.kind})));
+  const jobs=Object.entries(projects).filter(visible).filter(([pid,p])=>allParts(p).length).map(([pid,p])=>({pid,label:labelName(p),kind:p.kind}));
   const sups=suppliers();const hasNoSup=rows.some(r=>!(r.supplier||'').trim());
   if(view.shopJob!=='all'&&!projects[view.shopJob])view.shopJob='all';
   const f=rows.filter(r=>(view.shopJob==='all'||r.pid===view.shopJob)&&(view.shopStatus==='all'||(view.shopStatus==='order'?r.status==='To order':r.status==='Ordered'))&&(view.shopSup==='all'||(view.shopSup==='none'?!(r.supplier||'').trim():(r.supplier||'').trim()===view.shopSup)));
@@ -1408,7 +1412,7 @@ app.addEventListener('click',async e=>{
 });
 app.addEventListener('submit',e=>{
   const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));const k=f.dataset.form;const p=projects[view.pid];
-  if(k==='new'){if(!d.title.trim())return;const id=uid();const np=blankProject(view.kind||'mine');np.title=d.title.trim();np.machine=(d.machine||'').trim();if(np.kind==='mine')applyLogbook(np,d.logbookSel||'');
+  if(k==='new'){const kindNew=(custOn&&view.kind==='customer')||hideMine?'customer':'mine';if(!d.title.trim()&&kindNew!=='customer')return;const id=uid();const np=blankProject(kindNew);np.title=d.title.trim();np.machine=(d.machine||'').trim();if(np.kind==='mine')applyLogbook(np,d.logbookSel||'');
     if(np.kind==='customer'){np.customer={name:(d.cname||'').trim(),phone:(d.cphone||'').trim(),dropOff:d.drop||'',dropTime:d.dropTime||'',pickup:'',pickupTime:'',promised:d.promised||'',complaint:(d.complaint||'').trim()};np.jobNo=nextJobNo();toast('Job '+fmtJob(np.jobNo)+' created');
       const picked=custById(d.cid);if(picked){np.customer.id=picked.id;if(!picked.phone&&np.customer.phone)picked.phone=np.customer.phone;if(!np.customer.name)np.customer.name=picked.name;saveCustomers()}else if(linkJob(np))saveCustomers();
       if(d.mid){const m=machineById(d.mid);if(m&&m.owner&&np.customer.id&&m.owner.id===np.customer.id)linkToMachine(np,m.id)}}
@@ -1419,7 +1423,7 @@ app.addEventListener('submit',e=>{
   else if(k==='linkm'){const lp=projects[f.dataset.pid],cu=custOfJob(lp);if(!lp||!cu)return;let mid=d.mid;
     if(mid==='__new'||!mid){const name=String(lp.machine||d.newname||'').trim();if(!name){toast("Type the machine's name");return}mid=newCustMachine(cu,name,d.type||'Other')}
     linkToMachine(lp,mid);save(f.dataset.pid);if(view.editing==='linkm')view.editing=null;toast('Linked to '+((machineById(mid)||{}).name||'the machine'));render()}
-  else if(k==='editp'){const was=p.kind;p.title=d.title.trim()||p.title;p.machine=(d.machine||'').trim();p.customer=p.customer||{name:'',phone:'',dropOff:'',promised:'',complaint:''};
+  else if(k==='editp'){const was=p.kind;p.title=d.title.trim()||(p.kind==='customer'||d.kind==='customer'?'':p.title);p.machine=(d.machine||'').trim();p.customer=p.customer||{name:'',phone:'',dropOff:'',promised:'',complaint:''};
     if(was==='mine')applyLogbook(p,d.logbookSel||'');else{p.customer={...p.customer,dropOff:d.drop||'',dropTime:d.dropTime||'',pickup:d.pickup||'',pickupTime:d.pickupTime||'',promised:d.promised||'',complaint:(d.complaint||'').trim()};
       if(d.mid!==undefined){if(d.mid)linkToMachine(p,d.mid);else{p.logbookId='';p.logbook=''}}}
     if(d.kind==='mine'||d.kind==='customer')p.kind=d.kind;

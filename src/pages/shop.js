@@ -17,7 +17,7 @@
 const sysopOnly = false;
 
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, deleteDoc, doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.js';
 import { finishRedirectSignIn, signInWithGoogle, watchSession } from '../lib/session.js';
 import { buildBrief } from '../brief/brief.js';
@@ -116,7 +116,7 @@ const ROLES = {
 const PERMS = [['prices', 'See prices, invoices and totals'], ['phones', "See customers' phone, email and address"], ['inventory', 'Add and edit inventory parts'], ['settings', 'Change shop info'], ['deleteJobs', 'Delete jobs'], ['approveTime', "Approve employees' time"]];
 const roleDefaults = () => Object.fromEntries(Object.entries(ROLES).map(([k, r]) => [k, { ...r.perms }]));
 const permsOf = (role) => ({ ...ROLES.tech.perms, ...((team.roles || {})[role] || (ROLES[role] || ROLES.tech).perms) });
-const OPTS = [['assign', 'Assign jobs to people'], ['doneBy', 'Mark who did each task (Done by)'], ['ownTime', 'Each person clocks their own time'], ['approveTime', "Time needs a manager's OK before it goes on an invoice"]];
+const OPTS = [['hideMine', 'Hide My equipment from employees (they see customer jobs only)'], ['assign', 'Assign jobs to people'], ['doneBy', 'Mark who did each task (Done by)'], ['ownTime', 'Each person clocks their own time'], ['approveTime', "Time needs a manager's OK before it goes on an invoice"]];
 let team = { on: false, members: [], roles: roleDefaults(), options: { assign: true, doneBy: true, ownTime: true, approveTime: true } };
 let roleOpen = ''; // the role whose permissions are open in Settings
 let teamEdit = null; // null, 'new' or a member id
@@ -175,17 +175,17 @@ async function findShop(u) {
   try { const s = await getDoc(doc(db, 'shops', inv.owner, 'members', u.uid)); mem = s.exists() ? s.data() : null; } catch { mem = null; }
   if (!mem) { pendingInvite = { ...inv, email }; return; }
   let on = false;
-  try { const s = await getDoc(doc(db, 'shops', inv.owner)); on = s.exists() && s.data().on === true; } catch { on = false; }
+  try { const s = await getDoc(doc(db, 'shops', inv.owner)); on = s.exists() && s.data().on === true; shopOpts = (s.exists() && s.data().options) || {}; peopleOf = (s.exists() && s.data().people) || []; } catch { on = false; }
   if (!on) return; // Employees switched off: back to your own data
   shopOf = { owner: inv.owner, ownerName: inv.ownerName, shopName: inv.shopName, memberId: mem.memberId, role: mem.role, perms: mem.perms || {} };
   // removed, or Employees switched off: drop back to your own data right away
   memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner, 'members', u.uid), (d) => { if (!d.exists()) leftShop('You were removed from ' + (inv.shopName || 'the shop') + '.'); else if (shopOf) { const was = JSON.stringify([shopOf.role, shopOf.perms]); shopOf.role = d.data().role; shopOf.perms = d.data().perms || {}; if (was !== JSON.stringify([shopOf.role, shopOf.perms])) { rememberShop(); for (const k of Object.keys(FRAMES)) { const f = $('p-' + k).querySelector('iframe'); if (f) f.src = FRAMES[k]; } renderHome(); } } }, () => leftShop('')));
-  memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner), (d) => { shopOpts = (d.exists() && d.data().options) || {}; peopleOf = (d.exists() && d.data().people) || []; if (!d.exists() || d.data().on !== true) leftShop((inv.shopName || 'The shop') + ' switched Employees off.'); }, () => leftShop('')));
+  memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner), (d) => { const hidWas = !!shopOpts.hideMine; shopOpts = (d.exists() && d.data().options) || {}; if (shopOf && hidWas !== !!shopOpts.hideMine) { rememberShop(); listen(shopOf.owner); for (const k of Object.keys(FRAMES)) { const f = $('p-' + k).querySelector('iframe'); if (f) f.src = FRAMES[k]; } } peopleOf = (d.exists() && d.data().people) || []; if (!d.exists() || d.data().on !== true) leftShop((inv.shopName || 'The shop') + ' switched Employees off.'); }, () => leftShop('')));
 }
 let leftMsg = '';
 function leftShop(msg) { if (!shopOf) return; leftMsg = msg; startData(); }
 function rememberShop() {
-  try { if (shopOf && user) localStorage.setItem('gt-shop-of', JSON.stringify({ member: user.uid, owner: shopOf.owner, memberId: shopOf.memberId, role: shopOf.role, perms: shopOf.perms || {} })); else localStorage.removeItem('gt-shop-of'); } catch { /* private window */ }
+  try { if (shopOf && user) localStorage.setItem('gt-shop-of', JSON.stringify({ member: user.uid, owner: shopOf.owner, memberId: shopOf.memberId, role: shopOf.role, perms: shopOf.perms || {}, hideMine: !!shopOpts.hideMine })); else localStorage.removeItem('gt-shop-of'); } catch { /* private window */ }
 }
 /* Work out whose data to open, then open it (and reload any open Job_Board / Logbook tabs) */
 let starting = 0;
@@ -208,7 +208,7 @@ function listen(uid) {
   const fail = (err) => { loadErr = err.message || err.code || 'unknown error'; renderHome(); };
   unsubs = [
     onSnapshot(collection(db, 'logbook', uid, 'records'), (q) => { records = q.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, fail),
-    onSnapshot(collection(db, 'logbook', uid, 'projects'), (q) => { projects = q.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, fail),
+    onSnapshot(shopOf && uid === shopOf.owner && shopOpts.hideMine ? query(collection(db, 'logbook', uid, 'projects'), where('kind', '==', 'customer')) : collection(db, 'logbook', uid, 'projects'), (q) => { projects = q.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, fail),
     // Job_Board's shop info (only the daily drop-off limit is used here)
     ...(user && uid === user.uid ? [onSnapshot(doc(db, 'logbook', uid, 'trackerSettings', 'team'), (d) => {
       const v = d.exists() ? d.data() || {} : {};
@@ -350,7 +350,7 @@ function renderHome() {
       const sub = esc([jobNo(p), who, p.status || 'Not started'].filter(Boolean).join(' · '));
       const right = p.status === 'Ready for pickup' ? '<span class="sh-pill ok">Ready</span>'
         : key ? (() => { const w = whenLabel(key, today); return `<span class="sh-right ${w.cls}">${esc(w.text)}</span>`; })() : '';
-      return card('jobs', esc(p.title || 'Untitled job'), sub, right);
+      return card('jobs', esc(String(p.title || '').trim() || jobNo(p) || 'Untitled job'), sub, right);
     }).join('')
     : '<p class="sh-empty">Nothing promised in the next 7 days.</p>'}</section>`;
 
@@ -390,7 +390,7 @@ function renderHome() {
   const mine = shopOf ? open.filter((p) => p.assignee && p.assignee === shopOf.memberId) : [];
   const myJobs = shopOf ? `<section aria-labelledby="h-mine"><h2 class="sh-h2" id="h-mine">My jobs <small>${mine.length}</small></h2>${mine.length
       ? mine.map((p) => { const left = (p.tasks || []).filter((t) => !t.done).length; const pr = p.customer && p.customer.promised ? whenLabel(String(p.customer.promised).slice(0, 10), today) : null;
-        return card('jobs', esc([jobNo(p), p.title || 'Untitled job'].filter(Boolean).join(' ')), esc([p.machine && p.machine !== p.title ? p.machine : '', left ? `${left} task${left === 1 ? '' : 's'} left` : 'all tasks done', p.status].filter(Boolean).join(' · ')), pr ? `<span class="sh-right ${pr.cls}">${esc(pr.text)}</span>` : ''); }).join('')
+        return card('jobs', esc([jobNo(p), String(p.title || '').trim()].filter(Boolean).join(' ') || 'Untitled job'), esc([p.machine && p.machine !== p.title ? p.machine : '', left ? `${left} task${left === 1 ? '' : 's'} left` : 'all tasks done', p.status].filter(Boolean).join(' · ')), pr ? `<span class="sh-right ${pr.cls}">${esc(pr.text)}</span>` : ''); }).join('')
       : '<p class="sh-empty">Nothing assigned to you right now.</p>'}</section>` : '';
   const waiting = canApproveTime() ? projects.flatMap((p) => tlog(p).filter((e) => e && e.ok === false && !e.rejected && (e.manual || e.end)).map((e) => ({ p, e }))) : [];
   const nameOfP = (id) => { const list = shopOf ? peopleOf : [{ id: 'owner', name: user.displayName || 'You' }, ...team.members]; const x = list.find((q) => q.id === (id || 'owner')); return x ? x.name : 'Someone'; };
@@ -516,7 +516,7 @@ function teamSection() {
           ${open ? `<div class="sh-perms">${PERMS.map(([p, l]) => `<label><input type="checkbox" data-roleperm="${k}.${p}" ${permsOf(k)[p] ? 'checked' : ''}> ${l}</label>`).join('')}<button type="button" class="sh-linkbtn" style="color:var(--steel)" data-roledefault="${k}">Back to the usual for ${r.label}</button></div>` : ''}</div>`; }).join('')}
     </div>
     <div class="sh-opts"><b>Turn on</b>${OPTS.map(([k, l]) => `<label><input type="checkbox" data-teamopt="${k}" ${team.options[k] ? 'checked' : ''}> ${l}</label>`).join('')}
-      <p class="sh-foot" style="margin:0">These start working as each part is built. Your own time never needs approval.</p></div>
+      <p class="sh-foot" style="margin:0">Your own time never needs approval. Hiding My equipment also hides your own machines from them in Machines.</p></div>
     <p class="sh-foot" style="margin:0">Turning Employees off hides all of this. Nothing is deleted.</p></section>`;
 }
 const inviteText = (m) => `${(user && user.displayName) || 'I'} added you to ${myShopName()} on Garage Terminal. Open https://garageterminal.com/shop, sign in with Google as ${m.email}, and tap Join.`;
