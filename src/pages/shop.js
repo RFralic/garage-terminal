@@ -33,7 +33,7 @@ const setCustOn = (on) => { try { localStorage.setItem('jb-customers', on ? 'on'
 
 // ---------- tabs ------------------------------------------------------------------------
 
-const TITLES = { home: 'Home', jobs: 'Job_Board', machines: 'Machines', parts: 'Parts', tools: 'Tools', settings: 'Settings' };
+const TITLES = { home: 'Home', jobs: 'Job_Board', schedule: 'Schedule', machines: 'Machines', parts: 'Parts', tools: 'Tools', settings: 'Settings' };
 const FRAMES = {
   jobs: '/apps/job-board?shop=1',
   machines: '/apps/logbook?shop=1&view=machines',
@@ -77,6 +77,7 @@ function show(name, { again = false } = {}) {
   if (name === 'home') renderHome();
   if (name === 'tools' && !$('p-tools').childElementCount) renderTools();
   if (name === 'settings') renderSettings();
+  if (name === 'schedule') renderSchedule();
   try { history.replaceState(null, '', name === 'home' ? location.pathname : '#' + name); } catch { /* fine */ }
 }
 
@@ -293,7 +294,99 @@ function whenLabel(key, today) {
 const card = (go, main, sub, right) =>
   `<button type="button" class="sh-card" data-go="${go}"><span><b>${main}</b>${sub ? `<span class="sh-sub">${sub}</span>` : ''}</span>${right || ''}</button>`;
 
+// ---------- schedule ---------------------------------------------------------------------
+// Customer jobs' drop-offs, pickups and promised dates (the same fields as Job_Board's Schedule):
+// 4 weeks (this week + the next 3) or a whole month; pick a day to see it and book a drop-off on it.
+// Only with Shop mode on (the tab is hidden otherwise).
+let schedView = (() => { try { return localStorage.getItem('gt-sched-view') === 'month' ? 'month' : '4w'; } catch { return '4w'; } })();
+let schedDay = '';   // picked day (YYYY-MM-DD), '' = today
+let schedShift = 0;  // 4 weeks: weeks moved from this week; month: months moved from this month
+const mondayOf = (k) => { const d = new Date(k + 'T12:00:00'); return addDays(k, -((d.getDay() + 6) % 7)); };
+function schedTabShown() {
+  const b = document.querySelector('.sh-tabs [data-tab="schedule"]');
+  if (b) b.hidden = !custOn();
+  if (!custOn() && tab === 'schedule') show('home');
+}
+function schedItems(k) {
+  const out = [];
+  for (const p of projects || []) {
+    if (!p || p.kind !== 'customer') continue;
+    const c = p.customer || {};
+    if (c.dropOff === k) out.push({ t: 'drop', p, time: c.dropTime || '' });
+    if (c.pickup === k && p.status !== 'Done') out.push({ t: 'pick', p, time: c.pickupTime || '' });
+    if (c.promised && String(c.promised).slice(0, 10) === k && p.status !== 'Done' && p.status !== 'Ready for pickup') out.push({ t: 'prom', p, time: '' });
+  }
+  const key = (x) => (x.time || '99:99') + (x.t === 'prom' ? '1' : '0');
+  return out.sort((a, b) => key(a).localeCompare(key(b)));
+}
+function renderSchedule() {
+  const box = $('p-schedule');
+  if (!box) return;
+  if (!projects) { box.innerHTML = `<p class="sh-muted sh-pad">${loadErr ? esc("Couldn't load the schedule: " + loadErr) : 'Loading…'}</p>`; return; }
+  const today = dayKey(), day = schedDay || today;
+  const fmt = (k, o) => new Date(k + 'T12:00:00').toLocaleDateString('en-US', o);
+  let first, last, label, inMonth = () => true;
+  if (schedView === 'month') {
+    const t = new Date(today + 'T12:00:00'); const m = new Date(t.getFullYear(), t.getMonth() + schedShift, 1, 12);
+    const mEnd = new Date(m.getFullYear(), m.getMonth() + 1, 0, 12);
+    first = mondayOf(dayKey(m.getTime())); last = addDays(mondayOf(dayKey(mEnd.getTime())), 6);
+    label = m.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const mm = m.getMonth(); inMonth = (k) => new Date(k + 'T12:00:00').getMonth() === mm;
+  } else {
+    first = addDays(mondayOf(today), schedShift * 7); last = addDays(first, 27);
+    label = `${fmt(first, { month: 'short', day: 'numeric' })} – ${fmt(last, { month: 'short', day: 'numeric' })}`;
+  }
+  const cells = [];
+  for (let k = first; k <= last; k = addDays(k, 1)) cells.push(k);
+  const drops = (k) => schedItems(k).filter((x) => x.t === 'drop').length;
+  const dots = (k) => { const it = schedItems(k); const n = (t) => it.filter((x) => x.t === t).length;
+    return ['drop', 'pick', 'prom'].map((t) => (n(t) ? `<i class="${t}">${n(t) > 1 ? n(t) : ''}</i>` : '')).join(''); };
+  const grid = `<div class="sh-cal" role="grid" aria-label="${esc(label)}">
+    ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<span class="sh-calh" aria-hidden="true">${d}</span>`).join('')}
+    ${cells.map((k) => { const n = schedItems(k).length, dn = new Date(k + 'T12:00:00').getDate();
+      const full = dayLimit && drops(k) >= dayLimit;
+      return `<button type="button" data-calday="${k}" class="${k === today ? 'today ' : ''}${inMonth(k) ? '' : 'out '}${k < today ? 'past ' : ''}${full ? 'full' : ''}" aria-pressed="${k === day}" aria-label="${esc(fmt(k, { weekday: 'long', month: 'long', day: 'numeric' }))}, ${n} booking${n === 1 ? '' : 's'}${full ? ', full' : ''}"><b>${dn === 1 ? esc(fmt(k, { month: 'short' })) + ' ' : ''}${dn}</b><span class="sh-dots">${dots(k)}</span></button>`; }).join('')}
+  </div>`;
+  const items = schedItems(day), dn = drops(day);
+  const tm = (t) => { if (!/^\d{1,2}:\d{2}/.test(t || '')) return ''; const [h, mi] = t.split(':').map(Number); return `${(h % 12) || 12}:${String(mi).padStart(2, '0')}${h < 12 ? 'a' : 'p'}`; };
+  const row = ({ t, p, time }) => { const c = p.customer || {}, who = c.name || 'Customer';
+    const head = t === 'drop' ? `${esc(who)} drops off` : t === 'pick' ? `${esc(who)} picks up` : `Promised: ${esc(String(p.title || '').trim() || jobNo(p) || 'Job')}`;
+    const sub = esc([jobNo(p), t === 'prom' ? who : (p.machine || p.title), t === 'drop' ? c.complaint : p.status].filter(Boolean).join(' · '));
+    const pill = t === 'drop' ? (p.status === 'Not started' || !p.status ? '<span class="sh-pill steel">Expected</span>' : '<span class="sh-pill ok">In</span>')
+      : t === 'pick' ? '<span class="sh-pill ok">Out</span>' : (day < today ? '<span class="sh-pill over">Overdue</span>' : '<span class="sh-pill warn">Due</span>');
+    return `<button type="button" class="sh-card sh-sched ${t === 'pick' ? 'pick' : ''}" data-openjob="${esc(p.id)}"><span class="sh-tm">${t === 'prom' ? 'due' : esc(tm(time) || '—')}</span><span style="flex:1;min-width:0"><b>${head}</b><span class="sh-sub">${sub}</span></span>${pill}</button>`; };
+  const limitTxt = dayLimit ? `${dn} of ${dayLimit} drop-offs` : `${dn} drop-off${dn === 1 ? '' : 's'}`;
+  box.innerHTML = `<div class="sh-pad sh-schedpage">
+    <div class="sh-seg" role="group" aria-label="How much to show"><button type="button" data-schedview="4w" aria-pressed="${schedView === '4w'}">4 weeks</button><button type="button" data-schedview="month" aria-pressed="${schedView === 'month'}">Month</button></div>
+    <div class="sh-calbar"><button type="button" class="sh-btn ghost sm" data-schedmove="-1" aria-label="${schedView === 'month' ? 'Previous month' : 'Earlier'}">‹</button><b>${esc(label)}</b><button type="button" class="sh-btn ghost sm" data-schedmove="1" aria-label="${schedView === 'month' ? 'Next month' : 'Later'}">›</button>${schedShift || day !== today ? '<button type="button" class="sh-btn ghost sm" data-schedtoday>Today</button>' : ''}</div>
+    ${grid}
+    <p class="sh-calkey" aria-hidden="true"><i class="drop"></i>Drop-off <i class="pick"></i>Pickup <i class="prom"></i>Promised${dayLimit ? ' <span class="full">Full day</span>' : ''}</p>
+    <section aria-labelledby="h-schedday"><h2 class="sh-h2" id="h-schedday">${esc(fmt(day, { weekday: 'long', month: 'short', day: 'numeric' }))} <small>${esc(limitTxt)}</small></h2>
+      ${items.length ? items.map(row).join('') : `<p class="sh-empty">Nothing booked${day === today ? ' today' : ''}.</p>`}
+      ${day >= today ? `<button type="button" class="sh-btn" data-book="${day}" style="width:100%;margin-top:8px">+ Book a drop-off on ${esc(fmt(day, { weekday: 'short', month: 'short', day: 'numeric' }))}</button>
+      ${dayLimit && dn >= dayLimit ? `<p class="sh-foot" style="color:var(--warn)">This day already has ${dn} of ${dayLimit} drop-offs. You can still book it.</p>` : ''}` : ''}
+    </section></div>`;
+}
+document.addEventListener('click', (e) => {
+  const t = (q) => e.target.closest('#p-schedule ' + q);
+  if (t('[data-calday]')) { schedDay = t('[data-calday]').dataset.calday; renderSchedule(); return; }
+  if (t('[data-schedview]')) { schedView = t('[data-schedview]').dataset.schedview; schedShift = 0; try { localStorage.setItem('gt-sched-view', schedView); } catch { /* fine */ } renderSchedule(); return; }
+  if (t('[data-schedmove]')) { schedShift += +t('[data-schedmove]').dataset.schedmove * (schedView === 'month' ? 1 : 4); if (schedView === 'month') schedShift = Math.round(schedShift); renderSchedule(); return; }
+  if (t('[data-schedtoday]')) { schedShift = 0; schedDay = ''; renderSchedule(); return; }
+  if (t('[data-openjob]')) { frameFor('jobs').src = '/apps/job-board?shop=1&job=' + encodeURIComponent(t('[data-openjob]').dataset.openjob); show('jobs'); return; }
+  if (t('[data-book]')) { frameFor('jobs').src = '/apps/job-board?shop=1&book=' + encodeURIComponent(t('[data-book]').dataset.book); show('jobs'); return; }
+});
+// Job_Board (inside the Jobs tab) says when a booking started here was saved: come back to the Schedule on that day
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin || !e.data || e.data.gt !== 'booked') return;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(e.data.day || '')) schedDay = e.data.day;
+  frameFor('jobs').src = FRAMES.jobs;
+  show('schedule');
+});
+
 function renderHome() {
+  if (tab === 'schedule') renderSchedule();
+  schedTabShown();
   if (tab !== 'home') return;
   const box = $('p-home');
   if (!user) {

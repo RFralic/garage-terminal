@@ -44,7 +44,7 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 /* bottom tabs */
 .sh-tabs {
   flex: none;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
   border-top: 1px solid var(--line); background: #1a201c;
   padding: 6px max(4px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
 }
@@ -167,3 +167,35 @@ button.sh-icon { background: none; cursor: pointer; padding: 0; }
 .sh-rolehead { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; min-height: 48px; padding: 8px 12px; background: var(--surface); border: 0; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
 .sh-rolehead .sh-sub { font-size: 13px; color: var(--muted); }
 .sh-rolebox .sh-perms { padding: 8px 12px 10px; border-top: 1px solid var(--line); }
+
+/* schedule tab */
+.sh-tabs button[hidden] { display: none; }
+.sh-schedpage { display: flex; flex-direction: column; gap: 10px; }
+.sh-seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.sh-seg button { min-height: 44px; border: 0; background: var(--surface); color: var(--muted); font: 600 14px var(--f-body); cursor: pointer; }
+.sh-seg button[aria-pressed="true"] { background: var(--accent); color: #1a0f08; }
+.sh-calbar { display: flex; align-items: center; gap: 8px; }
+.sh-calbar b { flex: 1; text-align: center; font: 700 17px var(--f-display); letter-spacing: .03em; }
+.sh-btn.sm { min-height: 40px; padding: 0 12px; }
+.sh-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.sh-calh { text-align: center; font: 500 10px var(--f-mono, monospace); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding-bottom: 2px; }
+.sh-cal button { min-height: 52px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); cursor: pointer; padding: 4px 2px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 2px; }
+.sh-cal button b { font: 700 14px var(--f-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sh-cal button.out { opacity: .4; }
+.sh-cal button.past:not(.today) b { color: var(--muted); }
+.sh-cal button.today { border-color: var(--accent); }
+.sh-cal button.today b { color: var(--accent); }
+.sh-cal button.full { box-shadow: inset 0 -3px 0 var(--warn); }
+.sh-cal button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+.sh-cal button[aria-pressed="true"] b { color: #1a0f08; }
+.sh-dots { display: flex; gap: 2px; justify-content: center; flex-wrap: wrap; min-height: 12px; }
+.sh-dots i, .sh-calkey i { font-style: normal; min-width: 8px; height: 8px; border-radius: 999px; font: 700 9px/8px var(--f-body); color: #111; padding: 0 1px; }
+.sh-dots i:not(:empty) { height: 12px; line-height: 12px; padding: 0 3px; }
+.sh-dots .drop, .sh-calkey .drop { background: var(--accent); }
+.sh-dots .pick, .sh-calkey .pick { background: var(--ok); }
+.sh-dots .prom, .sh-calkey .prom { background: var(--warn); }
+.sh-cal button[aria-pressed="true"] .sh-dots i { box-shadow: 0 0 0 1px #1a0f08; }
+.sh-calkey { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.sh-calkey i { display: inline-block; margin-left: 6px; }
+.sh-calkey i:first-child { margin-left: 0; }
+.sh-calkey .full { margin-left: 6px; border-bottom: 3px solid var(--warn); }
