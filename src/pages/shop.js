@@ -308,7 +308,8 @@ const card = (go, main, sub, right) =>
 let schedView = (() => { try { return localStorage.getItem('gt-sched-view') === 'month' ? 'month' : '4w'; } catch { return '4w'; } })();
 let schedDay = '';   // picked day (YYYY-MM-DD), '' = today
 let schedShift = 0;  // 4 weeks: weeks moved from this week; month: months moved from this month
-const mondayOf = (k) => { const d = new Date(k + 'T12:00:00'); return addDays(k, -((d.getDay() + 6) % 7)); };
+// weeks start on Sunday
+const weekStart = (k) => { const d = new Date(k + 'T12:00:00'); return addDays(k, -d.getDay()); };
 function schedTabShown() {
   const b = document.querySelector('.sh-tabs [data-tab="schedule"]');
   if (b) b.hidden = !custOn();
@@ -336,11 +337,11 @@ function renderSchedule() {
   if (schedView === 'month') {
     const t = new Date(today + 'T12:00:00'); const m = new Date(t.getFullYear(), t.getMonth() + schedShift, 1, 12);
     const mEnd = new Date(m.getFullYear(), m.getMonth() + 1, 0, 12);
-    first = mondayOf(dayKey(m.getTime())); last = addDays(mondayOf(dayKey(mEnd.getTime())), 6);
+    first = weekStart(dayKey(m.getTime())); last = addDays(weekStart(dayKey(mEnd.getTime())), 6);
     label = m.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const mm = m.getMonth(); inMonth = (k) => new Date(k + 'T12:00:00').getMonth() === mm;
   } else {
-    first = addDays(mondayOf(today), schedShift * 7); last = addDays(first, 27);
+    first = addDays(weekStart(today), schedShift * 7); last = addDays(first, 27);
     label = `${fmt(first, { month: 'short', day: 'numeric' })} – ${fmt(last, { month: 'short', day: 'numeric' })}`;
   }
   const cells = [];
@@ -349,7 +350,7 @@ function renderSchedule() {
   const dots = (k) => { const it = schedItems(k); const n = (t) => it.filter((x) => x.t === t).length;
     return ['drop', 'pick', 'prom'].map((t) => (n(t) ? `<i class="${t}">${n(t) > 1 ? n(t) : ''}</i>` : '')).join(''); };
   const grid = `<div class="sh-cal" role="grid" aria-label="${esc(label)}">
-    ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<span class="sh-calh" aria-hidden="true">${d}</span>`).join('')}
+    ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => `<span class="sh-calh" aria-hidden="true">${d}</span>`).join('')}
     ${cells.map((k) => { const n = schedItems(k).length, dn = new Date(k + 'T12:00:00').getDate();
       const full = dayLimit && drops(k) >= dayLimit;
       return `<button type="button" data-calday="${k}" class="${k === today ? 'today ' : ''}${inMonth(k) ? '' : 'out '}${k < today ? 'past ' : ''}${full ? 'full' : ''}" aria-pressed="${k === day}" aria-label="${esc(fmt(k, { weekday: 'long', month: 'long', day: 'numeric' }))}, ${n} booking${n === 1 ? '' : 's'}${full ? ', full' : ''}"><b>${dn === 1 ? esc(fmt(k, { month: 'short' })) + ' ' : ''}${dn}</b><span class="sh-dots">${dots(k)}</span></button>`; }).join('')}
@@ -478,7 +479,7 @@ function renderHome() {
     ...dropsOn(today).map((p) => ({ t: p.customer.dropTime || '', html: `<b>${esc(p.customer.name || 'Customer')} drops off</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title].filter(Boolean).join(' · '))}</span>`, pick: false })),
     ...picksOn(today).map((p) => ({ t: p.customer.pickupTime || '', html: `<b>${esc(p.customer.name || 'Customer')} picks up</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title, p.status === 'Ready for pickup' ? 'ready' : p.status].filter(Boolean).join(' · '))}</span>`, pick: true })),
   ].sort((a, b) => (a.t || '99').localeCompare(b.t || '99'));
-  const wk = (() => { const d = new Date(today + 'T12:00:00'); const off = (d.getDay() + 6) % 7; return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(today, i - off)); })();
+  const wk = (() => { const d = new Date(today + 'T12:00:00'); const off = d.getDay(); return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(today, i - off)); })();
   const weekN = wk.reduce((n, k) => n + dropsOn(k).length + picksOn(k).length, 0);
   const schedHtml = !cust ? '' : `<section aria-labelledby="h-today"><h2 class="sh-h2" id="h-today">Today <small>${esc(new Date(today + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}${dayLimit ? ` · ${dropsOn(today).length} of ${dayLimit} drop-offs` : ''}</small></h2>${todayRows.length
       ? todayRows.map((r) => `<button type="button" class="sh-card sh-sched${r.pick ? ' pick' : ''}" data-sched="${today}"><span class="sh-tm">${esc(tm(r.t) || '—')}</span><span style="flex:1;min-width:0">${r.html}</span></button>`).join('')
