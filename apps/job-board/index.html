@@ -252,9 +252,11 @@ let counterLast=0, counterLoaded=false, projectsLoaded=false, backfilled=false;
 const JOB_PREFIX='J-';
 const fmtJob=n=>JOB_PREFIX+String(n).padStart(3,'0');
 const jobLabel=p=>p&&p.kind==='customer'&&p.jobNo?fmtJob(p.jobNo):'';
-/* A customer job's name is optional: with none typed, it goes by its job number (J-005) */
-const projName=p=>(p&&String(p.title||'').trim())||jobLabel(p)||'Untitled project';
-const labelName=p=>[jobLabel(p),String((p&&p.title)||'').trim()].filter(Boolean).join(' · ')||'Untitled';
+/* A customer job's name is optional: with none typed, it goes by its job number and the customer's name
+   (J-005 · Cory Lindell) */
+const custNameOf=p=>p&&p.kind==='customer'?String((p.customer&&p.customer.name)||'').trim():'';
+const projName=p=>(p&&String(p.title||'').trim())||[jobLabel(p),custNameOf(p)].filter(Boolean).join(' · ')||'Untitled project';
+const labelName=p=>[jobLabel(p),String((p&&p.title)||'').trim()||custNameOf(p)].filter(Boolean).join(' · ')||'Untitled';
 function nextJobNo(){
   const maxE=Math.max(0,counterLast,...Object.values(projects).map(p=>Number(p.jobNo)||0));
   const n=maxE+1;counterLast=n;
@@ -906,7 +908,7 @@ function renderNew(){
     <button aria-pressed="${k==='customer'}" data-act="newkind" data-kind="customer">Customer job</button>
   </div>`:''}
   <form class="panel" data-form="new">
-    <label class="f">${k==='mine'?'Project name':'Job name (optional)'}<input id="n-title" type="text" name="title" ${k==='mine'?'required':''} maxlength="120" placeholder="${k==='mine'?'e.g. Ford 8N restoration':`Leave empty to use the job number (${fmtJob(Math.max(0,counterLast,...Object.values(projects).map(q=>Number(q.jobNo)||0))+1)})`}"></label>
+    <label class="f">${k==='mine'?'Project name':'Job name (optional)'}<input id="n-title" type="text" name="title" ${k==='mine'?'required':''} maxlength="120" placeholder="${k==='mine'?'e.g. Ford 8N restoration':`Leave empty to use the job number and customer (${fmtJob(Math.max(0,counterLast,...Object.values(projects).map(q=>Number(q.jobNo)||0))+1)} · name)`}"></label>
     ${k==='mine'?`<label class="f">Machine<input type="text" name="machine" maxlength="120" placeholder="Make, model, serial"></label>`:''}
     ${k==='mine'?logbookSelect(view.mid?{logbookId:view.mid}:undefined):
     `${customers.length?`<label class="f">Customer<select name="cid" data-input="pickcust"><option value="">New customer</option>${[...customers].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).map(c=>`<option value="${esc(c.id)}" ${view.cid===c.id?'selected':''}>${esc(c.name||'No name')}${phonesOk&&c.phone?' · '+esc(c.phone):''}</option>`).join('')}</select></label>`:''}
@@ -931,7 +933,7 @@ function renderProject(){
   // the details form opens right under its button (it used to open far down the page, out of sight)
   if(view.editing==='p'){
     h+=`<form class="panel" data-form="editp">
-      <label class="f">${p.kind==='customer'?'Job name (optional)':'Project name'}<input type="text" name="title" ${p.kind==='customer'?'':'required'} maxlength="120" value="${esc(p.title)}" placeholder="${p.kind==='customer'?'Leave empty to use '+esc(jobLabel(p)||'the job number'):''}"></label>
+      <label class="f">${p.kind==='customer'?'Job name (optional)':'Project name'}<input type="text" name="title" ${p.kind==='customer'?'':'required'} maxlength="120" value="${esc(p.title)}" placeholder="${p.kind==='customer'?'Leave empty to use '+esc([jobLabel(p)||'the job number',custNameOf(p)].filter(Boolean).join(' · ')):''}"></label>
       <label class="f">Project type<select name="kind">${hideMine?'':`<option value="mine" ${p.kind==='mine'?'selected':''}>My equipment</option>`}${custOn||p.kind==='customer'?`<option value="customer" ${p.kind==='customer'?'selected':''}>Customer job</option>`:''}</select></label>
       <label class="f">Machine<input type="text" name="machine" maxlength="120" value="${esc(p.machine)}"></label>
       ${p.kind==='mine'?logbookSelect(p):
