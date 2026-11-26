@@ -636,7 +636,7 @@ const jobTotal=p=>partsCost(p).total+laborCost(p).total;
    warns when a day is full; it never blocks. ?sched=YYYY-MM-DD opens the Schedule on that day. */
 const ymdOf=(y,m,d)=>today(new Date(y,m-1,d));
 const addDay=(k,n)=>{const [y,m,d]=k.split('-').map(Number);return ymdOf(y,m,d+n)};
-const weekOf=k=>{const [y,m,d]=k.split('-').map(Number);const off=(new Date(y,m-1,d).getDay()+6)%7;return ymdOf(y,m,d-off)};
+const weekOf=k=>{const [y,m,d]=k.split('-').map(Number);const off=new Date(y,m-1,d).getDay();/* weeks start on Sunday */return ymdOf(y,m,d-off)};
 const dayDate=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)};
 const fmtTime=t=>{if(!t||!/^\d{1,2}:\d{2}/.test(t))return'';const [h,mi]=t.split(':').map(Number);return `${(h%12)||12}:${String(mi).padStart(2,'0')}${h<12?'a':'p'}`};
 const custJobList=()=>Object.entries(projects).filter(([,p])=>p.kind==='customer');
