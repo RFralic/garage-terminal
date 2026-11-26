@@ -19,7 +19,7 @@ const sysopOnly = false;
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.js';
-import { finishRedirectSignIn, signInWithGoogle, watchSession } from '../lib/session.js';
+import { finishRedirectSignIn, logOff, signInWithGoogle, watchSession } from '../lib/session.js';
 import { buildBrief } from '../brief/brief.js';
 
 const $ = (id) => document.getElementById(id);
@@ -523,9 +523,19 @@ const inviteText = (m) => `${(user && user.displayName) || 'I'} added you to ${m
 const inviteMail = (m) => `mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent('Join ' + myShopName() + ' on Garage Terminal')}&body=${encodeURIComponent(inviteText(m))}`;
 const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?';
 
+// Account: who's signed in, Sign out and Switch account, so the installed app never needs the website
+function accountSection() {
+  if (!user) return '';
+  const name = user.displayName || 'Signed in';
+  return `<section class="sh-set" aria-labelledby="h-acct"><h2 class="sh-h2" id="h-acct">Account</h2>
+    <div class="sh-card sh-person" style="cursor:default"><span class="sh-av own">${esc(initials(name))}</span><span style="flex:1;min-width:0"><b>${esc(name)}</b><span class="sh-sub">${esc(user.email || '')}${shopOf ? ' · in ' + esc(shopOf.shopName || 'a shop') : ''}</span></span></div>
+    <div class="sh-formbtns"><button type="button" class="sh-btn ghost" data-switchacct>Switch account</button><button type="button" class="sh-btn ghost" data-signout>Sign out</button></div>
+    <p class="sh-foot" id="shAcctMsg" role="status" style="margin:0">Signing out here signs this device out of all of Garage Terminal (Logbook, Job_Board and the other apps too).</p></section>`;
+}
+
 function renderSettings() {
   const on = custOn();
-  $('p-settings').innerHTML = `<section class="sh-set" aria-labelledby="h-shopmode">
+  $('p-settings').innerHTML = accountSection() + `<section class="sh-set" aria-labelledby="h-shopmode">
       <div class="sh-setrow">
         <h2 class="sh-h2" id="h-shopmode">Shop mode</h2>
         <button type="button" class="sh-switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-labelledby="h-shopmode" data-shopmode><span></span></button>
@@ -602,6 +612,20 @@ $('p-settings').addEventListener('change', (e) => {
 
 $('p-settings').addEventListener('click', (e) => {
   const t = (sel) => e.target.closest(sel);
+  if (t('[data-signout]')) {
+    const b = t('[data-signout]');
+    if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Tap again to sign out'; return; }
+    logOff().then(() => show('home'), (err) => { $('shAcctMsg').textContent = "Couldn't sign out: " + (err.message || err.code); });
+    return;
+  }
+  if (t('[data-switchacct]')) {
+    // sign out, then Google's account picker (prompt: select_account) for the next one
+    logOff().then(() => { show('home'); return signInWithGoogle(); }).catch((err) => {
+      if (err && err.code === 'auth/popup-closed-by-user') return;
+      const m = $('shSignMsg') || $('shAcctMsg'); if (m) m.textContent = "Couldn't switch: " + (err.message || err.code);
+    });
+    return;
+  }
   if (t('[data-teamon]')) { team.on = !team.on; teamEdit = null; saveTeam().catch(() => {}); renderSettings(); $('p-settings').querySelector('[data-teamon]').focus(); return; }
   if (t('[data-teamadd]')) { teamEdit = 'new'; renderSettings(); $('p-settings').querySelector('[data-teamform] input[name="name"]').focus(); return; }
   if (t('[data-member]')) { teamEdit = t('[data-member]').dataset.member; renderSettings(); $('p-settings').querySelector('[data-teamform] input[name="name"]').focus(); return; }
