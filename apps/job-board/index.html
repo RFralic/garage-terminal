@@ -344,8 +344,9 @@ const atLocal=(date,hm)=>new Date(date+'T'+(hm||'00:00')+':00').getTime();
    the Logbook link and the page title; everything else works the same. */
 const SHOP=(()=>{try{return new URLSearchParams(location.search).get("shop")==="1"}catch(e){return false}})();
 if(SHOP)document.documentElement.classList.add('shop');
-let custOn=(()=>{try{return localStorage.getItem('jb-customers')!=='off'}catch(e){return true}})();
-function setCustOn(on){custOn=!!on;try{localStorage.setItem('jb-customers',custOn?'on':'off')}catch(e){}}
+// employees always work in shop mode (it's the owner's shop)
+let custOn=SHOP_OF?true:(()=>{try{return localStorage.getItem('jb-customers')!=='off'}catch(e){return true}})();
+function setCustOn(on){if(SHOP_OF)return;custOn=!!on;try{localStorage.setItem('jb-customers',custOn?'on':'off')}catch(e){}}
 const visible=([,p])=>custOn||p.kind!=='customer';
 const runningJob=()=>custOn?Object.entries(projects).find(([,p])=>p.kind==='customer'&&running(p)):null;
 setInterval(()=>{document.querySelectorAll('[data-tick]').forEach(el=>{const v=Date.now()-(+el.dataset.tick)+(+el.dataset.base||0);el.textContent=el.dataset.fmt==='dur'?fmtDur(v):fmtClock(v)})},1000);
@@ -1056,10 +1057,10 @@ function renderShopInfo(){
   const hidden=Object.values(projects).filter(p=>p.kind==='customer').length;
   return `<div class="top"><button class="btn ghost" data-act="home">← Projects</button></div>
   <h1>Settings</h1>
-  <section><div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px">
+  ${SHOP_OF?'':`<section><div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px">
     <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><b>Customer jobs</b><span class="small muted">Job numbers, customer info, time clock, labor, invoices and work reports. Turn off to use Job_Board for your own projects only.</span></div>
     <button class="switch ${custOn?'on':''}" role="switch" aria-checked="${custOn}" aria-label="Customer jobs" data-act="custtoggle"><span></span></button></div>
-    <span class="note">${custOn?'Saved on this device.':`Off on this device.${hidden===1?' 1 customer job is hidden, not deleted, and comes back when you turn this on.':hidden?` ${hidden} customer jobs are hidden, not deleted, and come back when you turn this on.`:''}`}</span></section>
+    <span class="note">${custOn?'Saved on this device.':`Off on this device.${hidden===1?' 1 customer job is hidden, not deleted, and comes back when you turn this on.':hidden?` ${hidden} customer jobs are hidden, not deleted, and come back when you turn this on.`:''}`}</span></section>`}
   ${custOn&&settingsOk?`<section><h2>Shop info</h2><span class="small muted">Your shop's name and contact details for customer invoices and work reports.</span>${shopForm()}</section>`:''}
   ${SHOP_OF&&!settingsOk?`<p class="small muted">Shop info is changed by the shop's owner or a manager.</p>`:''}
   ${SHOP_OF?'':`<section><h2>Import from test version</h2><div class="panel" style="gap:10px"><span class="small muted">Bring in the projects, job numbers and shop info from the claude.ai test version: in the test version, save your backup file, then pick it here. Projects you already have are skipped.</span>${importButton()}</div></section>`}

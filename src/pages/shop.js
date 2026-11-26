@@ -28,7 +28,8 @@ const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZon
 const dayKey = (ms = Date.now()) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const addDays = (key, n) => { const d = new Date(key + 'T12:00:00'); d.setDate(d.getDate() + n); return dayKey(d.getTime()); };
 // Shop mode = Job_Board's "Customer jobs" switch (same saved setting on this device, so both stay in step)
-const custOn = () => { try { return localStorage.getItem('jb-customers') !== 'off'; } catch { return true; } };
+// Employees always work in shop mode (it's the owner's shop), so there's no switch for them.
+const custOn = () => { if (shopOf) return true; try { return localStorage.getItem('jb-customers') !== 'off'; } catch { return true; } };
 const setCustOn = (on) => { try { localStorage.setItem('jb-customers', on ? 'on' : 'off'); } catch { /* private window: this visit only */ } };
 
 // ---------- tabs ------------------------------------------------------------------------
@@ -124,6 +125,11 @@ let shopName = ''; // Job_Board shop info name
 let joinedBy = {}; // owner: memberId -> joined uid (from shops/{me}/members)
 let inviteErr = {}; // owner: memberId -> why their invite couldn't be saved
 let shopOf = null; // signed in as a member of someone else's shop: {owner, ownerName, shopName, memberId, role, perms}
+// An employee can step out to their own garage on this device (still signed in, still on
+// the team) and come back: localStorage gt-shop-away = {uid, owner}.
+let awayFrom = null; // { owner, shopName, role } while on your own garage
+const isAway = (uid, owner) => { try { const v = JSON.parse(localStorage.getItem('gt-shop-away') || 'null'); return !!v && v.uid === uid && v.owner === owner; } catch { return false; } };
+const setAway = (owner) => { try { if (owner) localStorage.setItem('gt-shop-away', JSON.stringify({ uid: user.uid, owner })); else localStorage.removeItem('gt-shop-away'); } catch { /* private window */ } };
 let pendingInvite = null; // invited but not joined yet: the invite, plus its email
 let memberUnsubs = [];
 const lower = (e) => String(e || '').trim().toLowerCase();
@@ -165,7 +171,7 @@ async function dropMember(m) {
 /* Signed in: am I a member of someone else's shop (or invited to one)? */
 async function findShop(u) {
   memberUnsubs.forEach((x) => x()); memberUnsubs = [];
-  shopOf = null; pendingInvite = null;
+  shopOf = null; pendingInvite = null; awayFrom = null;
   const email = lower(u.email);
   if (!email) return;
   let inv = null;
@@ -177,6 +183,7 @@ async function findShop(u) {
   let on = false;
   try { const s = await getDoc(doc(db, 'shops', inv.owner)); on = s.exists() && s.data().on === true; shopOpts = (s.exists() && s.data().options) || {}; peopleOf = (s.exists() && s.data().people) || []; } catch { on = false; }
   if (!on) return; // Employees switched off: back to your own data
+  if (isAway(u.uid, inv.owner)) { awayFrom = { owner: inv.owner, shopName: inv.shopName, role: mem.role }; return; }
   shopOf = { owner: inv.owner, ownerName: inv.ownerName, shopName: inv.shopName, memberId: mem.memberId, role: mem.role, perms: mem.perms || {} };
   // removed, or Employees switched off: drop back to your own data right away
   memberUnsubs.push(onSnapshot(doc(db, 'shops', inv.owner, 'members', u.uid), (d) => { if (!d.exists()) leftShop('You were removed from ' + (inv.shopName || 'the shop') + '.'); else if (shopOf) { const was = JSON.stringify([shopOf.role, shopOf.perms]); shopOf.role = d.data().role; shopOf.perms = d.data().perms || {}; if (was !== JSON.stringify([shopOf.role, shopOf.perms])) { rememberShop(); for (const k of Object.keys(FRAMES)) { const f = $('p-' + k).querySelector('iframe'); if (f) f.src = FRAMES[k]; } renderHome(); } } }, () => leftShop('')));
@@ -414,7 +421,8 @@ function renderHome() {
       ${waiting.slice(0, 8).map(({ p, e }) => `<div class="sh-card"><span style="flex:1;min-width:0"><b>${esc(nameOfP(e.by))} · ${dur(tMsOf(e))}</b><span class="sh-sub">${esc([jobNo(p), p.title].filter(Boolean).join(' '))} · ${esc(e.manual ? (e.date || '') : dayKey(e.start))}${e.manual ? ' · added by hand' : ''}${e.note ? ' · ' + esc(e.note) : ''}</span></span>${e.manual ? '<span class="sh-pill warn">By hand</span>' : ''}</div>`).join('')}
       <button type="button" class="sh-btn" data-okall>Approve all ${waiting.length}</button><p class="sh-foot" id="shOkMsg" role="status" style="margin:0">To check one first, open its job in Job_Board.</p></section>` : '';
   const note = leftMsg ? `<p class="sh-empty" role="status">${esc(leftMsg)} You're back in your own shop.</p>` : '';
-  const inShop = shopOf ? `<p class="sh-foot" style="margin:0">You're in <b>${esc(shopOf.shopName || 'the shop')}</b> as ${esc((ROLES[shopOf.role] || ROLES.tech).label)}.</p>` : '';
+  const inShop = shopOf ? `<p class="sh-foot" style="margin:0">You're in <b>${esc(shopOf.shopName || 'the shop')}</b> as ${esc((ROLES[shopOf.role] || ROLES.tech).label)}.</p>`
+    : awayFrom ? `<p class="sh-foot" style="margin:0">Your own garage · <button type="button" class="sh-linkbtn" style="color:var(--accent);min-height:0;font-size:inherit" data-toshop>Switch to ${esc(awayFrom.shopName || 'the shop')}</button></p>` : '';
   box.innerHTML = note + inShop + approveHtml + myJobs + clock + stats + schedHtml + comingHtml + partsHtml + (shopOf ? '' : dueHtml)
     + `<p class="sh-foot">Beta: Jobs, Machines and Parts are your Job_Board and Logbook, so everything you do there shows here.</p>`;
   box.scrollTop = scroll;
@@ -422,6 +430,7 @@ function renderHome() {
 
 const inviteLater = () => { try { return sessionStorage.getItem('gt-join-later') === (pendingInvite && pendingInvite.owner); } catch { return false; } };
 $('p-home').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-toshop]')) { setAway(null); startData(); return; }
   if (e.target.closest('[data-retry]')) { loadErr = ''; renderHome(); startData(); return; }
   if (e.target.closest('[data-okall]')) {
     const owner = shopOf ? shopOf.owner : user.uid, now = new Date().toISOString(); let n = 0;
@@ -495,7 +504,14 @@ function teamSection() {
     return `<section class="sh-set" aria-labelledby="h-team"><h2 class="sh-h2" id="h-team">Your shop</h2>
       <p class="sh-setnow">You're in ${esc(shopOf.shopName || 'the shop')} as ${esc((ROLES[shopOf.role] || ROLES.tech).label)}.</p>
       <p class="sh-foot" style="margin:0">${esc(shopOf.ownerName || 'The owner')} manages the team. Your own Logbook (garageterminal.com/apps/logbook) stays yours.</p>
-      <button type="button" class="sh-btn ghost" data-leaveshop>Leave this shop</button></section>`;
+      <div class="sh-formbtns"><button type="button" class="sh-btn" data-toown>Switch to my own garage</button><button type="button" class="sh-btn ghost" data-leaveshop>Leave this shop</button></div>
+      <p class="sh-foot" style="margin:0">Switch to my own garage opens your own machines, jobs and parts on this device; you stay signed in and on the team, and can switch back any time.</p></section>`;
+  }
+  if (awayFrom) {
+    return `<section class="sh-set" aria-labelledby="h-team"><h2 class="sh-h2" id="h-team">Your shop</h2>
+      <p class="sh-setnow">You're in your own garage.</p>
+      <p class="sh-foot" style="margin:0">You're still on the team at ${esc(awayFrom.shopName || 'the shop')} as ${esc((ROLES[awayFrom.role] || ROLES.tech).label)}.</p>
+      <button type="button" class="sh-btn" data-toshop>Switch to ${esc(awayFrom.shopName || 'the shop')}</button></section>`;
   }
   const me = user ? (user.displayName || user.email || 'You') : 'You';
   const head = `<div class="sh-setrow"><h2 class="sh-h2" id="h-team">Employees</h2>
@@ -552,7 +568,7 @@ function accountSection() {
 
 function renderSettings() {
   const on = custOn();
-  $('p-settings').innerHTML = accountSection() + `<section class="sh-set" aria-labelledby="h-shopmode">
+  $('p-settings').innerHTML = accountSection() + (shopOf ? '' : `<section class="sh-set" aria-labelledby="h-shopmode">
       <div class="sh-setrow">
         <h2 class="sh-h2" id="h-shopmode">Shop mode</h2>
         <button type="button" class="sh-switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-labelledby="h-shopmode" data-shopmode><span></span></button>
@@ -572,7 +588,7 @@ function renderSettings() {
         </ul>
       </div>
       <p class="sh-foot">Turning it off hides customer jobs; nothing is deleted, and they come back when you turn it on. Saved on this device, and the same switch as Customer jobs in Job_Board's ⚙ Settings. The Morning Brief has its own "Include Job_Board customer jobs" box.</p>
-    </section>
+    </section>`) + `
     ${teamSection()}
     ${on && (!shopOf || shopOf.perms.settings) ? `<section class="sh-set" aria-labelledby="h-limit">
       <h2 class="sh-h2" id="h-limit">Daily drop-off limit</h2>
@@ -651,6 +667,8 @@ $('p-settings').addEventListener('click', (e) => {
   if (t('[data-roledefault]')) { const k = t('[data-roledefault]').dataset.roledefault; team.roles = team.roles || roleDefaults(); team.roles[k] = { ...ROLES[k].perms }; saveTeam().catch(() => {}); renderSettings(); return; }
   if (t('[data-copyinv]')) { const m = team.members.find((x) => x.id === t('[data-copyinv]').dataset.copyinv); const b = t('[data-copyinv]');
     if (m) { (navigator.clipboard ? navigator.clipboard.writeText(inviteText(m)) : Promise.reject()).then(() => { b.textContent = 'Copied'; }, () => { b.textContent = 'Copy failed'; }); } return; }
+  if (t('[data-toown]') && shopOf) { setAway(shopOf.owner); startData().then(() => show('home')); return; }
+  if (t('[data-toshop]')) { setAway(null); startData().then(() => show('home')); return; }
   if (t('[data-leaveshop]')) {
     const b = t('[data-leaveshop]');
     if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Tap again to leave ' + (shopOf.shopName || 'the shop'); return; }
@@ -664,6 +682,7 @@ $('p-settings').addEventListener('click', (e) => {
     team.members = team.members.filter((x) => x.id !== id); teamEdit = null; saveTeam().catch(() => {}); renderSettings(); return;
   }
   if (!e.target.closest('[data-shopmode]')) return;
+  if (shopOf) return;
   setCustOn(!custOn());
   // Job_Board reads the setting when it opens: reload it if it's already open
   const f = $('p-jobs').querySelector('iframe');
