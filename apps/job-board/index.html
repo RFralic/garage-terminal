@@ -699,11 +699,14 @@ function newCustMachine(cu,name,type){const isV=LB_VTYPES.includes(type);const i
   machines.push({id,name:rec.name||'Unnamed',kind:rec.kind,equipment:rec.equipment,owner:{...rec.owner}});return id}
 function linkToMachine(p,mid){const m=machineById(mid);if(!m)return;p.logbookId=m.id;p.logbook=m.name;if(!(p.machine||'').trim())p.machine=m.name}
 function typeSelect(){return `<select name="type">${LB_EQUIP.map(t=>`<option ${t==='Riding mower'?'selected':''}>${t}</option>`).join('')}<optgroup label="Vehicles">${LB_VTYPES.map(t=>`<option>${t}</option>`).join('')}</optgroup></select>`}
-/* Links from the Logbook: ?job=<projectId> opens a job; ?newjob=<machineId> starts a job for that machine */
-let deep=(()=>{try{const q=new URLSearchParams(location.search);const d={job:q.get('job'),newjob:q.get('newjob'),sched:q.get('sched')};return d.job||d.newjob||d.sched?d:null}catch(e){return null}})();
+/* Links from the Logbook: ?job=<projectId> opens a job; ?newjob=<machineId> starts a job for that machine.
+   From the shop app's Schedule tab: ?book=YYYY-MM-DD opens + Book on that day; saving tells the shop app. */
+let deep=(()=>{try{const q=new URLSearchParams(location.search);const d={job:q.get('job'),newjob:q.get('newjob'),sched:q.get('sched'),book:q.get('book')};return d.job||d.newjob||d.sched||d.book?d:null}catch(e){return null}})();
+let bookFromShop=false;
 function handleDeep(){if(!deep||!projectsLoaded||!machinesLoaded||!customersLoaded)return false;const d=deep;deep=null;
-  try{const u=new URL(location.href);u.searchParams.delete('job');u.searchParams.delete('newjob');u.searchParams.delete('sched');history.replaceState(history.state,'',u.pathname+u.search)}catch(x){}
+  try{const u=new URL(location.href);u.searchParams.delete('job');u.searchParams.delete('newjob');u.searchParams.delete('sched');u.searchParams.delete('book');history.replaceState(history.state,'',u.pathname+u.search)}catch(x){}
   if(d.job&&projects[d.job]){go({name:'project',pid:d.job});return true}
+  if(d.book&&custOn&&/^\d{4}-\d{2}-\d{2}$/.test(d.book)){bookFromShop=SHOP&&window.parent!==window;go({name:'new',kind:'customer',day:d.book,book:true,cid:null,mid:null});return true}
   if(d.sched&&custOn&&/^\d{4}-\d{2}-\d{2}$/.test(d.sched)){go({name:'list',tab:'customer',cview:'sched',day:d.sched});return true}
   const m=d.newjob&&machineById(d.newjob);
   if(m&&m.owner&&custOn){go({name:'new',kind:'customer',cid:m.owner.id||null,mid:m.id});return true}
@@ -1419,7 +1422,7 @@ app.addEventListener('submit',e=>{
     if(np.kind==='customer'){np.customer={name:(d.cname||'').trim(),phone:(d.cphone||'').trim(),dropOff:d.drop||'',dropTime:d.dropTime||'',pickup:'',pickupTime:'',promised:d.promised||'',complaint:(d.complaint||'').trim()};np.jobNo=nextJobNo();toast('Job '+fmtJob(np.jobNo)+' created');
       const picked=custById(d.cid);if(picked){np.customer.id=picked.id;if(!picked.phone&&np.customer.phone)picked.phone=np.customer.phone;if(!np.customer.name)np.customer.name=picked.name;saveCustomers()}else if(linkJob(np))saveCustomers();
       if(d.mid){const m=machineById(d.mid);if(m&&m.owner&&np.customer.id&&m.owner.id===np.customer.id)linkToMachine(np,m.id)}}
-    projects[id]=np;save(id);if(view.book&&np.kind==='customer')go({name:'list',tab:'customer',cview:'sched',day:np.customer.dropOff||today()});else go({name:'project',pid:id})}
+    projects[id]=np;save(id);if(view.book&&np.kind==='customer'&&bookFromShop){bookFromShop=false;try{window.parent.postMessage({gt:'booked',day:np.customer.dropOff||today()},location.origin)}catch(x){}}if(view.book&&np.kind==='customer')go({name:'list',tab:'customer',cview:'sched',day:np.customer.dropOff||today()});else go({name:'project',pid:id})}
   else if(k==='pickup'){if(!p||!d.pickup)return;p.customer={...(p.customer||{}),pickup:d.pickup,pickupTime:d.pickupTime||''};save(view.pid);toast('Pickup set');render()}
   else if(k==='takeoff'){const list=new FormData(f).getAll('x').map(v=>{const [tid,xid]=String(v).split('|');return{tid:tid||'',xid}});if(!list.length){view.shelfOff=view.pid;render();return}takeOff(f.dataset.pid,list)}
   else if(k==='addcm'){const cu=custById(view.cid);if(!cu||!(d.name||'').trim())return;newCustMachine(cu,d.name,d.type);view.editing=null;toast((d.name||'').trim()+' added to '+(cu.name||'the customer')+"'s machines");render()}
