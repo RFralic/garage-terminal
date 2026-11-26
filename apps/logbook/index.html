@@ -493,7 +493,7 @@ let listView=(()=>{try{return localStorage.getItem("sel-view")==="list"?"list":"
    Job_Board's "Customer jobs", localStorage jb-customers) and never count in Maintenance due. Turning Shop
    mode off hides them everywhere here (lists, search, Fits, Show parts for); nothing is deleted.
    Job_Board jobs point at a machine with logbookId; the machine page lists them. */
-const custOn=()=>{try{return localStorage.getItem("jb-customers")!=="off"}catch(e){return true}};
+const custOn=()=>{if(SHOP_OF)return true;try{return localStorage.getItem("jb-customers")!=="off"}catch(e){return true}};
 const isCust=e=>!!(e&&e.owner&&(e.owner.id||e.owner.name));
 let custList=[],jobList=[],jbUnsubs=[],jbLoaded=false;
 const ownerName=e=>{const o=e&&e.owner;if(!o)return"";const c=o.id&&custList.find(x=>x.id===o.id);return(c&&c.name)||o.name||"Customer"};
