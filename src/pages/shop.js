@@ -350,7 +350,7 @@ function renderHome() {
       const sub = esc([jobNo(p), who, p.status || 'Not started'].filter(Boolean).join(' · '));
       const right = p.status === 'Ready for pickup' ? '<span class="sh-pill ok">Ready</span>'
         : key ? (() => { const w = whenLabel(key, today); return `<span class="sh-right ${w.cls}">${esc(w.text)}</span>`; })() : '';
-      return card('jobs', esc(String(p.title || '').trim() || jobNo(p) || 'Untitled job'), sub, right);
+      return card('jobs', esc(String(p.title || '').trim() || [jobNo(p), who].filter(Boolean).join(' · ') || 'Untitled job'), sub, right);
     }).join('')
     : '<p class="sh-empty">Nothing promised in the next 7 days.</p>'}</section>`;
 
@@ -390,7 +390,7 @@ function renderHome() {
   const mine = shopOf ? open.filter((p) => p.assignee && p.assignee === shopOf.memberId) : [];
   const myJobs = shopOf ? `<section aria-labelledby="h-mine"><h2 class="sh-h2" id="h-mine">My jobs <small>${mine.length}</small></h2>${mine.length
       ? mine.map((p) => { const left = (p.tasks || []).filter((t) => !t.done).length; const pr = p.customer && p.customer.promised ? whenLabel(String(p.customer.promised).slice(0, 10), today) : null;
-        return card('jobs', esc([jobNo(p), String(p.title || '').trim()].filter(Boolean).join(' ') || 'Untitled job'), esc([p.machine && p.machine !== p.title ? p.machine : '', left ? `${left} task${left === 1 ? '' : 's'} left` : 'all tasks done', p.status].filter(Boolean).join(' · ')), pr ? `<span class="sh-right ${pr.cls}">${esc(pr.text)}</span>` : ''); }).join('')
+        return card('jobs', esc([jobNo(p), String(p.title || '').trim() || (p.customer && p.customer.name) || ''].filter(Boolean).join(' · ') || 'Untitled job'), esc([p.machine && p.machine !== p.title ? p.machine : '', left ? `${left} task${left === 1 ? '' : 's'} left` : 'all tasks done', p.status].filter(Boolean).join(' · ')), pr ? `<span class="sh-right ${pr.cls}">${esc(pr.text)}</span>` : ''); }).join('')
       : '<p class="sh-empty">Nothing assigned to you right now.</p>'}</section>` : '';
   const waiting = canApproveTime() ? projects.flatMap((p) => tlog(p).filter((e) => e && e.ok === false && !e.rejected && (e.manual || e.end)).map((e) => ({ p, e }))) : [];
   const nameOfP = (id) => { const list = shopOf ? peopleOf : [{ id: 'owner', name: user.displayName || 'You' }, ...team.members]; const x = list.find((q) => q.id === (id || 'owner')); return x ? x.name : 'Someone'; };
