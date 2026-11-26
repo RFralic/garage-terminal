@@ -205,10 +205,26 @@ async function startData() {
 function listen(uid) {
   unsubs.forEach((u) => u());
   records = null; projects = null; loadErr = '';
-  const fail = (err) => { loadErr = err.message || err.code || 'unknown error'; renderHome(); };
+  const fail = (what) => (err) => { console.warn('shop: ' + what, err); loadErr = (what ? what + ': ' : '') + (err.message || err.code || 'unknown error'); renderHome(); };
+  const gotJobs = (q) => { projects = q.docs.map((d) => ({ id: d.id, ...d.data() })); if (loadErr.startsWith('jobs')) loadErr = ''; renderHome(); };
+  const member = shopOf && uid === shopOf.owner;
+  const custOnly = () => query(collection(db, 'logbook', uid, 'projects'), where('kind', '==', 'customer'));
+  // An employee whose shop hides My equipment may only ask for customer jobs. If the
+  // shop's setting changed before this device heard about it, the full list is refused:
+  // fall back to customer jobs instead of showing an error.
+  const jobsFail = (err) => {
+    if (member && err && err.code === 'permission-denied') {
+      const i = unsubs.indexOf(stopJobs);
+      stopJobs = onSnapshot(custOnly(), gotJobs, fail('jobs'));
+      if (i >= 0) unsubs[i] = stopJobs; else unsubs.push(stopJobs);
+      return;
+    }
+    fail('jobs')(err);
+  };
+  let stopJobs = onSnapshot(member && shopOpts.hideMine ? custOnly() : collection(db, 'logbook', uid, 'projects'), gotJobs, member && !shopOpts.hideMine ? jobsFail : fail('jobs'));
   unsubs = [
-    onSnapshot(collection(db, 'logbook', uid, 'records'), (q) => { records = q.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, fail),
-    onSnapshot(shopOf && uid === shopOf.owner && shopOpts.hideMine ? query(collection(db, 'logbook', uid, 'projects'), where('kind', '==', 'customer')) : collection(db, 'logbook', uid, 'projects'), (q) => { projects = q.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, fail),
+    onSnapshot(collection(db, 'logbook', uid, 'records'), (q) => { records = q.docs.map((d) => ({ id: d.id, ...d.data() })); renderHome(); }, fail('machines and parts')),
+    stopJobs,
     // Job_Board's shop info (only the daily drop-off limit is used here)
     ...(user && uid === user.uid ? [onSnapshot(doc(db, 'logbook', uid, 'trackerSettings', 'team'), (d) => {
       const v = d.exists() ? d.data() || {} : {};
@@ -300,7 +316,7 @@ function renderHome() {
       <a class="sh-btn ghost" href="/#apps" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Back to Garage Terminal</a></div>`;
     return;
   }
-  if (loadErr) { box.innerHTML = `<p class="sh-empty">Couldn't load your shop: ${esc(loadErr)}</p>`; return; }
+  if (loadErr) { box.innerHTML = `<p class="sh-empty">Couldn't load ${shopOf ? esc(shopOf.shopName || 'the shop') : 'your shop'}'s ${esc(loadErr)}</p><div class="sh-formbtns"><button type="button" class="sh-btn ghost" data-retry>Try again</button></div>`; return; }
   if (pendingInvite && !inviteLater()) {
     box.innerHTML = `<div class="sh-signin"><h2>Join ${esc(pendingInvite.shopName || 'the shop')}?</h2>
       <p>${esc(pendingInvite.ownerName || 'The owner')} added you as <b>${esc((ROLES[pendingInvite.role] || ROLES.tech).label)}</b>. Joining opens their shop's jobs, machines and parts here. Your own Logbook stays yours.</p>
@@ -406,6 +422,7 @@ function renderHome() {
 
 const inviteLater = () => { try { return sessionStorage.getItem('gt-join-later') === (pendingInvite && pendingInvite.owner); } catch { return false; } };
 $('p-home').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-retry]')) { loadErr = ''; renderHome(); startData(); return; }
   if (e.target.closest('[data-okall]')) {
     const owner = shopOf ? shopOf.owner : user.uid, now = new Date().toISOString(); let n = 0;
     try {
