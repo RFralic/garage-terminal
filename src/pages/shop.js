@@ -388,7 +388,7 @@ document.addEventListener('click', (e) => {
 window.addEventListener('message', (e) => {
   if (e.origin !== location.origin || !e.data || e.data.gt !== 'booked') return;
   if (/^\d{4}-\d{2}-\d{2}$/.test(e.data.day || '')) schedDay = e.data.day;
-  frameFor('jobs').src = FRAMES.jobs;
+  // (Job_Board saved the job before saying so; leave its frame alone, it has moved on to its own Schedule)
   show('schedule');
 });
 
