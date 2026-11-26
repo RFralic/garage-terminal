@@ -211,3 +211,36 @@ describe("a member using the owner's data", () => {
     await assertFails(getDoc(doc(as('jake', 'jake@example.com'), 'logbook', 'mallory', 'projects', 'x')));
   });
 });
+
+describe('shop clock', () => {
+  const day = (person, d, extra = {}) => ({ person, name: 'x', day: d, in: '2026-11-26T12:58:00.000Z', out: '', breaks: [], ...extra });
+  test('a Tech clocks their own days only, and cannot approve them', async () => {
+    await joined('jake', 'jake@example.com', 'm1', 'tech', TECH);
+    await seed(env, (s) => setDoc(doc(s, 'logbook', 'ryan', 'clock', 'm2_2026-11-26'), day('m2', '2026-11-26')));
+    const db = as('jake', 'jake@example.com');
+    await assertSucceeds(setDoc(doc(db, 'logbook', 'ryan', 'clock', 'm1_2026-11-26'), day('m1', '2026-11-26')));
+    await assertSucceeds(updateDoc(doc(db, 'logbook', 'ryan', 'clock', 'm1_2026-11-26'), { out: '2026-11-26T21:35:00.000Z', breaks: [{ s: 'a', e: 'b' }] }));
+    await assertSucceeds(getDoc(doc(db, 'logbook', 'ryan', 'clock', 'm1_2026-11-26')));
+    await assertSucceeds(getDocs(query(collection(db, 'logbook', 'ryan', 'clock'), where('person', '==', 'm1'))));
+    await assertFails(getDocs(collection(db, 'logbook', 'ryan', 'clock'))); // not everyone's
+    await assertFails(getDoc(doc(db, 'logbook', 'ryan', 'clock', 'm2_2026-11-26')));
+    await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'clock', 'm2_2026-11-27'), day('m2', '2026-11-27'))); // someone else
+    await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'clock', 'm1_2026-11-27'), day('m1', '2026-11-27', { ok: true }))); // approve own
+    await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'clock', 'm1_2026-11-28'), day('m1', '2026-11-27'))); // id must match
+    await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'clock', 'm1_2026-11-29'), { ...day('m1', '2026-11-29'), boss: true }));
+    await assertFails(deleteDoc(doc(db, 'logbook', 'ryan', 'clock', 'm1_2026-11-26')));
+  });
+  test('a Manager with approveTime sees and approves everyone; the owner does everything', async () => {
+    await joined('mia', 'mia@example.com', 'm2', 'manager', ALL);
+    await seed(env, (s) => setDoc(doc(s, 'logbook', 'ryan', 'clock', 'm1_2026-11-26'), day('m1', '2026-11-26')));
+    const db = as('mia', 'mia@example.com');
+    await assertSucceeds(getDocs(query(collection(db, 'logbook', 'ryan', 'clock'), where('day', '>=', '2026-11-22'))));
+    await assertSucceeds(updateDoc(doc(db, 'logbook', 'ryan', 'clock', 'm1_2026-11-26'), { ok: true, okBy: 'm2', okAt: 'now' }));
+    await assertFails(deleteDoc(doc(db, 'logbook', 'ryan', 'clock', 'm1_2026-11-26')));
+    const own = as('ryan');
+    await assertSucceeds(setDoc(doc(own, 'logbook', 'ryan', 'clock', 'owner_2026-11-26'), day('owner', '2026-11-26')));
+    await assertSucceeds(getDocs(collection(own, 'logbook', 'ryan', 'clock')));
+    await assertSucceeds(deleteDoc(doc(own, 'logbook', 'ryan', 'clock', 'm1_2026-11-26')));
+    await assertFails(getDoc(doc(as('mallory'), 'logbook', 'ryan', 'clock', 'owner_2026-11-26')));
+  });
+});
