@@ -78,6 +78,18 @@ h2.sec{margin:6px 0 0;font-size:.8rem;text-transform:uppercase;letter-spacing:.0
 .more{font:600 .9rem var(--f-display);border:1px solid var(--line);background:var(--panel);color:var(--accent);border-radius:8px;min-height:44px;cursor:pointer}
 .empty{background:var(--panel);border:1px dashed var(--line);border-radius:10px;padding:16px;color:var(--muted)}
 .caveat{font-size:.85rem;color:var(--muted);margin:0;max-width:72ch}
+.caveat a{color:var(--accent)}
+.star{font:600 .9rem var(--f-display);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:4px 12px;min-height:38px;cursor:pointer}
+.star.on{background:var(--hi);border-color:var(--hi-ink);color:var(--hi-ink)}
+.star:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chip.mine{border-color:var(--hi-ink);background:var(--hi);color:var(--hi-ink)}
+.chip.mine span{font:500 .78rem var(--f-display);opacity:.85}
+.mynote{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.95rem;color:var(--ink)}
+.noteform{display:flex;flex-direction:column;gap:6px}
+.inrow2{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.inrow2 input{font:16px var(--f-display);padding:8px 10px;border:2px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:0;min-height:44px}
+.inrow2 input:focus{outline:none;border-color:var(--accent)}
+.inrow2 .more{padding:0 16px}
 @media (max-width:420px){.eq{grid-template-columns:minmax(0,7.5rem) minmax(0,1fr)}.ngk{font-size:1.55rem}}
 </style>
 <script type="module" src="/src/pages/sparkplugs.js"></script>
