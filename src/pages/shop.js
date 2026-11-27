@@ -35,7 +35,7 @@ const setCustOn = (on) => { try { localStorage.setItem('jb-customers', on ? 'on'
 
 // ---------- tabs ------------------------------------------------------------------------
 
-const TITLES = { home: 'Home', jobs: 'Job_Board', schedule: 'Schedule', timesheet: 'Time cards', machines: 'Machines', parts: 'Parts', tools: 'Tools', settings: 'Settings' };
+const TITLES = { home: 'Home', jobs: 'Job_Board', schedule: 'Schedule', timesheet: 'Timesheet', machines: 'Machines', parts: 'Parts', tools: 'Tools', settings: 'Settings' };
 const FRAMES = {
   jobs: '/apps/job-board?shop=1',
   machines: '/apps/logbook?shop=1&view=machines',
@@ -411,8 +411,8 @@ const mustClock = () => shopClockOn() && (!!shopOf || clockOpts().ownerClock ===
 const clockOwner = () => (shopOf ? shopOf.owner : user && user.uid);
 const seesAllClock = () => !shopOf || !!(shopOf.perms && shopOf.perms.approveTime);
 let clockDays = {}; let clockKey = ''; let clockUnsub = null; let clockErr = '';
-let tsWeek = 0; let tsPick = ''; // time cards: 0 this week, -1 last week; picked docId
-let tsFrom = 'home'; // the tab Time cards was opened from (its Back button returns there)
+let tsWeek = 0; let tsPick = ''; // timesheet: 0 this week, -1 last week; picked docId
+let tsFrom = 'home'; // the tab the timesheet was opened from (its Back button returns there)
 function syncClockListen() {
   const owner = clockOwner();
   const want = user && owner && shopClockOn() ? `${owner}|${seesAllClock() ? 'all' : myPid()}|${weekStart(dayKey())}` : '';
@@ -474,7 +474,7 @@ function shopClockHtml() {
     h = `<div class="sh-big warn"><span class="sh-state" style="color:var(--warn)">Still clocked in</span>
       <b>You didn't clock out on ${esc(shortDay(d.day))} (in at ${esc(clockT(d.in))}).</b>
       <form class="sh-formrow" data-fixout="${esc(id)}"><label class="sh-foot" style="margin:0">What time did you leave?<input type="time" name="t" required value="17:00"></label><button type="submit" class="sh-btn">Save</button></form>
-      <p class="sh-foot" style="margin:0">It shows as Edited on your time card.</p></div>`;
+      <p class="sh-foot" style="margin:0">It shows as Edited on the timesheet.</p></div>`;
   } else if (open) {
     const [id, d] = open; const worked = workedMs(d, now); const onBreak = (d.breaks || []).some((x) => !x.e);
     const rj = jobClocksOn() ? (projects || []).map((p) => [p, running(p)]).find(([, r]) => r) : null;
@@ -505,7 +505,7 @@ function shopClockHtml() {
 function whosInHtml(small) {
   const inNow = Object.values(clockDays).filter((d) => d.in && !d.out).map((d) => d.name || 'Someone');
   const look = needsLook().length;
-  return `<button type="button" class="sh-card" data-timesheet${small ? ' style="margin-top:8px"' : ''}><span style="flex:1;min-width:0"><b>Time cards</b><span class="sh-sub">${inNow.length ? 'In now: ' + esc(inNow.join(', ')) : 'Nobody clocked in'}${look ? ` · ${look} to look at` : ''}</span></span><span class="sh-pill ${look ? 'warn' : 'steel'}">${look ? 'Look' : 'Open'}</span></button>`;
+  return `<button type="button" class="sh-card" data-timesheet${small ? ' style="margin-top:8px"' : ''}><span style="flex:1;min-width:0"><b>Timesheet</b><span class="sh-sub">${inNow.length ? 'In now: ' + esc(inNow.join(', ')) : 'Nobody clocked in'}${look ? ` · ${look} to look at` : ''}</span></span><span class="sh-pill ${look ? 'warn' : 'steel'}">${look ? 'Look' : 'Open'}</span></button>`;
 }
 function needsLook() {
   const today = dayKey();
@@ -592,7 +592,7 @@ document.addEventListener('click', async (e) => {
       const brk = (d.breaks || []).reduce((n, x) => n + (x.e ? (+new Date(x.e) - +new Date(x.s)) / 60000 : 0), 0);
       lines.push([d.name, d.day, d.in ? clockT(d.in) : '', d.out ? clockT(d.out) : '', Math.round(brk), d.out ? hrs(workedMs(d)) : '', d.edited ? 'yes' : '', d.ok ? 'yes' : '', d.note || ''].map(q).join(','));
     });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })); a.download = `time-cards-${start}.csv`; document.body.append(a); a.click(); a.remove(); return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })); a.download = `timesheet-${start}.csv`; document.body.append(a); a.click(); a.remove(); return; }
 });
 document.addEventListener('submit', async (e) => {
   const fx = e.target.closest('[data-fixout]');
@@ -614,13 +614,13 @@ function clocksSection() {
   const sw = (k, on, label, desc) => `<div class="sh-setrow"><span style="flex:1;min-width:0"><b>${label}</b><span class="sh-sub">${desc}</span></span><button type="button" class="sh-switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-label="${label}" data-clocksw="${k}"><span></span></button></div>`;
   return `<section class="sh-set" aria-labelledby="h-clocks"><h2 class="sh-h2" id="h-clocks">Clocks</h2>
     ${sw('jobClocks', o.jobClocks !== false, 'Job clocks', 'Clock in and out of a job in Job_Board to track time on it for labor. Off: type labor hours yourself.')}
-    ${team.on ? sw('shopClock', o.shopClock === true, 'Shop clock', 'Employees clock in and out for the day (for payroll), with breaks and weekly time cards.') : ''}
+    ${team.on ? sw('shopClock', o.shopClock === true, 'Shop clock', 'Employees clock in and out for the day (for payroll), with breaks and a weekly timesheet.') : ''}
     ${team.on && o.shopClock === true ? `<div class="sh-opts">
       <label><input type="checkbox" data-teamopt="ownerClock" ${o.ownerClock ? 'checked' : ''}> The owner clocks in and out too</label>
       ${o.jobClocks !== false ? `<label><input type="checkbox" data-teamopt="clockFirst" ${o.clockFirst !== false ? 'checked' : ''}> Job clocks need clock-in first (in the shop app)</label>` : ''}
       <label><input type="checkbox" data-teamopt="round15" ${o.round15 ? 'checked' : ''}> Round in and out to the nearest 15 minutes</label>
       <label>Overtime after <input type="number" min="1" max="99" inputmode="numeric" data-othours value="${+o.otHours > 0 ? +o.otHours : 40}" style="width:72px"> hours a week</label></div>
-    <button type="button" class="sh-btn ghost" data-timesheet>Open time cards</button>` : ''}
+    <button type="button" class="sh-btn ghost" data-timesheet>Open timesheet</button>` : ''}
     ${!team.on ? '<p class="sh-foot" style="margin:0">Turn on Employees to get the shop clock (clock in / out for the day).</p>' : ''}
   </section>`;
 }
