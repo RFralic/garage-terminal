@@ -367,6 +367,7 @@ function renderSchedule() {
     return `<button type="button" class="sh-card sh-sched ${t === 'pick' ? 'pick' : ''}" data-openjob="${esc(p.id)}"><span class="sh-tm">${t === 'prom' ? 'due' : esc(tm(time) || '—')}</span><span style="flex:1;min-width:0"><b>${head}</b><span class="sh-sub">${sub}</span></span>${pill}</button>`; };
   const limitTxt = dayLimit ? `${dn} of ${dayLimit} drop-offs` : `${dn} drop-off${dn === 1 ? '' : 's'}`;
   box.innerHTML = `<div class="sh-pad sh-schedpage">
+    ${shopClockOn() && seesAllClock() ? whosInHtml() : ''}
     <div class="sh-seg" role="group" aria-label="How much to show"><button type="button" data-schedview="4w" aria-pressed="${schedView === '4w'}">4 weeks</button><button type="button" data-schedview="month" aria-pressed="${schedView === 'month'}">Month</button></div>
     <div class="sh-calbar"><button type="button" class="sh-btn ghost sm" data-schedmove="-1" aria-label="${schedView === 'month' ? 'Previous month' : 'Earlier'}">‹</button><b>${esc(label)}</b><button type="button" class="sh-btn ghost sm" data-schedmove="1" aria-label="${schedView === 'month' ? 'Next month' : 'Later'}">›</button>${schedShift || day !== today ? '<button type="button" class="sh-btn ghost sm" data-schedtoday>Today</button>' : ''}</div>
     ${grid}
@@ -411,6 +412,7 @@ const clockOwner = () => (shopOf ? shopOf.owner : user && user.uid);
 const seesAllClock = () => !shopOf || !!(shopOf.perms && shopOf.perms.approveTime);
 let clockDays = {}; let clockKey = ''; let clockUnsub = null; let clockErr = '';
 let tsWeek = 0; let tsPick = ''; // timesheet: 0 this week, -1 last week; picked docId
+let tsFrom = 'home'; // the tab the timesheet was opened from (its Back button returns there)
 function syncClockListen() {
   const owner = clockOwner();
   const want = user && owner && shopClockOn() ? `${owner}|${seesAllClock() ? 'all' : myPid()}|${weekStart(dayKey())}` : '';
@@ -544,6 +546,7 @@ function renderTimesheet() {
   const look = needsLook().filter(([id]) => days.includes(clockDays[id].day) || tsWeek === 0);
   const toOk = Object.entries(clockDays).filter(([, d]) => days.includes(d.day) && d.out && !d.ok);
   box.innerHTML = `<div class="sh-pad sh-schedpage">
+    <button type="button" class="sh-linkbtn" style="color:var(--accent);align-self:flex-start;min-height:40px" data-tsback>← Back to ${esc(TITLES[tsFrom] || 'Home')}</button>
     <div class="sh-seg" role="group" aria-label="Which week"><button type="button" data-tsweek="0" aria-pressed="${tsWeek === 0}">This week</button><button type="button" data-tsweek="-1" aria-pressed="${tsWeek === -1}">Last week</button></div>
     <b class="sh-tsrange">${esc(new Date(start + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))} – ${esc(new Date(days[6] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}</b>
     ${people.length ? `<div class="sh-tswrap"><table class="sh-ts"><thead><tr><th>Who</th>${days.map((k) => `<th>${esc(new Date(k + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' }))}<br>${new Date(k + 'T12:00:00').getDate()}</th>`).join('')}<th>Total</th></tr></thead><tbody>${rows}</tbody></table></div>
@@ -555,7 +558,8 @@ function renderTimesheet() {
 }
 document.addEventListener('click', async (e) => {
   const t = (q) => e.target.closest(q);
-  if (t('[data-timesheet]')) { show('timesheet'); return; }
+  if (t('[data-timesheet]')) { if (tab !== 'timesheet') tsFrom = tab; show('timesheet'); return; }
+  if (t('#p-timesheet [data-tsback]')) { show(tsFrom in TITLES && tsFrom !== 'timesheet' ? tsFrom : 'home'); return; }
   if (t('#p-home [data-clockin]')) {
     const id = myPid() + '_' + dayKey();
     try { await saveDay(id, { person: myPid(), name: String((shopOf ? (peopleOf.find((p) => p.id === myPid()) || {}).name : user.displayName) || user.displayName || 'Me').slice(0, 60), day: dayKey(), in: new Date().toISOString(), out: '', breaks: [] }); } catch (err) { clockErr = "couldn't clock in: " + (err.message || err.code); }
@@ -615,7 +619,8 @@ function clocksSection() {
       <label><input type="checkbox" data-teamopt="ownerClock" ${o.ownerClock ? 'checked' : ''}> The owner clocks in and out too</label>
       ${o.jobClocks !== false ? `<label><input type="checkbox" data-teamopt="clockFirst" ${o.clockFirst !== false ? 'checked' : ''}> Job clocks need clock-in first (in the shop app)</label>` : ''}
       <label><input type="checkbox" data-teamopt="round15" ${o.round15 ? 'checked' : ''}> Round in and out to the nearest 15 minutes</label>
-      <label>Overtime after <input type="number" min="1" max="99" inputmode="numeric" data-othours value="${+o.otHours > 0 ? +o.otHours : 40}" style="width:72px"> hours a week</label></div>` : ''}
+      <label>Overtime after <input type="number" min="1" max="99" inputmode="numeric" data-othours value="${+o.otHours > 0 ? +o.otHours : 40}" style="width:72px"> hours a week</label></div>
+    <button type="button" class="sh-btn ghost" data-timesheet>Open timesheet</button>` : ''}
     ${!team.on ? '<p class="sh-foot" style="margin:0">Turn on Employees to get the shop clock (clock in / out for the day).</p>' : ''}
   </section>`;
 }
