@@ -1036,7 +1036,7 @@ function renderProject(){
   if(p.kind==='customer'&&jobClocksOn())h+=renderClock(id,p);
   if(p.kind==='customer'){
     const hasInfo=(c.name||'').trim()||(c.phone||'').trim();
-    h+=`<section><div class="between"><h2>Customer info</h2><div class="row">${custOfJob(p)&&view.editing!=='c'?`<button class="btn ghost sm" data-act="opencust" data-cid="${esc(custOfJob(p).id)}">All their jobs</button>`:''}${phonesOk&&hasInfo&&view.editing!=='c'?`<button class="btn sm" data-act="editc">Edit customer</button>`:''}</div></div>`;
+    h+=`<section><div class="between" style="flex-wrap:wrap;gap:6px 12px"><h2>Customer info</h2><div class="row" style="margin-left:auto">${custOfJob(p)&&view.editing!=='c'?`<button class="btn ghost sm" style="white-space:nowrap" data-act="opencust" data-cid="${esc(custOfJob(p).id)}">All their jobs</button>`:''}${phonesOk&&hasInfo&&view.editing!=='c'?`<button class="btn sm" style="white-space:nowrap" data-act="editc">Edit customer</button>`:''}</div></div>`;
     if(jobLabel(p))h+=`<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px;border-color:var(--tan)">
         <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="eyebrow">Job number</span><span class="mono" style="font-size:28px;font-weight:500;line-height:1.1;user-select:all">${esc(jobLabel(p))}</span><span class="note">Write this on tags for the machine and its parts.</span></div>
         <button class="btn sm" data-act="copyjob" style="flex:none">Copy</button></div>`;
@@ -1044,6 +1044,7 @@ function renderProject(){
       h+=`<form class="panel" data-form="editc">
         <label class="f">Name<input id="c-name" type="text" name="cname" maxlength="80" autocomplete="off" value="${esc(c.name)}" placeholder="Customer's name"></label>
         <label class="f">Phone<input type="tel" name="cphone" maxlength="40" autocomplete="off" inputmode="tel" value="${esc(c.phone)}" placeholder="Phone number"></label>
+        ${phonesOk?`<label class="f">Address<input id="c-addr" type="text" name="caddr" maxlength="160" autocomplete="off" value="${esc((custOfJob(p)||{}).address||'')}" placeholder="Street, town (for pickup and delivery)"></label>`:''}
         <div class="row"><button class="btn primary" type="submit" style="flex:1">Save customer info</button>${hasInfo?`<button class="btn" type="button" data-act="cancelc">Cancel</button>`:''}</div>
       </form>`;
     } else {
@@ -1051,6 +1052,7 @@ function renderProject(){
         <div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Name</span><span style="font-size:17px;font-weight:600;overflow-wrap:anywhere">${esc(c.name||'—')}</span></div>
         ${phonesOk?`<div class="between"><div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="eyebrow">Phone</span><span class="mono" style="font-size:17px;user-select:all;overflow-wrap:anywhere">${esc(c.phone||'—')}</span></div>
         ${c.phone?`<button class="btn sm" data-act="copyphone">Copy number</button>`:''}</div>`:''}
+        ${phonesOk?(custAddr(p)?`<div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="eyebrow">Address</span><span style="font-size:16px;overflow-wrap:anywhere">${esc(custAddr(p))}</span></div>`:`<button class="btn sm" data-act="editc" data-focus="c-addr" style="align-self:flex-start">+ Add address</button>`):''}
       </div>`;
     }
     h+=`</section>`;
@@ -1433,7 +1435,7 @@ app.addEventListener('click',async e=>{
   else if(a==='shop')go({name:'shop',shopJob:b.dataset.job||'all',backPid:b.dataset.job&&b.dataset.job!=='all'?b.dataset.job:(view.name==='project'?view.pid:null)});
   else if(a==='editp'){view.editing=view.editing==='p'?null:'p';view.confirm=null;render();const f=document.querySelector('form[data-form="editp"]');if(f)f.scrollIntoView({block:'nearest'})}
   else if(a==='edittask'){view.editing=view.editing==='t'?null:'t';view.confirm=null;render()}
-  else if(a==='editc'){view.editing='c';render();const el=document.getElementById('c-name');if(el)el.focus()}
+  else if(a==='editc'){view.editing='c';render();const el=document.getElementById(b.dataset.focus||'c-name');if(el){el.scrollIntoView({block:'center'});el.focus()}}
   else if(a==='cancelc'){view.editing=null;render()}
   else if(a==='cview'){view.cview=b.dataset.v;render()}
   else if(a==='showdone'){view.showDone=!view.showDone;render()}
@@ -1539,7 +1541,7 @@ app.addEventListener('submit',e=>{
   else if(k==='cust'){const c=custById(view.cid);if(!c)return;Object.assign(c,{name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),notes:(d.notes||'').trim()});saveCustomers();view.editing=null;toast('Customer saved');render()}
   else if(k==='shop'){shop={name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),footer:(d.footer||'').trim(),rate:d.rate!==''&&isFinite(+d.rate)&&+d.rate>0?Math.round(+d.rate*100)/100:'',receiptWidth:RCPT[d.receiptWidth]?d.receiptWidth:'80',dayLimit:+d.dayLimit>0?Math.min(99,Math.round(+d.dayLimit)):'',...(custOn?{delivery:d.delivery==='on',delivFees:d.delivery==='on'&&d.delivFees==='on',delRate:+d.delRate>0?Math.round(+d.delRate*100)/100:'',delMin:+d.delMin>0?Math.round(+d.delMin*100)/100:'',delFree:+d.delFree>0?Math.round(+d.delFree*10)/10:'',delRound:d.delRound!=='one'}:{delivery:shop.delivery,delivFees:shop.delivFees,delRate:shop.delRate,delMin:shop.delMin,delFree:shop.delFree,delRound:shop.delRound})};
     if(db)db.doc('settings/shop').set({...shop}).catch(()=>toast('Could not save shop info'));view.editing=null;toast('Shop info saved');if(view.name==='shopinfo')go(view.back&&projects[view.back]?{name:'project',pid:view.back,back:null}:{name:'list',back:null});else render()}
-  else if(k==='editc'){p.customer={...(p.customer||{}),name:(d.cname||'').trim(),phone:(d.cphone||'').trim()};{const cu=custOfJob(p);if(cu){if(p.customer.name)cu.name=p.customer.name;cu.phone=p.customer.phone;saveCustomers()}else if(linkJob(p))saveCustomers()}save(view.pid);view.editing=null;toast('Customer info saved');render()}
+  else if(k==='editc'){p.customer={...(p.customer||{}),name:(d.cname||'').trim(),phone:(d.cphone||'').trim()};{const addr='caddr' in d?String(d.caddr||'').trim():null;let cu=custOfJob(p);if(cu){if(p.customer.name)cu.name=p.customer.name;cu.phone=p.customer.phone;if(addr!==null)cu.address=addr;saveCustomers()}else if(linkJob(p)){cu=custOfJob(p);if(cu&&addr!==null)cu.address=addr;saveCustomers()}}save(view.pid);view.editing=null;toast('Customer info saved');render()}
   else if(k==='addtask'){const t=(d.title||'').trim();if(!t)return;p.tasks.push({id:uid(),title:t,done:false,notes:'',parts:[],links:[]});save(view.pid);render();const el=document.getElementById('newtask');if(el)el.focus()}
   else if(k==='edittask'){const t=p.tasks.find(x=>x.id===view.tid);t.title=d.title.trim()||t.title;save(view.pid);view.editing=null;render()}
   else if(k==='editpart'){const {x}=findPart(view.pid,f.dataset.tid||'',f.dataset.xid);if(!x||!d.name.trim())return;
