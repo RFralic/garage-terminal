@@ -370,17 +370,17 @@ function renderSchedule() {
     const pill = t === 'drop' ? (p.status === 'Not started' || !p.status ? '<span class="sh-pill steel">Expected</span>' : '<span class="sh-pill ok">In</span>')
       : t === 'pick' ? (delOn() && c.ret === 'deliver' ? '<span class="sh-pill ok">Delivery</span>' : '<span class="sh-pill ok">Out</span>') : (day < today ? '<span class="sh-pill over">Overdue</span>' : '<span class="sh-pill warn">Due</span>');
     return `<button type="button" class="sh-card sh-sched ${t === 'pick' ? 'pick' : ''}" data-openjob="${esc(p.id)}"><span class="sh-tm">${t === 'prom' ? 'due' : esc(tm(time) || '—')}</span><span style="flex:1;min-width:0"><b>${head}</b><span class="sh-sub">${sub}</span></span>${pill}</button>`; };
-  const limitTxt = dayLimit ? `${dn} of ${dayLimit} drop-offs` : `${dn} drop-off${dn === 1 ? '' : 's'}`;
+  const limitTxt = dayLimit ? `${dn} of ${dayLimit} coming in` : `${dn} coming in`;
   box.innerHTML = `<div class="sh-pad sh-schedpage">
     ${shopClockOn() && seesAllClock() ? whosInHtml() : ''}
     <div class="sh-seg" role="group" aria-label="How much to show"><button type="button" data-schedview="4w" aria-pressed="${schedView === '4w'}">4 weeks</button><button type="button" data-schedview="month" aria-pressed="${schedView === 'month'}">Month</button></div>
     <div class="sh-calbar"><button type="button" class="sh-btn ghost sm" data-schedmove="-1" aria-label="${schedView === 'month' ? 'Previous month' : 'Earlier'}">‹</button><b>${esc(label)}</b><button type="button" class="sh-btn ghost sm" data-schedmove="1" aria-label="${schedView === 'month' ? 'Next month' : 'Later'}">›</button>${schedShift || day !== today ? '<button type="button" class="sh-btn ghost sm" data-schedtoday>Today</button>' : ''}</div>
     ${grid}
-    <p class="sh-calkey" aria-hidden="true"><i class="drop"></i>Drop-off <i class="pick"></i>Pickup <i class="prom"></i>Promised${dayLimit ? ' <span class="full">Full day</span>' : ''}</p>
+    <p class="sh-calkey" aria-hidden="true"><i class="drop"></i>Coming in <i class="pick"></i>Going back <i class="prom"></i>Promised${dayLimit ? ' <span class="full">Full day</span>' : ''}</p>
     <section aria-labelledby="h-schedday"><h2 class="sh-h2" id="h-schedday">${esc(fmt(day, { weekday: 'long', month: 'short', day: 'numeric' }))} <small>${esc(limitTxt)}</small></h2>
       ${items.length ? items.map(row).join('') : `<p class="sh-empty">Nothing booked${day === today ? ' today' : ''}.</p>`}
-      ${day >= today ? `<button type="button" class="sh-btn" data-book="${day}" style="width:100%;margin-top:8px">+ Book a drop-off on ${esc(fmt(day, { weekday: 'short', month: 'short', day: 'numeric' }))}</button>
-      ${dayLimit && dn >= dayLimit ? `<p class="sh-foot" style="color:var(--warn)">This day already has ${dn} of ${dayLimit} drop-offs. You can still book it.</p>` : ''}` : ''}
+      ${day >= today ? `<button type="button" class="sh-btn" data-book="${day}" style="width:100%;margin-top:8px">+ Schedule on ${esc(fmt(day, { weekday: 'short', month: 'short', day: 'numeric' }))}</button>
+      ${dayLimit && dn >= dayLimit ? `<p class="sh-foot" style="color:var(--warn)">This day already has ${dn} of ${dayLimit} jobs coming in. You can still schedule it.</p>` : ''}` : ''}
     </section></div>`;
 }
 document.addEventListener('click', (e) => {
@@ -722,7 +722,7 @@ function renderHome() {
   ].sort((a, b) => (a.t || '99').localeCompare(b.t || '99'));
   const wk = (() => { const d = new Date(today + 'T12:00:00'); const off = d.getDay(); return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(today, i - off)); })();
   const weekN = wk.reduce((n, k) => n + dropsOn(k).length + picksOn(k).length, 0);
-  const schedHtml = !cust ? '' : `<section aria-labelledby="h-today"><h2 class="sh-h2" id="h-today">Today <small>${esc(new Date(today + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}${dayLimit ? ` · ${dropsOn(today).length} of ${dayLimit} drop-offs` : ''}</small></h2>${todayRows.length
+  const schedHtml = !cust ? '' : `<section aria-labelledby="h-today"><h2 class="sh-h2" id="h-today">Today <small>${esc(new Date(today + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}${dayLimit ? ` · ${dropsOn(today).length} of ${dayLimit} coming in` : ''}</small></h2>${todayRows.length
       ? todayRows.map((r) => `<button type="button" class="sh-card sh-sched${r.pick ? ' pick' : ''}" data-sched="${today}"><span class="sh-tm">${esc(tm(r.t) || '—')}</span><span style="flex:1;min-width:0">${r.html}</span></button>`).join('')
       : '<p class="sh-empty">No drop-offs or pickups booked today.</p>'}
     <h2 class="sh-h2" style="margin-top:12px">This week <small>${weekN} booking${weekN === 1 ? '' : 's'}</small></h2>
@@ -931,8 +931,8 @@ function renderSettings() {
     ${teamSection()}
     ${clocksSection()}
     ${on && (!shopOf || shopOf.perms.settings) ? `<section class="sh-set" aria-labelledby="h-limit">
-      <h2 class="sh-h2" id="h-limit">Daily drop-off limit</h2>
-      <form class="sh-limit" data-limit><label for="shLimit" class="sh-foot" style="margin:0">Booking a drop-off warns when a day already has this many. It never blocks. Leave empty for no limit.</label>
+      <h2 class="sh-h2" id="h-limit">Daily job limit</h2>
+      <form class="sh-limit" data-limit><label for="shLimit" class="sh-foot" style="margin:0">Scheduling warns when a day already has this many jobs coming in (drop-offs and pickups). It never blocks. Leave empty for no limit.</label>
         <div class="sh-limitrow"><input id="shLimit" type="number" min="1" max="99" step="1" inputmode="numeric" value="${dayLimit || ''}" placeholder="No limit"><button type="submit" class="sh-btn ghost">Save</button></div>
         <p class="sh-foot" id="shLimitMsg" role="status" style="margin:0"></p></form>
     </section>
@@ -994,7 +994,7 @@ $('p-settings').addEventListener('submit', async (e) => {
   const n = v > 0 ? Math.min(99, Math.round(v)) : '';
   try {
     await setDoc(doc(db, 'logbook', shopOf ? shopOf.owner : user.uid, 'trackerSettings', 'shop'), { dayLimit: n }, { merge: true }); // (the shop's settings, also for a member allowed to change them)
-    $('shLimitMsg').textContent = n ? `Saved: ${n} drop-offs a day.` : 'Saved: no limit.';
+    $('shLimitMsg').textContent = n ? `Saved: ${n} jobs coming in a day.` : 'Saved: no limit.';
   } catch (err) { $('shLimitMsg').textContent = "Couldn't save: " + (err.message || err.code); }
 });
 
