@@ -219,6 +219,7 @@ a.btn{text-decoration:none}
 #print.receipt .rc-w{overflow-wrap:anywhere}
 #print.receipt .rc-ind{padding-left:2ch}
 #print.receipt .rc-tail{height:18mm}
+.linkbtn{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 /* shop mode (inside garageterminal.com/shop): the app shows its own title, tabs and site bar */
 .shop [data-shophide],.shop .gt-bar{display:none!important}
 </style>
@@ -1103,12 +1104,12 @@ function renderLabor(p){const l=p.labor||{};const lc=laborCost(p);const pc=parts
 /* The job's Delivery panel (Delivery fees on, and the job is picked up and/or delivered by the shop) */
 function renderDelivery(p){if(!feesOn()||!tripsOf(p))return'';const c=p.customer||{},df=deliveryFee(p),cu=custOfJob(p);
   const mi=c.miles!==undefined&&c.miles!==''?c.miles:((cu&&cu.miles)||'');
-  const how=df.manual?'Set by hand.':!df.miles?`Type the miles one way. ${shop.delRate?`${money(+shop.delRate)}/mile${shop.delRound!==false?', there and back':''}${+shop.delMin>0?`, ${money(+shop.delMin)} minimum`:''}${+shop.delFree>0?`, free within ${numStr(+shop.delFree)} mi`:''}.`:'Set the rate per mile in Settings.'}`
+  const how=df.manual?'Set by hand.':!df.miles?`Type the miles one way. ${shop.delRate?`${money(+shop.delRate)}/mile${shop.delRound!==false?', there and back':''}${+shop.delMin>0?`, ${money(+shop.delMin)} minimum`:''}${+shop.delFree>0?`, free within ${numStr(+shop.delFree)} mi`:''}.`:`Set the rate per mile in ${settingsOk?setLink('delRate','Settings'):'Settings'}.`}`
     :df.billable<=0?`Within ${numStr(df.free)} mi: no charge.`:df.minHit?`Minimum ${money(+shop.delMin)}${df.trips===2?' × 2 trips':''}.`:`${numStr(df.billable)} mi${df.rt?' × 2':''}${df.trips===2?' × 2 trips':''} × ${money(df.rate)}/mi.`;
   return `<div class="panel" style="gap:10px;border-color:var(--tan)">
     <div class="between" style="align-items:baseline"><span class="eyebrow">${df.trips===2?'Pickup and delivery':delivers(p)?'Delivery':'Pickup'}</span><span class="mono" style="font-size:18px">${df.has?money(df.total):'<span class="muted small">none</span>'}</span></div>
     <a class="btn sm" href="${esc(mapsHref(p))}" target="_blank" rel="noopener" style="align-self:flex-start">📍 Check the distance in Maps</a>
-    ${!shop.address?'<span class="small" style="color:var(--warn)">Add your shop address in Settings so Maps starts from the shop.</span>':''}${!(cu&&cu.address)?'<span class="small" style="color:var(--warn)">This customer has no address yet; type it in Maps, or add it on their page.</span>':''}
+    ${!shop.address?`<span class="small" style="color:var(--warn)">${settingsOk?`Add your shop address in ${setLink('address','Settings')} so Maps starts from the shop.`:'Ask the shop owner to add the shop address in Settings so Maps starts from the shop.'}</span>`:''}${!(cu&&cu.address)?`<span class="small" style="color:var(--warn)">This customer has no address yet; type it in Maps, or add it on ${cu?`<button type="button" class="linkbtn" data-act="opencust" data-cid="${esc(cu.id)}">their page</button>`:'their page'}.</span>`:''}
     <div class="grid2"><label class="f">Miles (one way)<input type="number" min="0" step="0.1" inputmode="decimal" class="mono" value="${esc(mi)}" placeholder="0" data-deliv="miles"></label>
     <label class="f">Charge by hand (optional)<input type="number" min="0" step="0.01" inputmode="decimal" class="mono" value="${esc(c.delFee!==undefined?c.delFee:'')}" placeholder="worked out" data-deliv="delFee"></label></div>
     <span class="small muted">${how} On the invoice as "${esc(df.desc||'Delivery')}".</span></div>`}
@@ -1135,7 +1136,7 @@ function shopForm(){return `<form class="panel" data-form="shop">
     </form>`}
 function renderShopInfo(){
   const hidden=Object.values(projects).filter(p=>p.kind==='customer').length;
-  return `<div class="top"><button class="btn ghost" data-act="home">← Projects</button></div>
+  return `<div class="top">${view.back&&projects[view.back]?`<button class="btn ghost" data-act="open" data-pid="${esc(view.back)}">← Back to the job</button>`:'<button class="btn ghost" data-act="home">← Projects</button>'}</div>
   <h1>Settings</h1>
   ${SHOP_OF?'':`<section><div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px">
     <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><b>Customer jobs</b><span class="small muted">Job numbers, customer info, time clock, labor, invoices and work reports. Turn off to use Job_Board for your own projects only.</span></div>
@@ -1332,6 +1333,8 @@ function buildReceiptHtml(p,kind){
 // Standard receipt paper widths. print = the printable width (the printer's head leaves a margin on each side); fs = font size in pt.
 var RCPT={'58':{label:'58 mm (2 1/4 in) · small and handheld printers',print:48,fs:8.5},'76':{label:'76 mm (3 in) · kitchen and impact printers',print:66,fs:9},'80':{label:'80 mm (3 1/8 in) · most common',print:72,fs:9.5},'112':{label:'112 mm (4 3/8 in) · wide printers',print:104,fs:10.5}};
 function rcptW(){return RCPT[shop.receiptWidth]?shop.receiptWidth:'80'}
+// an inline link that opens Settings at one field (e.g. the shop address), with ← Back to the job
+function setLink(field,text){return `<button type="button" class="linkbtn" data-act="gosettings" data-focus="${field}">${text}</button>`}
 function printReceipt(p,kind){
   const el=document.getElementById('print');const w=rcptW(),r=RCPT[w];
   el.className='receipt';el.style.width=r.print+'mm';el.style.fontSize=r.fs+'pt';el.innerHTML=buildReceiptHtml(p,kind);
@@ -1471,7 +1474,8 @@ app.addEventListener('click',async e=>{
   else if(a==='deltime-yes'){p.time={log:timeLog(p).filter(e=>e.id!==b.dataset.tid)};view.editTime=null;view.confirm=null;save(view.pid);toast('Time entry deleted');render()}
   else if(a==='usetime'){p.labor={...(p.labor||{}),hours:hrsQ(approveOn()?okMs(p):totalMs(p))};if(p.labor.rate===undefined&&shop.rate)p.labor.rate=+shop.rate;save(view.pid);toast('Labor hours updated');render()}
   else if(a==='custtoggle'){setCustOn(!custOn);render();toast(custOn?'Customer jobs on':'Customer jobs off on this device')}
-  else if(a==='shopinfo'){go({name:'shopinfo'});const el=document.getElementById('s-name');if(el)el.focus()}
+  else if(a==='gosettings'){go({name:'shopinfo',back:view.pid||null});const el=document.querySelector(`form[data-form=shop] [name="${b.dataset.focus}"]`);if(el){el.scrollIntoView({block:'center'});el.focus()}}
+  else if(a==='shopinfo'){go({name:'shopinfo',back:null});const el=document.getElementById('s-name');if(el)el.focus()}
   else if(a==='editshop'){view.editing=view.editing==='shop'?null:'shop';render();const el=document.getElementById('s-name');if(el&&view.editing==='shop')el.focus()}
   else if(a==='pdf'){b.disabled=true;await savePdf(p,b.dataset.kind);b.disabled=false}
   else if(a==='copyjob'){const j=jobLabel(p);try{await navigator.clipboard.writeText(j);toast(j+' copied')}catch(err){toast('Press and hold the number to copy it')}}
@@ -1534,7 +1538,7 @@ app.addEventListener('submit',e=>{
     p.time={log:[...timeLog(p)]};view.editTime=null;save(view.pid);toast('Time saved');render()}
   else if(k==='cust'){const c=custById(view.cid);if(!c)return;Object.assign(c,{name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),notes:(d.notes||'').trim()});saveCustomers();view.editing=null;toast('Customer saved');render()}
   else if(k==='shop'){shop={name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),footer:(d.footer||'').trim(),rate:d.rate!==''&&isFinite(+d.rate)&&+d.rate>0?Math.round(+d.rate*100)/100:'',receiptWidth:RCPT[d.receiptWidth]?d.receiptWidth:'80',dayLimit:+d.dayLimit>0?Math.min(99,Math.round(+d.dayLimit)):'',...(custOn?{delivery:d.delivery==='on',delivFees:d.delivery==='on'&&d.delivFees==='on',delRate:+d.delRate>0?Math.round(+d.delRate*100)/100:'',delMin:+d.delMin>0?Math.round(+d.delMin*100)/100:'',delFree:+d.delFree>0?Math.round(+d.delFree*10)/10:'',delRound:d.delRound!=='one'}:{delivery:shop.delivery,delivFees:shop.delivFees,delRate:shop.delRate,delMin:shop.delMin,delFree:shop.delFree,delRound:shop.delRound})};
-    if(db)db.doc('settings/shop').set({...shop}).catch(()=>toast('Could not save shop info'));view.editing=null;toast('Shop info saved');if(view.name==='shopinfo')go({name:'list'});else render()}
+    if(db)db.doc('settings/shop').set({...shop}).catch(()=>toast('Could not save shop info'));view.editing=null;toast('Shop info saved');if(view.name==='shopinfo')go(view.back&&projects[view.back]?{name:'project',pid:view.back,back:null}:{name:'list',back:null});else render()}
   else if(k==='editc'){p.customer={...(p.customer||{}),name:(d.cname||'').trim(),phone:(d.cphone||'').trim()};{const cu=custOfJob(p);if(cu){if(p.customer.name)cu.name=p.customer.name;cu.phone=p.customer.phone;saveCustomers()}else if(linkJob(p))saveCustomers()}save(view.pid);view.editing=null;toast('Customer info saved');render()}
   else if(k==='addtask'){const t=(d.title||'').trim();if(!t)return;p.tasks.push({id:uid(),title:t,done:false,notes:'',parts:[],links:[]});save(view.pid);render();const el=document.getElementById('newtask');if(el)el.focus()}
   else if(k==='edittask'){const t=p.tasks.find(x=>x.id===view.tid);t.title=d.title.trim()||t.title;save(view.pid);view.editing=null;render()}
