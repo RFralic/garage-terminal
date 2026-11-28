@@ -22,6 +22,7 @@ import { collection, deleteDoc, doc, getDoc, onSnapshot, query, serverTimestamp,
 import { auth, db } from '../lib/firebase.js';
 import { finishRedirectSignIn, logOff, signInWithGoogle, watchSession } from '../lib/session.js';
 import { buildBrief } from '../brief/brief.js';
+import { startTour, tourOpen } from './shop-tour.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -761,7 +762,63 @@ function renderHome() {
   box.innerHTML = note + inShop + shopClockHtml() + approveHtml + myJobs + clock + stats + schedHtml + comingHtml + partsHtml + (shopOf ? '' : dueHtml)
     + `<p class="sh-foot">Beta: Jobs, Machines and Parts are your Job_Board and Logbook, so everything you do there shows here.</p>`;
   box.scrollTop = scroll;
+  maybeTour();
 }
+
+
+// ---------- guided tour + guide (first time, and Settings → Help) -----------------------------
+// Owner and employee tours differ; each is marked done per account and role on this device.
+const GUIDE = '/shop/guide';
+const tourKey = () => 'gt-tour-v1-' + (user ? user.uid : '') + (shopOf ? '-member' : '-owner');
+const tourDone = () => { try { return localStorage.getItem(tourKey()) === 'done'; } catch { return true; } };
+const markTour = () => { try { localStorage.setItem(tourKey(), 'done'); } catch { /* private window */ } };
+const tabBtn = (t) => () => { const b = document.querySelector(`.sh-tabs [data-tab="${t}"]`); return b && !b.hidden ? b : null; };
+function tourSteps() {
+  const cust = custOn(), emp = !!shopOf, P = (shopOf && shopOf.perms) || {};
+  const clockCard = () => document.querySelector('#p-home section[aria-label="Shop clock"]');
+  const steps = [];
+  steps.push({ tab: 'home', title: emp ? `Welcome to ${esc(shopOf.shopName || 'the shop')}` : 'Welcome to Garage Terminal Shop',
+    text: emp ? `<p>A quick look at where things are. It takes about a minute.</p><p>You're signed in as <b>${esc((ROLES[shopOf.role] || ROLES.tech).label)}</b>, so you see what your role allows.</p>`
+      : `<p>Your jobs, customers, machines, parts and schedule in one app. Here's a one-minute look around.</p>` });
+  if (emp && mustClock()) steps.push({ tab: 'home', target: clockCard, title: 'Clock in for the day', text: '<p>Tap <b>Clock in</b> when you start. Take breaks and clock out here too; your hours go on the timesheet.</p><p>Job clocks need you clocked in first.</p>' });
+  steps.push({ tab: 'home', target: tabBtn('home'), title: 'Home: the shop\'s day', text: emp
+    ? '<p><b>My jobs</b> lists the jobs assigned to you. Below that: today\'s drop-offs and pickups, what\'s coming up, and parts to order.</p>'
+    : `<p>Everything that needs you today: ${cust ? 'drop-offs and pickups, jobs promised this week, ' : ''}parts to order or running late${cust ? '' : ', and maintenance due on your machines'}. Tap any card to jump to it.</p>` });
+  steps.push({ tab: 'jobs', target: tabBtn('jobs'), title: 'Jobs (Job_Board)', text: cust
+    ? (emp ? '<p>Open a job for its checklist. <b>Tick tasks</b> as you finish them (your initials go on them), add parts, and clock in on the job to track your time.</p>'
+      : '<p><b>+ New job</b> checks a machine in and gives it a job number. Each job has a checklist, parts, labor, time clock, and the <b>invoice, work report and receipt</b>.</p><p>The <b>Customers</b> tab has your customer list and their machines.</p>')
+    : '<p>Your own projects: a checklist, parts to buy and what they cost.</p>' });
+  if (cust && tabBtn('schedule')()) steps.push({ tab: 'schedule', target: tabBtn('schedule'), title: 'Schedule', text: '<p>Four weeks or the whole month. Dots show what\'s <b>coming in</b>, <b>going back</b> and <b>promised</b>.</p><p>Pick a day, then <b>+ Schedule</b> to book a job on it.</p>' });
+  steps.push({ tab: 'machines', target: tabBtn('machines'), title: 'Machines (Logbook)', text: cust
+    ? '<p>Customers\' machines and your own: specs and part numbers, every visit, and maintenance due.</p>'
+    : '<p>Your engines and vehicles: specs and part numbers, service log and maintenance due.</p>' });
+  steps.push({ tab: 'parts', target: tabBtn('parts'), title: 'Parts', text: emp && !P.inventory
+    ? '<p>See what\'s on the shelf. Parts you use on a job come off here from the job.</p>'
+    : '<p>Your inventory. <b>Scan</b> a barcode to find or add a part, mark parts <b>ordered</b> and <b>received</b>, and keep a supplier list.</p>' });
+  steps.push({ tab: 'tools', target: tabBtn('tools'), title: 'Shop tools', text: '<p>Spark Plug Finder, Torque Chart, Fuel Mix and Tap Drill Chart. They work with no signal too.</p>' });
+  steps.push({ target: '#shGear', title: 'Settings', text: emp
+    ? '<p>Your account, <b>Switch to my own garage</b> for your own machines, and Sign out.</p>'
+    : `<p>${cust ? 'Shop mode, ' : '<b>Shop mode</b> (turn it on for customer jobs), '}<b>employees and roles</b>, clocks, the daily job limit and pickup and delivery.</p>${cust ? '<p>Your shop\'s name, address and labor rate are in Jobs → <b>⚙ Settings</b>, so they print on invoices.</p>' : ''}` });
+  steps.push({ title: 'That\'s the tour', text: '<p>Take it again any time from <b>Settings → Help</b>. The step-by-step guide has pictures of each screen.</p>', link: { href: GUIDE, label: 'Open the guide ↗' } });
+  return steps;
+}
+function runTour() {
+  if (tourOpen()) return;
+  const back = tab;
+  startTour({ steps: tourSteps(), show: (t) => show(t), onEnd: () => { markTour(); show(back === 'settings' ? 'settings' : 'home'); } });
+}
+let tourChecked = false;
+function maybeTour() {
+  if (tourChecked || !user || access !== 'ok' || !records || !projects || loadErr || pendingInvite) return;
+  tourChecked = true;
+  if (!tourDone()) setTimeout(() => { if (tab === 'home') runTour(); }, 400);
+}
+function helpSection() {
+  return `<section class="sh-set" aria-labelledby="h-help"><h2 class="sh-h2" id="h-help">Help</h2>
+    <div class="sh-help"><button type="button" class="sh-btn ghost" data-tour-start>Take the tour</button><a class="sh-btn ghost" href="${GUIDE}" target="_blank" rel="noopener">Step-by-step guide</a></div>
+    <p class="sh-foot" style="margin:0">The tour points out each tab and button. The guide has pictures of each screen${shopOf ? '' : ', for you and your employees'}.</p></section>`;
+}
+document.addEventListener('click', (e) => { if (e.target.closest('[data-tour-start]')) runTour(); });
 
 const inviteLater = () => { try { return sessionStorage.getItem('gt-join-later') === (pendingInvite && pendingInvite.owner); } catch { return false; } };
 $('p-home').addEventListener('click', async (e) => {
@@ -905,7 +962,7 @@ function accountSection() {
 
 function renderSettings() {
   const on = custOn();
-  $('p-settings').innerHTML = accountSection() + (shopOf ? '' : `<section class="sh-set" aria-labelledby="h-shopmode">
+  $('p-settings').innerHTML = accountSection() + helpSection() + (shopOf ? '' : `<section class="sh-set" aria-labelledby="h-shopmode">
       <div class="sh-setrow">
         <h2 class="sh-h2" id="h-shopmode">Shop mode</h2>
         <button type="button" class="sh-switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-labelledby="h-shopmode" data-shopmode><span></span></button>

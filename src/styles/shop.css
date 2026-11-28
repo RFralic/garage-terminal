@@ -246,3 +246,25 @@ button.sh-icon { background: none; cursor: pointer; padding: 0; }
 .sh-more[open] summary::before { transform: rotate(45deg); }
 .sh-more summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) { .sh-more summary::before { transition: none; } }
+
+/* Guided tour (src/pages/shop-tour.js): a lit hole around one thing + a note with Back / Next */
+.tour { position: fixed; inset: 0; z-index: 1000; }
+.tour-hole { position: fixed; border-radius: 12px; box-shadow: 0 0 0 200vmax rgba(6, 9, 7, .78); outline: 2px solid var(--accent); outline-offset: 0; transition: left .25s, top .25s, width .25s, height .25s; pointer-events: none; }
+.tour-hole[style*="width:0"] { outline: 0; }
+.tour-note { position: fixed; width: min(360px, calc(100vw - 24px)); background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, .5); }
+.tour-note.mid { left: 50% !important; top: 50% !important; transform: translate(-50%, -50%); }
+.tour-note.down::before, .tour-note.up::after { content: ""; position: absolute; left: calc(var(--arrow, 50%) - 8px); width: 14px; height: 14px; background: var(--surface-2); border: 1px solid var(--line); transform: rotate(45deg); }
+.tour-note.down::before { top: -8px; border-right: 0; border-bottom: 0; }
+.tour-note.up::after { bottom: -8px; border-left: 0; border-top: 0; }
+.tour-count { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--steel); }
+.tour-title { margin: 0; font: 700 22px/1.1 var(--f-display); letter-spacing: .01em; }
+.tour-text { font-size: 15px; line-height: 1.45; color: var(--ink); }
+.tour-text p { margin: 0 0 6px; } .tour-text p:last-child { margin: 0; }
+.tour-text b { color: #fff; }
+.tour-link { font-weight: 600; }
+.tour-btns { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.tour-nav { display: flex; gap: 8px; }
+.tour-nav .sh-btn { min-width: 84px; }
+.tour-skip { background: none; border: 0; color: var(--muted); padding: 10px 4px; min-height: 44px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.sh-help { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sh-help .sh-btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
