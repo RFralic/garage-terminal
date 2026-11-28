@@ -349,7 +349,13 @@ a.doc::after{content:"↗";font-weight:400}
 @media (max-width:640px){.partrow3{grid-template-columns:1fr 1fr;padding-bottom:10px;border-bottom:1px solid var(--line)}.partrow3>input:first-child,.partrow3 button{grid-column:1/-1}}
 @media (max-width:520px){h1{font-size:1.6rem}.partrow{grid-template-columns:1fr 1fr}.partrow button{grid-column:1/-1}section.panel{padding:14px}.sheet{padding:16px}}
 /* barcode scanning (scanner.js) */
-.invsearchrow{display:flex;gap:8px;align-items:flex-end}.invsearchrow .invsearch{flex:1;min-width:0}
+/* search box on its own line; Scan, Bulk scan, Suppliers in an even row under it (one line on wide screens) */
+.invsearchrow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end}.invsearchrow .invsearch{grid-column:1/-1;min-width:0}
+.invsearchrow>button{min-width:0;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.invsearchrow>button{padding-left:6px;padding-right:6px}.invsearchrow>button svg{flex:none}
+.invsearchrow .invsup{border-color:var(--line);color:var(--steel);background:transparent}
+@media (max-width:380px){.invsearchrow>button{font-size:.8rem;gap:4px;padding-left:4px;padding-right:4px}}
+@media (min-width:720px){.invsearchrow{grid-template-columns:minmax(0,1fr) auto auto auto}.invsearchrow .invsearch{grid-column:auto}}
 .invscan{min-height:44px;flex:none}.invscan.alt{border-color:var(--accent);color:var(--accent);background:transparent}
 .bcchip{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:999px;padding:0 0 0 12px;background:var(--surface-2);font-size:.88rem}
 .bcchip button{min-height:36px;width:36px;padding:0;justify-content:center;font-size:1.1rem}
@@ -1372,7 +1378,7 @@ function renderInventory(kt,wire){
       ${nOrd?`<div class="istat"><small>Ordered</small><b>${nOrd}</b></div>`:""}
       <div class="istat"><small>Value</small><b>${value?money(value):"—"}</b></div></div>
     ${forSel}${forBar}
-    <div class="invsearchrow"><label class="invsearch">Search parts<input type="search" id="invQ" value="${esc(invQuery)}" placeholder="Name, part #, or what it fits"></label>${scanBtn("invScan")}${scanBtn("invBulk","Bulk scan",true)}<button type="button" class="ghost" id="invSuppliers">Suppliers${suppliers.length?` (${suppliers.length})`:""}</button></div>
+    <div class="invsearchrow"><label class="invsearch">Search parts<input type="search" id="invQ" value="${esc(invQuery)}" placeholder="Name, part #, or what it fits"></label>${scanBtn("invScan")}${scanBtn("invBulk","Bulk scan",true)}<button type="button" class="invsup" id="invSuppliers">Suppliers${suppliers.length?` (${suppliers.length})`:""}</button></div>
     <div class="chips">${cats.map(c=>`<button class="fchip" data-cat="${esc(c)}" aria-pressed="${c===invFilter}">${esc(c)}</button>`).join("")}</div>
     <div class="ilist">${shown.length?shown.map(p=>{const fits=[...allFits(p).map(nameOf).filter(Boolean),...fitsTyped(p)];const sp=supplierOf(p);
       return `<article class="iitem ${isOrdered(p)?"ordered":isLow(p)?"low":""}">
