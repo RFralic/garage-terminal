@@ -132,6 +132,7 @@ describe("a member using the owner's data", () => {
     await assertSucceeds(setDoc(doc(db, 'logbook', 'ryan', 'trackerSettings', 'customers'), { list: [] }));
     await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'trackerSettings', 'shop'), { name: 'Hacked', rate: 1 }));
     await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'trackerSettings', 'team'), { on: false }));
+    await assertFails(setDoc(doc(db, 'logbook', 'ryan', 'trackerSettings', 'suppliers'), { list: [{ id: 's1', name: 'NAPA' }] })); // no inventory permission
     // machines yes, inventory only the count
     await assertSucceeds(setDoc(doc(db, 'logbook', 'ryan', 'records', 'e2'), engine));
     await assertSucceeds(setDoc(doc(db, 'logbook', 'ryan', 'records', 'e1'), { ...engine, log: [{ date: '2026-11-25' }] }));
@@ -161,6 +162,7 @@ describe("a member using the owner's data", () => {
     await assertSucceeds(setDoc(doc(db, 'logbook', 'ryan', 'records', 'p1'), { name: 'Renamed' }, { merge: true }));
     await assertSucceeds(deleteDoc(doc(db, 'logbook', 'ryan', 'records', 'p2')));
     await assertSucceeds(setDoc(doc(db, 'logbook', 'ryan', 'trackerSettings', 'shop'), { name: "Ryan's Small Engine", rate: 70 }));
+    await assertSucceeds(setDoc(doc(db, 'logbook', 'ryan', 'trackerSettings', 'suppliers'), { list: [{ id: 's1', name: 'NAPA' }] })); // has inventory permission
     await assertSucceeds(deleteDoc(doc(db, 'logbook', 'ryan', 'projects', 'j1')));
     await assertFails(getDoc(doc(db, 'logbook', 'ryan', 'trackerSettings', 'team')));
   });

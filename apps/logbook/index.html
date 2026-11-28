@@ -249,6 +249,7 @@ button.stk{flex:none;background:transparent;min-height:32px;padding:3px 9px;curs
 .imeta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.82rem;color:var(--muted)}
 .tag.reorder{color:var(--warn);border-color:var(--warn)}
 .tag.ordered{color:var(--steel);border-color:var(--steel)}
+.tag.sup{color:var(--accent);border-color:var(--accent);text-transform:none;letter-spacing:.02em;font-size:.78rem}
 .iitem.ordered{border-left:4px solid var(--steel)}
 .iord{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:.9rem}
 .iord .late{color:var(--accent);font-weight:600}
@@ -258,6 +259,13 @@ button.stk{flex:none;background:transparent;min-height:32px;padding:3px 9px;curs
 .iordf{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .iordf label{display:flex;flex-direction:column;gap:4px}
 .iord .actions{margin:0}
+.leadchoice{display:flex;flex-direction:column;gap:6px;margin:4px 0}
+.radiorow{display:flex;align-items:flex-start;gap:8px;font-size:.9rem}
+.radiorow input{width:auto;min-width:0;margin-top:3px}
+.supfield{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;text-align:left;background:var(--surface-2)}
+.supopt{text-align:left;align-items:flex-start;gap:4px}
+.supopt .imeta{font-size:.82rem}
+.supopt[aria-pressed="true"]{border-color:var(--accent)}
 .ifits{font-size:.85rem;border-top:1px solid var(--line);padding-top:6px}.ifits span{color:var(--steel);font-weight:500}
 .scanbox{display:grid;gap:10px;background:var(--surface-2);border:1px dashed var(--steel);border-radius:6px;padding:14px}
 .backup{margin-top:28px;border-top:1px solid var(--line);padding-top:16px;display:grid;gap:10px}
@@ -622,9 +630,12 @@ async function init(){
     if(unsub){unsub();unsub=null}
     jbUnsubs.forEach(f=>{try{f()}catch(x){}});jbUnsubs=[];custList=[];jobList=[];jbLoaded=false;
     currentUser=user;drawWho();
-    if(!user){if(!offline){signedOut=true;engines=[];view={id:null,tab:"specs"};draft=null;render()}return}
+    if(!user){if(!offline){signedOut=true;engines=[];suppliers=[];suppliersRef=null;view={id:null,tab:"specs"};draft=null;render()}return}
     signedOut=false;offline=false;showBanner("");
     col=FB.records(user.uid);
+    if(FB.settings){suppliersRef=FB.settings(user.uid).doc("suppliers");
+      jbUnsubs.push(suppliersRef.onSnapshot(s=>{const v=s.exists?(s.data()||{}):null;suppliers=v&&Array.isArray(v.list)?v.list.filter(x=>x&&x.id):[];
+        if(!editing&&!partEdit&&!sheet&&!supUI&&!supPick)render()},()=>{}))}
     const local=lsLoad();if(local.length)offerImport(local);
     const slow=setTimeout(()=>showBanner("Still connecting… your records will appear when the connection comes back."),10000);
     unsub=col.onSnapshot(snap=>{
@@ -699,6 +710,8 @@ window.addEventListener("popstate",ev=>{const s=ev.state;
   else if(scanRes)closeScanSheet();
   else if(bulk){bulk=null;closeBulk()}
   else if(sheet)closeSheet();
+  else if(supPick)closeSupplierPicker();
+  else if(supUI)closeSupplierList();
   else closed=false;
   if(closed){try{history.pushState({...navSnap(),prevK:s&&s.gtl?s.k:null},"")}catch(e){}return}
   if(!s||!s.gtl||signedOut)return;
@@ -1232,6 +1245,24 @@ let invOrd=null;
 const isOrdered=p=>!!(p&&p.order&&p.order.on);
 const orderLate=p=>isOrdered(p)&&p.order.expected&&p.order.expected<today();
 const orderQtyGuess=p=>{const r=parseFloat(p.reorderAt);const need=isNaN(r)?1:Math.max(1,Math.ceil(r-qtyN(p)+1));return need};
+/* ---------- suppliers ----------
+   One list on the account: settings/suppliers = {list:[{id,name,contact,account,phone,email,website,leadMin,leadMax,notes,createdAt}]}.
+   A part can point at one (part.supplierId). Typical lead time (days) fills in a Mark-ordered "Expected" date
+   automatically (part.order.auto=true), unless a specific date is entered instead. Mirrors Job_Board's Customers
+   (settings/customers), but this list belongs to the Logbook and is read/write here. */
+let suppliers=[], suppliersRef=null;
+let supUI=null;   // {mode:"list"|"edit", q:"", edit:{isNew,d,confirmDel}|null, returnTo:"part"|null} while the Suppliers sheet is open
+let supPick=null; // {q:""} while the small "choose a supplier" sheet (from a part) is open
+const supplierOf=p=>p&&p.supplierId?suppliers.find(s=>s.id===p.supplierId):null;
+const partsForSupplier=sid=>partsOf().filter(p=>p.supplierId===sid);
+function saveSuppliers(){if(!suppliersRef)return;suppliersRef.set({list:JSON.parse(JSON.stringify(suppliers))}).catch(()=>showToast("Couldn't save the supplier list"))}
+const leadTxt=s=>{if(!s)return"";const a=parseInt(s.leadMin,10)||0,b=parseInt(s.leadMax,10)||0;const n=a||b;if(!n)return"";
+  return a&&b&&b!==a?`${a}–${b} days`:`${n} day${n===1?"":"s"}`};
+const addDays=(dstr,n)=>{const d=dstr?new Date(dstr+"T00:00:00"):new Date();d.setDate(d.getDate()+(n||0));
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+/* The auto-computed expected window from a supplier's typical lead time: [soonest, latest], both from today. */
+const leadWindow=s=>{const a=parseInt(s&&s.leadMin,10)||0,b=parseInt(s&&s.leadMax,10)||a;if(!a&&!b)return null;
+  return {min:addDays(today(),a||b),max:addDays(today(),b||a)}};
 /* invFor: show only the parts for one engine / vehicle (the spec sheet's "Go to inventory" sets it).
    While it's set, parts you add, scan in or bulk scan are tagged to that machine. */
 let invFor=(()=>{try{return localStorage.getItem("inv-for")||""}catch(e){return""}})();
@@ -1292,15 +1323,25 @@ const qtyStr=n=>String(Math.round(Math.max(0,n)*100)/100);
 const isLow=p=>p.reorderAt!==""&&p.reorderAt!=null&&!isNaN(parseFloat(p.reorderAt))&&qtyN(p)<=parseFloat(p.reorderAt);
 /* The reorder strip on an inventory card: a Mark ordered button, the order's dates with Received, or the small form for either. */
 function ordRow(p){if(!invEditOk)return"";const id=esc(p.id),u=unitOf(p),uw=u?" "+u:"";
-  if(invOrd&&invOrd.id===p.id&&invOrd.mode==="order")return `<div class="iord form"><b>Mark ordered</b>
-    <div class="iordf"><label>How many<input id="ord-qty" class="pn" inputmode="decimal" value="${esc(String(invOrd.qty))}"></label><label>Expected (optional)<input id="ord-exp" type="date" value="${esc(invOrd.expected||"")}"></label></div>
-    <div class="actions"><button type="button" class="primary" data-ordsave="${id}">Mark ordered</button><button type="button" class="ghost" data-ordcancel="1">Cancel</button></div></div>`;
+  if(invOrd&&invOrd.id===p.id&&invOrd.mode==="order"){
+    const sp=supplierOf(p),lw=sp&&leadWindow(sp),useDate=!!invOrd.useDate||!lw;
+    const expBlock=lw?`<div class="leadchoice">
+        <label class="radiorow"><input type="radio" name="ord-expmode" data-expmode="auto" ${useDate?"":"checked"}><span>Expected ${lw.min===lw.max?esc(fmtDate(lw.max)):`${esc(fmtDate(lw.min))}–${esc(fmtDate(lw.max))}`} <small class="muted">— ${esc(sp.name||"this supplier")}'s typical lead time${leadTxt(sp)?` (${esc(leadTxt(sp))})`:""}</small></span></label>
+        <label class="radiorow"><input type="radio" name="ord-expmode" data-expmode="date" ${useDate?"checked":""}><span>Pick a specific date</span></label>
+        <input id="ord-exp" type="date" value="${esc(invOrd.expected||"")}" ${useDate?"":"hidden"}></div>`
+      :`<label>Expected (optional)<input id="ord-exp" type="date" value="${esc(invOrd.expected||"")}"></label>`;
+    return `<div class="iord form"><b>Mark ordered</b>
+    <div class="iordf"><label>How many<input id="ord-qty" class="pn" inputmode="decimal" value="${esc(String(invOrd.qty))}"></label></div>
+    ${expBlock}
+    <div class="actions"><button type="button" class="primary" data-ordsave="${id}">Mark ordered</button><button type="button" class="ghost" data-ordcancel="1">Cancel</button></div></div>`}
   if(invOrd&&invOrd.id===p.id&&invOrd.mode==="recv")return `<div class="iord form"><b>Received</b>
     <div class="iordf"><label>How many came in${uw?` (${esc(u)})`:""}<input id="ord-got" class="pn" inputmode="decimal" value="${esc(String(invOrd.got))}"></label></div>
     <small class="muted">Adds them to On hand (${esc(qtyTxt(p))} now).</small>
     <div class="actions"><button type="button" class="primary" data-ordrecv="${id}">Add to On hand</button><button type="button" class="ghost" data-ordcancel="1">Cancel</button></div></div>`;
-  if(isOrdered(p)){const o=p.order,late=orderLate(p);
-    return `<div class="iord"><span class="${late?"late":"muted"}">Ordered ${esc(fmtDate(o.on))}${o.expected?` · ${late?"Late: expected":"Expected"} ${esc(fmtDate(o.expected))}`:""}</span>
+  if(isOrdered(p)){const o=p.order,late=orderLate(p),sp=supplierOf(p);
+    const expTxt=o.auto?`Expected ${o.expectedMin&&o.expectedMin!==o.expected?`${esc(fmtDate(o.expectedMin))}–${esc(fmtDate(o.expected))}`:esc(fmtDate(o.expected))}${sp?` (${esc(sp.name)}'s lead time)`:" (auto)"}`
+      :o.expected?`${late?"Late: expected":"Expected"} ${esc(fmtDate(o.expected))}`:"";
+    return `<div class="iord"><span class="${late?"late":"muted"}">Ordered ${esc(fmtDate(o.on))}${expTxt?` · ${expTxt}`:""}</span>
       <span class="iordb"><button type="button" class="ghost sm" data-ordundo="${id}" aria-label="Not ordered after all: ${esc(p.name||"part")}">Not ordered</button><button type="button" class="sm" data-ordgot="${id}">✓ Received</button></span></div>`}
   if(isLow(p))return `<div class="iord"><span class="muted">At or below ${esc(p.reorderAt)}${uw}: time to reorder</span><button type="button" class="sm" data-ordmark="${id}">Mark ordered</button></div>`;
   return ""}
@@ -1315,9 +1356,9 @@ function renderInventory(kt,wire){
   const forSel=ms.length?`<label class="invfor">Show parts for<select id="invFor"><option value="">Everything</option>${ms.map(m=>`<option value="${esc(m.id)}" ${m.id===invFor?"selected":""}>${esc(dname(m))}</option>`).join("")}</select></label>`:"";
   const forBar=fn?`<div class="forbar" role="status"><span>Showing parts for <b>${esc(fn)}</b>. Parts you add or scan here are tagged to it.</span><button type="button" class="ghost" id="forAll">Show all parts</button></div>`:"";
   const wireFor=()=>{const s=$("#invFor");if(s)s.onchange=()=>{setInvFor(s.value);render()};const a=$("#forAll");if(a)a.onclick=()=>{setInvFor("");render()}};
-  if(!all.length&&fn){app.innerHTML=kt+`<div class="inv">${forSel}${forBar}<div class="empty"><h2>No parts for ${esc(fn)} yet</h2><p class="muted">Add or scan its filters, plugs and belts here and they're tagged to it.</p><div class="actions" style="justify-content:center"><button class="primary" id="addEmpty">+ Add part</button>${scanBtn("invScan","Scan a barcode",true)}${scanBtn("invBulk","Bulk scan",true)}</div></div></div>`;
-    $("#addEmpty").onclick=()=>openPart(null);if($("#invScan"))$("#invScan").onclick=startScan;if($("#invBulk"))$("#invBulk").onclick=startBulk;wireFor();wire();return}
-  if(!all.length){app.innerHTML=kt+`<div class="empty"><h2>No spare parts yet</h2><p class="muted">Keep a list of the filters, plugs, belts and fluids on your shelf.</p><div class="actions" style="justify-content:center"><button class="primary" id="addEmpty">+ Add part</button>${scanBtn("invScan","Scan a barcode",true)}${scanBtn("invBulk","Bulk scan",true)}</div></div>`;$("#addEmpty").onclick=()=>openPart(null);if($("#invScan"))$("#invScan").onclick=startScan;if($("#invBulk"))$("#invBulk").onclick=startBulk;wire();return}
+  if(!all.length&&fn){app.innerHTML=kt+`<div class="inv">${forSel}${forBar}<div class="empty"><h2>No parts for ${esc(fn)} yet</h2><p class="muted">Add or scan its filters, plugs and belts here and they're tagged to it.</p><div class="actions" style="justify-content:center"><button class="primary" id="addEmpty">+ Add part</button>${scanBtn("invScan","Scan a barcode",true)}${scanBtn("invBulk","Bulk scan",true)}<button type="button" class="ghost" id="invSuppliers">Suppliers</button></div></div></div>`;
+    $("#addEmpty").onclick=()=>openPart(null);if($("#invScan"))$("#invScan").onclick=startScan;if($("#invBulk"))$("#invBulk").onclick=startBulk;if($("#invSuppliers"))$("#invSuppliers").onclick=openSupplierList;wireFor();wire();return}
+  if(!all.length){app.innerHTML=kt+`<div class="empty"><h2>No spare parts yet</h2><p class="muted">Keep a list of the filters, plugs, belts and fluids on your shelf.</p><div class="actions" style="justify-content:center"><button class="primary" id="addEmpty">+ Add part</button>${scanBtn("invScan","Scan a barcode",true)}${scanBtn("invBulk","Bulk scan",true)}<button type="button" class="ghost" id="invSuppliers">Suppliers</button></div></div>`;$("#addEmpty").onclick=()=>openPart(null);if($("#invScan"))$("#invScan").onclick=startScan;if($("#invBulk"))$("#invBulk").onclick=startBulk;if($("#invSuppliers"))$("#invSuppliers").onclick=openSupplierList;wire();return}
   const low=all.filter(isLow).length, nOrd=all.filter(isOrdered).length, value=all.reduce((s,p)=>s+costN(p)*qtyN(p),0);
   const q=invQuery.trim().toLowerCase();
   const shown=all.filter(p=>(invFilter==="All"||(invFilter==="To reorder"?isLow(p)&&!isOrdered(p):invFilter==="Ordered"?isOrdered(p):p.category===invFilter))&&
@@ -1331,13 +1372,13 @@ function renderInventory(kt,wire){
       ${nOrd?`<div class="istat"><small>Ordered</small><b>${nOrd}</b></div>`:""}
       <div class="istat"><small>Value</small><b>${value?money(value):"—"}</b></div></div>
     ${forSel}${forBar}
-    <div class="invsearchrow"><label class="invsearch">Search parts<input type="search" id="invQ" value="${esc(invQuery)}" placeholder="Name, part #, or what it fits"></label>${scanBtn("invScan")}${scanBtn("invBulk","Bulk scan",true)}</div>
+    <div class="invsearchrow"><label class="invsearch">Search parts<input type="search" id="invQ" value="${esc(invQuery)}" placeholder="Name, part #, or what it fits"></label>${scanBtn("invScan")}${scanBtn("invBulk","Bulk scan",true)}<button type="button" class="ghost" id="invSuppliers">Suppliers${suppliers.length?` (${suppliers.length})`:""}</button></div>
     <div class="chips">${cats.map(c=>`<button class="fchip" data-cat="${esc(c)}" aria-pressed="${c===invFilter}">${esc(c)}</button>`).join("")}</div>
-    <div class="ilist">${shown.length?shown.map(p=>{const fits=[...allFits(p).map(nameOf).filter(Boolean),...fitsTyped(p)];
+    <div class="ilist">${shown.length?shown.map(p=>{const fits=[...allFits(p).map(nameOf).filter(Boolean),...fitsTyped(p)];const sp=supplierOf(p);
       return `<article class="iitem ${isOrdered(p)?"ordered":isLow(p)?"low":""}">
         <div class="irow"><button class="iname" data-edit="${esc(p.id)}"><b>${esc(p.name||"Unnamed part")}</b><span class="mono">${esc([p.brand,p.number].filter(Boolean).join(" "))||"No part #"}</span></button>
           <div class="stepper"><button aria-label="Use one" data-dq="-1" data-id="${esc(p.id)}" ${qtyN(p)<=0?"disabled":""}>−</button><span class="mono">${esc(qtyTxt(p))}</span><button aria-label="Add one" data-dq="1" data-id="${esc(p.id)}">+</button></div></div>
-        <div class="imeta">${p.category?`<span class="tag">${esc(p.category)}</span>`:""}${plugLink(p.number,p.name,p.category).replace(" <a"," <a style=\"margin-left:0\"")}${p.location?`<span>${esc(p.location)}</span>`:""}${isOrdered(p)?`<span class="tag ordered">Ordered${p.order.qty?" "+esc(p.order.qty):""}</span>`:isLow(p)?`<span class="tag reorder">Reorder</span>`:""}${(p.receipts||[]).length?`<span>${p.receipts.length} receipt${p.receipts.length>1?"s":""}</span>`:""}</div>
+        <div class="imeta">${p.category?`<span class="tag">${esc(p.category)}</span>`:""}${plugLink(p.number,p.name,p.category).replace(" <a"," <a style=\"margin-left:0\"")}${p.location?`<span>${esc(p.location)}</span>`:""}${isOrdered(p)?`<span class="tag ordered">Ordered${p.order.qty?" "+esc(p.order.qty):""}</span>`:isLow(p)?`<span class="tag reorder">Reorder</span>`:""}${sp?`<span class="tag sup">${esc(sp.name)}</span>`:""}${(p.receipts||[]).length?`<span>${p.receipts.length} receipt${p.receipts.length>1?"s":""}</span>`:""}</div>
         ${(p.warranty||"").trim()?`<div class="iwarr">Warranty: <span>${esc(p.warranty)}</span></div>`:""}
         ${fits.length?`<div class="ifits">Fits: <span>${esc(fits.join(", "))}</span></div>`:""}
         ${ordRow(p)}
@@ -1345,6 +1386,7 @@ function renderInventory(kt,wire){
   const qi=$("#invQ");qi.addEventListener("input",()=>{invQuery=qi.value;clearTimeout(qi._t);qi._t=setTimeout(()=>{render();const n=$("#invQ");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}},250)});
   if($("#invScan"))$("#invScan").onclick=startScan;
   if($("#invBulk"))$("#invBulk").onclick=startBulk;
+  if($("#invSuppliers"))$("#invSuppliers").onclick=openSupplierList;
   wireFor();
   app.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{invFilter=b.dataset.cat;render()});
   app.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openPart(engines.find(e=>e.id===b.dataset.edit)));
@@ -1354,15 +1396,19 @@ function renderInventory(kt,wire){
     try{await saveEngine(nx)}catch(err){showBanner("Couldn't update the count: "+(err.message||err.code))}});
   const pOf=id=>engines.find(e=>e.id===id);
   const focusOrd=()=>{const f=$("#ord-qty")||$("#ord-got");if(f){f.focus();f.select&&f.select()}};
-  app.querySelectorAll("[data-ordmark]").forEach(b=>b.onclick=()=>{const p=pOf(b.dataset.ordmark);if(!p)return;invOrd={id:p.id,mode:"order",qty:orderQtyGuess(p),expected:""};render();focusOrd()});
+  app.querySelectorAll("[data-ordmark]").forEach(b=>b.onclick=()=>{const p=pOf(b.dataset.ordmark);if(!p)return;invOrd={id:p.id,mode:"order",qty:orderQtyGuess(p),expected:"",useDate:false};render();focusOrd()});
   app.querySelectorAll("[data-ordgot]").forEach(b=>b.onclick=()=>{const p=pOf(b.dataset.ordgot);if(!p)return;invOrd={id:p.id,mode:"recv",got:p.order.qty||1};render();focusOrd()});
   app.querySelectorAll("[data-ordcancel]").forEach(b=>b.onclick=()=>{invOrd=null;render()});
+  app.querySelectorAll("[data-expmode]").forEach(r=>r.onchange=()=>{if(!invOrd)return;invOrd.useDate=r.dataset.expmode==="date";render()});
   app.querySelectorAll("[data-ordundo]").forEach(b=>b.onclick=async()=>{const p=pOf(b.dataset.ordundo);if(!p)return;const {order,...rest}=p;
     try{await saveEngine(rest);render()}catch(err){showBanner("Couldn't update it: "+(err.message||err.code))}});
   app.querySelectorAll("[data-ordsave]").forEach(b=>b.onclick=async()=>{const p=pOf(b.dataset.ordsave);if(!p)return;
-    const n=parseFloat(($("#ord-qty").value||"").replace(",","."));const exp=$("#ord-exp").value||"";
+    const n=parseFloat(($("#ord-qty").value||"").replace(",","."));
+    const sp=supplierOf(p),lw=sp&&leadWindow(sp),useDate=!!(invOrd&&invOrd.useDate)||!lw;
+    const order=useDate?{on:today(),qty:n>0?Math.round(n*100)/100:"",expected:$("#ord-exp").value||""}
+      :{on:today(),qty:n>0?Math.round(n*100)/100:"",expected:lw.max,expectedMin:lw.min,auto:true};
     b.disabled=true;invOrd=null;
-    try{await saveEngine({...p,order:{on:today(),qty:n>0?Math.round(n*100)/100:"",expected:exp}});render()}catch(err){showBanner("Couldn't mark it ordered: "+(err.message||err.code))}});
+    try{await saveEngine({...p,order});render()}catch(err){showBanner("Couldn't mark it ordered: "+(err.message||err.code))}});
   app.querySelectorAll("[data-ordrecv]").forEach(b=>b.onclick=async()=>{const p=pOf(b.dataset.ordrecv);if(!p)return;
     const g=parseFloat(($("#ord-got").value||"").replace(",","."));if(!(g>0)){const f=$("#ord-got");f.focus();return}
     const {order,...rest}=p;b.disabled=true;invOrd=null;
@@ -1401,6 +1447,10 @@ function renderPartEdit(){
       <label>Where to buy<input id="p-source" value="${esc(d.source)}" placeholder="Store or website"></label>
       <label class="span2">Warranty<input id="p-warranty" value="${esc(d.warranty||"")}" placeholder="e.g. 2 yr from install · keep the receipt" maxlength="200"></label>
     </div>
+    <div class="parts"><h3>Supplier</h3>${(()=>{const sp=supplierOf(d);return sp
+        ?`<button type="button" class="supfield" id="pSupPick"><span class="tag sup">${esc(sp.name)}</span>${leadTxt(sp)?`<small class="muted">Typical lead time: ${esc(leadTxt(sp))}</small>`:""}</button>`
+        :`<button type="button" class="supfield" id="pSupPick"><span class="muted">Choose a supplier…</span></button>`})()}
+      <p class="muted" style="margin:0;font-size:.82rem">Fills in the expected date when you mark this part ordered, unless you pick a specific date instead.</p></div>
     <div class="parts"><h3>Barcodes</h3>${(d.barcodes||[]).length?`<div class="chips">${d.barcodes.map((b,i)=>`<span class="bcchip"><span class="mono">${esc(b)}</span><button class="ghost" data-rmbc="${i}" aria-label="Remove barcode ${esc(b)}">×</button></span>`).join("")}</div>`:""}
       <p class="muted" style="margin:0;font-size:.82rem">Store barcodes (UPC) from the packaging. Scanning one finds this part.</p>
       ${window.GTScan?`<div><button id="pAddBc">+ Scan a barcode</button></div>`:""}</div>
@@ -1428,6 +1478,7 @@ function renderPartEdit(){
    if(cat&&un){cat.addEventListener("change",sync);un.addEventListener("change",sync)}}
   app.querySelectorAll("[data-fit]").forEach(b=>b.onclick=()=>{pull();const id=b.dataset.fit;d.fits=d.fits||[];
     d.fits=d.fits.includes(id)?d.fits.filter(x=>x!==id):[...d.fits,id];renderPartEdit()});
+  if($("#pSupPick"))$("#pSupPick").onclick=()=>{pull();openSupplierPicker()};
   app.querySelectorAll("[data-rmbc]").forEach(b=>b.onclick=()=>{pull();d.barcodes=(d.barcodes||[]).filter((_,i)=>i!==+b.dataset.rmbc);renderPartEdit()});
   app.querySelectorAll("[data-rmalt]").forEach(b=>b.onclick=()=>{pull();d.alts=(d.alts||[]).filter((_,i)=>i!==+b.dataset.rmalt);renderPartEdit()});
   {const inp=$("#p-altnew"),add=()=>{const v=inp.value.trim().replace(/\s+/g," ").slice(0,60);if(!v)return;pull();
@@ -1479,6 +1530,92 @@ function renderPartEdit(){
   $("#camIn").onchange=onFile;$("#picIn").onchange=onFile;
   if(scanBusy){$("#scanBtn").disabled=true;$("#pickBtn").disabled=true}
   sampleReady().then(ok=>{if(!ok&&$("#scanBox")){$("#scanBtn").hidden=true;$("#pickBtn").hidden=true;$("#scanMsg").textContent="Reading photos isn't available in this view. Sign in to claude.ai to use it, or type the part number in."}});
+}
+/* ---------- suppliers: list, add/edit, and the small picker used from a part's Supplier field ---------- */
+function openSupplierList(){if(!invEditOk){showToast("Your role can't manage suppliers. Ask the owner or a manager.");return}supUI={mode:"list",q:"",edit:null,returnTo:null};renderSupUI()}
+function closeSupplierList(){supUI=null;const w=$("#supUIWrap");if(w)w.remove();if(!supPick)document.body.classList.remove("sheet-open")}
+function openSupplierEdit(s,opts){opts=opts||{};if(!invEditOk){showToast("Your role can't manage suppliers. Ask the owner or a manager.");return}
+  supUI={mode:"edit",q:(supUI&&supUI.q)||"",returnTo:opts.returnTo||null,
+    edit:{isNew:!s,confirmDel:false,d:s?JSON.parse(JSON.stringify(s)):{id:uid(),name:"",contact:"",account:"",phone:"",email:"",website:"",leadMin:"",leadMax:"",notes:"",createdAt:new Date().toISOString()}}};
+  renderSupUI()}
+function renderSupUI(){
+  const old=$("#supUIWrap");if(old)old.remove();if(!supUI)return;
+  document.body.classList.add("sheet-open");
+  const w=document.createElement("div");w.className="sheetwrap";w.id="supUIWrap";
+  if(supUI.mode==="edit"){
+    const ed=supUI.edit,s=ed.d;
+    w.innerHTML=`<form class="sheet" id="supForm" role="dialog" aria-modal="true" aria-labelledby="supTitle">
+      <div class="sheethead"><div><small>Supplier</small><h2 id="supTitle">${ed.isNew?"Add a supplier":esc(s.name||"Edit supplier")}</h2></div><button type="button" class="ghost" id="supClose" aria-label="Close">×</button></div>
+      <div class="fields">
+        <label class="span2">Name<input id="s-name" value="${esc(s.name)}" placeholder="NAPA Auto Parts"></label>
+        <label>Contact person<input id="s-contact" value="${esc(s.contact)}" placeholder="Optional"></label>
+        <label>Account #<input id="s-account" class="pn" value="${esc(s.account)}" placeholder="Optional"></label>
+        <label>Phone<input id="s-phone" type="tel" value="${esc(s.phone)}"></label>
+        <label>Email<input id="s-email" type="email" value="${esc(s.email)}"></label>
+        <label class="span2">Website<input id="s-website" value="${esc(s.website)}" placeholder="Optional"></label>
+      </div>
+      <div class="parts"><h3>Typical lead time</h3>
+        <div class="iordf"><label>Min days<input id="s-leadMin" class="pn" inputmode="numeric" value="${esc(s.leadMin)}" placeholder="3"></label><label>Max days<input id="s-leadMax" class="pn" inputmode="numeric" value="${esc(s.leadMax)}" placeholder="5"></label></div>
+        <p class="muted" style="margin:0;font-size:.82rem">Used to fill in "Expected" on Mark ordered, unless a specific date is entered for that order.</p></div>
+      ${!ed.isNew?`<div class="parts"><h3>Parts from this supplier</h3><p class="muted" style="margin:0;font-size:.9rem">${partsForSupplier(s.id).length} part${partsForSupplier(s.id).length===1?"":"s"}</p></div>`:""}
+      <label class="span2">Notes<textarea id="s-notes" placeholder="Hours, ordering tips, account rep">${esc(s.notes)}</textarea></label>
+      <div class="actions"><button type="button" class="primary" id="supSave">Save supplier</button><button type="button" id="supCancel">Cancel</button><span style="flex:1"></span>
+        ${ed.isNew?"":ed.confirmDel?`<span class="confirm">Remove this supplier? <button type="button" class="danger" id="supDelYes">Remove</button><button type="button" id="supDelNo">Keep</button></span>`:`<button type="button" class="danger" id="supDel">Remove supplier</button>`}</div>
+    </form>`;
+    document.body.appendChild(w);
+    $("#supClose").onclick=closeSupplierList;
+    $("#supCancel").onclick=()=>{if(ed.returnTo==="part")closeSupplierList();else openSupplierList()};
+    $("#supSave").onclick=()=>{
+      ["name","contact","account","phone","email","website","leadMin","leadMax","notes"].forEach(f=>{const el=$("#s-"+f);if(el)s[f]=el.value.trim()});
+      if(!s.name){const n=$("#s-name");n.focus();return}
+      const i=suppliers.findIndex(x=>x.id===s.id);if(i<0)suppliers.push(s);else suppliers[i]=s;
+      saveSuppliers();
+      if(ed.returnTo==="part"){const back=partEdit;closeSupplierList();if(back){back.d.supplierId=s.id;if(partEdit===back)renderPartEdit()}}
+      else openSupplierList()};
+    if($("#supDel"))$("#supDel").onclick=()=>{ed.confirmDel=true;renderSupUI()};
+    if($("#supDelNo"))$("#supDelNo").onclick=()=>{ed.confirmDel=false;renderSupUI()};
+    if($("#supDelYes"))$("#supDelYes").onclick=()=>{suppliers=suppliers.filter(x=>x.id!==s.id);saveSuppliers();
+      partsOf().filter(p=>p.supplierId===s.id).forEach(p=>{saveEngine({...p,supplierId:""}).catch(()=>{})});
+      openSupplierList()};
+    return}
+  const q=supUI.q.trim().toLowerCase();
+  const list=suppliers.filter(s=>!q||[s.name,s.contact,s.phone].join(" ").toLowerCase().includes(q)).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+  w.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="supListTitle">
+    <div class="sheethead"><div><small>Garage inventory</small><h2 id="supListTitle">Suppliers</h2></div><button type="button" class="ghost" id="supListClose" aria-label="Close">×</button></div>
+    <div class="invsearchrow"><label class="invsearch">Search suppliers<input type="search" id="supListQ" value="${esc(supUI.q)}" placeholder="Name, contact or phone"></label><button type="button" class="primary" id="supNew">+ Add a supplier</button></div>
+    <div class="ilist">${list.length?list.map(s=>`<button type="button" class="iitem supopt" data-sup="${esc(s.id)}"><b>${esc(s.name||"Unnamed supplier")}</b>
+        <div class="imeta">${s.contact?`<span>${esc(s.contact)}</span>`:""}${leadTxt(s)?`<span>${esc(leadTxt(s))} lead time</span>`:""}<span>${partsForSupplier(s.id).length} part${partsForSupplier(s.id).length===1?"":"s"}</span></div></button>`).join("")
+      :`<div class="empty"><h2>No suppliers yet</h2><p class="muted">Add the shops and warehouses you order parts from.</p></div>`}</div>
+  </div>`;
+  document.body.appendChild(w);
+  $("#supListClose").onclick=closeSupplierList;
+  $("#supNew").onclick=()=>openSupplierEdit(null,{});
+  w.querySelectorAll("[data-sup]").forEach(b=>b.onclick=()=>openSupplierEdit(suppliers.find(s=>s.id===b.dataset.sup),{}));
+  const qi=$("#supListQ");qi.oninput=()=>{supUI.q=qi.value;renderSupUI();const n=$("#supListQ");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}};
+}
+function openSupplierPicker(){supPick={q:""};renderSupplierPicker()}
+function closeSupplierPicker(){supPick=null;const w=$("#supPickWrap");if(w)w.remove();if(!supUI)document.body.classList.remove("sheet-open")}
+function renderSupplierPicker(){
+  const old=$("#supPickWrap");if(old)old.remove();if(!supPick)return;
+  document.body.classList.add("sheet-open");
+  const q=supPick.q.trim().toLowerCase();
+  const list=suppliers.filter(s=>!q||[s.name,s.contact,s.phone].join(" ").toLowerCase().includes(q)).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+  const w=document.createElement("div");w.className="sheetwrap";w.id="supPickWrap";
+  const cur=partEdit&&partEdit.d.supplierId;
+  w.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="supPickTitle">
+    <div class="sheethead"><div><small>Part</small><h2 id="supPickTitle">Choose a supplier</h2></div><button type="button" class="ghost" id="supPickClose" aria-label="Close">×</button></div>
+    <label class="invsearch" style="margin:10px 0 0">Search suppliers<input type="search" id="supPickQ" value="${esc(supPick.q)}" placeholder="Name or contact"></label>
+    <div class="ilist">${list.length?list.map(s=>`<button type="button" class="iitem supopt" data-sup="${esc(s.id)}" aria-pressed="${s.id===cur}"><b>${esc(s.name||"Unnamed supplier")}</b>
+        <div class="imeta">${s.contact?`<span>${esc(s.contact)}</span>`:""}${leadTxt(s)?`<span>${esc(leadTxt(s))} lead time</span>`:""}</div></button>`).join("")
+      :`<p class="muted">No suppliers yet.</p>`}</div>
+    <div class="actions"><button type="button" class="ghost" id="supPickNew">+ Add a new supplier</button>${cur?`<button type="button" class="ghost" id="supPickClear">Remove supplier</button>`:""}</div>
+  </div>`;
+  document.body.appendChild(w);
+  $("#supPickClose").onclick=closeSupplierPicker;
+  $("#supPickNew").onclick=()=>{closeSupplierPicker();openSupplierEdit(null,{returnTo:"part"})};
+  if($("#supPickClear"))$("#supPickClear").onclick=()=>{if(partEdit)delete partEdit.d.supplierId;closeSupplierPicker();renderPartEdit()};
+  w.querySelectorAll("[data-sup]").forEach(b=>b.onclick=()=>{if(partEdit)partEdit.d.supplierId=b.dataset.sup;closeSupplierPicker();renderPartEdit()});
+  const qi=$("#supPickQ");qi.oninput=()=>{supPick.q=qi.value;renderSupplierPicker();const n=$("#supPickQ");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}};
 }
 /* ---------- barcode scanning (scanner.js) ----------
    Scan button on Inventory: camera or Bluetooth scanner. A scanned code finds a
