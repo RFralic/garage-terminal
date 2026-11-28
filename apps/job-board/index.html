@@ -934,11 +934,12 @@ function renderCustomer(){
   const cms=custMachines(c.id),toLink=js.filter(([,p])=>!p.logbookId&&(p.machine||'').trim());
   const ct=['open','done','machines'].includes(view.ctab)?view.ctab:'open';
   const tb=(t,l,n)=>`<button type="button" data-act="ctab" data-t="${t}" aria-pressed="${ct===t}" style="white-space:nowrap;font-size:13px;letter-spacing:.04em">${l}${n?` <span class="mono" style="opacity:.75">${n}</span>`:''}</button>`;
+  h+=`<div class="grid2"><button type="button" class="btn primary" data-act="newforcust">+ New job</button><button type="button" class="btn primary" data-act="addcm" aria-expanded="${view.editing==='addcm'}">+ Add a machine</button></div>`;
   h+=`<div class="seg" role="group" aria-label="Show" style="margin-top:4px">${tb('open','Open',jOpen.length)}${tb('done','Done',jDone.length)}${tb('machines','Machines',cms.length)}</div>`;
   if(toLink.length&&ct!=='machines')h+=`<button type="button" class="linkbtn small" data-act="ctab" data-t="machines" style="color:var(--warn);align-self:flex-start">${toLink.length} older job${toLink.length===1?'':'s'} to link to a machine →</button>`;
   if(ct==='machines'){
   {
-    h+=`<section><div class="row" style="justify-content:flex-end"><button class="btn sm" data-act="addcm">${view.editing==='addcm'?'Close':'+ Add a machine'}</button></div>`;
+    h+=`<section>`;
     if(view.editing==='addcm')h+=`<form class="panel" data-form="addcm">
       <label class="f">Machine<input id="cm-name" type="text" name="name" required maxlength="120" placeholder="e.g. Craftsman YT3000"></label>
       <label class="f">What is it?${typeSelect()}</label>
@@ -954,7 +955,7 @@ function renderCustomer(){
     h+=`</section>`;}
     return h;
   }
-  h+=`<section>${ct==='open'?'<div class="row" style="justify-content:flex-end"><button class="btn primary sm" data-act="newforcust">+ New job</button></div>':''}`;
+  h+=`<section>`;
   const jcard=([id,p])=>`<button class="card" data-act="open" data-pid="${id}"><div class="plate customer"><b>${esc(projName(p))}</b><span class="mono" style="font-size:14px;letter-spacing:0">${esc(jobLabel(p)||'')}</span></div>
       <div class="body">${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}<div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(statusLabel(p))}</span><span class="price">${pricesOk&&jobTotal(p)?money(jobTotal(p)):''}</span></div></div></button>`;
   const list=ct==='done'?jDone:jOpen;
@@ -1457,7 +1458,7 @@ app.addEventListener('click',async e=>{
   else if(a==='custlist')go({name:'list',tab:'customer',cview:'people'});
   else if(a==='newcust'){const c=newCustomer('','');saveCustomers();go({name:'customer',cid:c.id,editing:'cust',ctab:'open'})}
   else if(a==='editcust'){view.editing='cust';view.confirm=null;render()}
-  else if(a==='addcm'){view.editing=view.editing==='addcm'?null:'addcm';render();const el=document.getElementById('cm-name');if(el)el.focus()}
+  else if(a==='addcm'){view.editing=view.editing==='addcm'?null:'addcm';if(view.name==='customer'&&view.editing)view.ctab='machines';render();const el=document.getElementById('cm-name');if(el)el.focus()}
   else if(a==='linkm'){view.editing=view.editing==='linkm'?null:'linkm';render()}
   else if(a==='canceledit'){const c=custById(view.cid);if(c&&!c.name&&!c.phone&&!jobsOf(c).length){customers=customers.filter(x=>x!==c);saveCustomers();go({name:'list',tab:'customer',cview:'people'})}else{view.editing=null;view.confirm=null;render()}}
   else if(a==='delcust'){view.confirm='delcust';render()}
