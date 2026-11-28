@@ -98,6 +98,10 @@ let projects = null;
 let loadErr = '';
 let unsubs = [];
 let dayLimit = 0; // Job_Board shop info: warn when a day has this many drop-offs (0 = no limit)
+// Job_Board shop info: Pickup and delivery + Delivery fees (the same fields as tracker.html's Settings)
+let del = { delivery: false, delivFees: false, delRate: '', delMin: '', delFree: '', delRound: true };
+const delOn = () => del.delivery === true;
+let delMsg = ''; // last save result, kept across redraws
 
 // ---------- Employees (step 1 of 4: the switch and the team list) ----------
 // Saved at logbook/{owner uid}/trackerSettings/team:
@@ -242,7 +246,7 @@ function listen(uid) {
       if (lastInvites === null && (team.on || team.members.length)) syncShop(); // first load: make sure the invites match the list
       if (tab === 'settings' && !teamEdit) renderSettings();
     }, () => {})] : []),
-    onSnapshot(doc(db, 'logbook', uid, 'trackerSettings', 'shop'), (d) => { const v = d.exists() ? d.data() || {} : {}; dayLimit = +v.dayLimit > 0 ? Math.round(+v.dayLimit) : 0; shopName = String(v.name || ''); if (tab === 'settings') renderSettings(); renderHome(); }, () => {}),
+    onSnapshot(doc(db, 'logbook', uid, 'trackerSettings', 'shop'), (d) => { const v = d.exists() ? d.data() || {} : {}; dayLimit = +v.dayLimit > 0 ? Math.round(+v.dayLimit) : 0; del = { delivery: v.delivery === true, delivFees: v.delivFees === true, delRate: +v.delRate > 0 ? +v.delRate : '', delMin: +v.delMin > 0 ? +v.delMin : '', delFree: +v.delFree > 0 ? +v.delFree : '', delRound: v.delRound !== false }; shopName = String(v.name || ''); if (tab === 'settings') renderSettings(); renderHome(); }, () => {}),
   ];
   if (user && uid === user.uid) {
     unsubs.push(onSnapshot(collection(db, 'shops', uid, 'members'), (q) => {
@@ -361,10 +365,10 @@ function renderSchedule() {
   const tm = (t) => { if (!/^\d{1,2}:\d{2}/.test(t || '')) return ''; const [h, mi] = t.split(':').map(Number); return `${(h % 12) || 12}:${String(mi).padStart(2, '0')}${h < 12 ? 'a' : 'p'}`; };
   const row = ({ t, p, time }) => { const c = p.customer || {}, who = c.name || 'Customer';
     // customer.inBy 'collect' = we pick it up from them; customer.ret 'deliver' = we take it back (Job_Board)
-    const head = t === 'drop' ? (c.inBy === 'collect' ? `Pick up from ${esc(who)}` : `${esc(who)} drops off`) : t === 'pick' ? (c.ret === 'deliver' ? `Deliver to ${esc(who)}` : `${esc(who)} picks up`) : `Promised: ${esc(String(p.title || '').trim() || jobNo(p) || 'Job')}`;
+    const head = t === 'drop' ? (delOn() && c.inBy === 'collect' ? `Pick up from ${esc(who)}` : `${esc(who)} drops off`) : t === 'pick' ? (delOn() && c.ret === 'deliver' ? `Deliver to ${esc(who)}` : `${esc(who)} picks up`) : `Promised: ${esc(String(p.title || '').trim() || jobNo(p) || 'Job')}`;
     const sub = esc([jobNo(p), t === 'prom' ? who : (p.machine || p.title), t === 'drop' ? c.complaint : p.status].filter(Boolean).join(' · '));
     const pill = t === 'drop' ? (p.status === 'Not started' || !p.status ? '<span class="sh-pill steel">Expected</span>' : '<span class="sh-pill ok">In</span>')
-      : t === 'pick' ? (c.ret === 'deliver' ? '<span class="sh-pill ok">Delivery</span>' : '<span class="sh-pill ok">Out</span>') : (day < today ? '<span class="sh-pill over">Overdue</span>' : '<span class="sh-pill warn">Due</span>');
+      : t === 'pick' ? (delOn() && c.ret === 'deliver' ? '<span class="sh-pill ok">Delivery</span>' : '<span class="sh-pill ok">Out</span>') : (day < today ? '<span class="sh-pill over">Overdue</span>' : '<span class="sh-pill warn">Due</span>');
     return `<button type="button" class="sh-card sh-sched ${t === 'pick' ? 'pick' : ''}" data-openjob="${esc(p.id)}"><span class="sh-tm">${t === 'prom' ? 'due' : esc(tm(time) || '—')}</span><span style="flex:1;min-width:0"><b>${head}</b><span class="sh-sub">${sub}</span></span>${pill}</button>`; };
   const limitTxt = dayLimit ? `${dn} of ${dayLimit} drop-offs` : `${dn} drop-off${dn === 1 ? '' : 's'}`;
   box.innerHTML = `<div class="sh-pad sh-schedpage">
@@ -713,8 +717,8 @@ function renderHome() {
   const picksOn = (k) => projects.filter((p) => p && p.kind === 'customer' && p.customer && p.customer.pickup === k && p.status !== 'Done');
   const tm = (t) => { if (!/^\d{1,2}:\d{2}/.test(t || '')) return ''; const [h, mi] = t.split(':').map(Number); return `${(h % 12) || 12}:${String(mi).padStart(2, '0')}${h < 12 ? 'a' : 'p'}`; };
   const todayRows = [
-    ...dropsOn(today).map((p) => ({ t: p.customer.dropTime || '', html: `<b>${p.customer.inBy === 'collect' ? 'Pick up from ' + esc(p.customer.name || 'customer') : esc(p.customer.name || 'Customer') + ' drops off'}</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title].filter(Boolean).join(' · '))}</span>`, pick: false })),
-    ...picksOn(today).map((p) => ({ t: p.customer.pickupTime || '', html: `<b>${p.customer.ret === 'deliver' ? 'Deliver to ' + esc(p.customer.name || 'customer') : esc(p.customer.name || 'Customer') + ' picks up'}</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title, p.status === 'Ready for pickup' ? 'ready' : p.status].filter(Boolean).join(' · '))}</span>`, pick: true })),
+    ...dropsOn(today).map((p) => ({ t: p.customer.dropTime || '', html: `<b>${delOn() && p.customer.inBy === 'collect' ? 'Pick up from ' + esc(p.customer.name || 'customer') : esc(p.customer.name || 'Customer') + ' drops off'}</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title].filter(Boolean).join(' · '))}</span>`, pick: false })),
+    ...picksOn(today).map((p) => ({ t: p.customer.pickupTime || '', html: `<b>${delOn() && p.customer.ret === 'deliver' ? 'Deliver to ' + esc(p.customer.name || 'customer') : esc(p.customer.name || 'Customer') + ' picks up'}</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title, p.status === 'Ready for pickup' ? 'ready' : p.status].filter(Boolean).join(' · '))}</span>`, pick: true })),
   ].sort((a, b) => (a.t || '99').localeCompare(b.t || '99'));
   const wk = (() => { const d = new Date(today + 'T12:00:00'); const off = d.getDay(); return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(today, i - off)); })();
   const weekN = wk.reduce((n, k) => n + dropsOn(k).length + picksOn(k).length, 0);
@@ -930,6 +934,17 @@ function renderSettings() {
         <div class="sh-limitrow"><input id="shLimit" type="number" min="1" max="99" step="1" inputmode="numeric" value="${dayLimit || ''}" placeholder="No limit"><button type="submit" class="sh-btn ghost">Save</button></div>
         <p class="sh-foot" id="shLimitMsg" role="status" style="margin:0"></p></form>
     </section>
+    <section class="sh-set" aria-labelledby="h-deliv">
+      <div class="sh-setrow"><span style="flex:1;min-width:0"><b id="h-deliv">Pickup and delivery</b><span class="sh-sub">Jobs get "How it comes in" (they drop it off, or you pick it up) and "How it goes back" (they pick it up, or you deliver it). Shows on the Schedule.</span></span><button type="button" class="sh-switch${del.delivery ? ' on' : ''}" role="switch" aria-checked="${del.delivery}" aria-label="Pickup and delivery" data-delsw="delivery"><span></span></button></div>
+      ${del.delivery ? `<div class="sh-setrow"><span style="flex:1;min-width:0"><b>Delivery fees</b><span class="sh-sub">Charge per mile for each pickup or delivery trip. It goes on the invoice as its own line.</span></span><button type="button" class="sh-switch${del.delivFees ? ' on' : ''}" role="switch" aria-checked="${del.delivFees}" aria-label="Delivery fees" data-delsw="delivFees"><span></span></button></div>` : ''}
+      ${del.delivery && del.delivFees ? `<form class="sh-delform" data-delfees>
+        <label>Rate, $ per mile<input type="number" name="delRate" min="0" step="0.01" inputmode="decimal" value="${del.delRate}" placeholder="1.50"></label>
+        <label>Minimum per trip, $<input type="number" name="delMin" min="0" step="0.01" inputmode="decimal" value="${del.delMin}" placeholder="15"></label>
+        <label>Free within (miles)<input type="number" name="delFree" min="0" step="0.5" inputmode="decimal" value="${del.delFree}" placeholder="0"></label>
+        <label>Miles charged<select name="delRound"><option value="rt" ${del.delRound ? 'selected' : ''}>There and back</option><option value="one" ${del.delRound ? '' : 'selected'}>One way</option></select></label>
+        <button type="submit" class="sh-btn ghost">Save delivery fees</button>
+        <p class="sh-foot" id="shDelMsg" role="status" style="margin:0;grid-column:1/-1">${esc(delMsg)}</p></form>` : ''}
+    </section>
     <section class="sh-set sh-soon" aria-labelledby="h-email" aria-describedby="h-email-soon">
       <div class="sh-setrow"><h2 class="sh-h2" id="h-email">Daily shop email</h2><span class="sh-pill steel" id="h-email-soon">Coming soon</span></div>
       <p class="sh-foot" style="margin:0">Your shop's day in your inbox each morning: today's drop-offs and pickups, promised and at-risk jobs, jobs ready but not picked up, job parts to order or late, and low inventory. Separate from the Morning Brief.</p>
@@ -958,13 +973,25 @@ $('p-settings').addEventListener('submit', async (e) => {
     renderSettings();
     return;
   }
+  const df = e.target.closest('[data-delfees]');
+  if (df) {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(df));
+    const n = (v, r) => (+v > 0 ? Math.round(+v * r) / r : '');
+    try {
+      await setDoc(doc(db, 'logbook', shopOf ? shopOf.owner : user.uid, 'trackerSettings', 'shop'), { delRate: n(d.delRate, 100), delMin: n(d.delMin, 100), delFree: n(d.delFree, 10), delRound: d.delRound !== 'one' }, { merge: true });
+      delMsg = 'Saved.';
+    } catch (err) { delMsg = "Couldn't save: " + (err.message || err.code); }
+    if ($('shDelMsg')) $('shDelMsg').textContent = delMsg;
+    return;
+  }
   const f = e.target.closest('[data-limit]');
   if (!f) return;
   e.preventDefault();
   const v = +$('shLimit').value;
   const n = v > 0 ? Math.min(99, Math.round(v)) : '';
   try {
-    await setDoc(doc(db, 'logbook', user.uid, 'trackerSettings', 'shop'), { dayLimit: n }, { merge: true });
+    await setDoc(doc(db, 'logbook', shopOf ? shopOf.owner : user.uid, 'trackerSettings', 'shop'), { dayLimit: n }, { merge: true }); // (the shop's settings, also for a member allowed to change them)
     $('shLimitMsg').textContent = n ? `Saved: ${n} drop-offs a day.` : 'Saved: no limit.';
   } catch (err) { $('shLimitMsg').textContent = "Couldn't save: " + (err.message || err.code); }
 });
@@ -980,6 +1007,13 @@ $('p-settings').addEventListener('change', (e) => {
 });
 
 $('p-settings').addEventListener('click', (e) => {
+  const ds = e.target.closest('[data-delsw]');
+  if (ds) {
+    const k = ds.dataset.delsw, v = !del[k];
+    del = { ...del, [k]: v, ...(k === 'delivery' && !v ? { delivFees: false } : {}) };
+    setDoc(doc(db, 'logbook', shopOf ? shopOf.owner : user.uid, 'trackerSettings', 'shop'), k === 'delivery' && !v ? { delivery: false, delivFees: false } : { [k]: v }, { merge: true }).catch(() => {});
+    renderSettings(); return;
+  }
   const csw = e.target.closest('[data-clocksw]');
   if (csw) { const k = csw.dataset.clocksw; team.options[k] = !(k === 'jobClocks' ? team.options.jobClocks !== false : team.options[k] === true); saveTeam().catch(() => {}); renderSettings(); renderHome(); return; }
   const t = (sel) => e.target.closest(sel);

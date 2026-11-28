@@ -229,3 +229,9 @@ button.sh-icon { background: none; cursor: pointer; padding: 0; }
 .sh-tsform { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
 .sh-tsform label { font-size: 13px; color: var(--muted); }
 .sh-tsform button { grid-column: 1 / -1; }
+
+/* pickup and delivery fees */
+.sh-delform { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: end; }
+.sh-delform label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sh-delform input, .sh-delform select { min-height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: 16px var(--f-body); min-width: 0; }
+.sh-delform button { grid-column: 1 / -1; }
