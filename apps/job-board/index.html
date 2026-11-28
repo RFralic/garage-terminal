@@ -985,7 +985,7 @@ function renderProject(){
   const id=view.pid,p=projects[id],pr=progress(p),parts=allParts(p),sups=suppliers();
   const to=parts.filter(x=>x.status==='To order').length,od=parts.filter(x=>x.status==='Ordered').length,st=parts.filter(x=>x.status==='In stock').length;
   const c=p.customer||{};
-  let h=`<div class="top"><button class="btn ghost" data-act="home">← Projects</button><button class="btn sm" data-act="editp">${view.editing==='p'?'Close':'Edit details'}</button></div>`;
+  let h=`<div class="top"><button class="btn ghost" data-act="home">← Projects</button><button class="btn sm" data-act="editp">${view.editing==='p'?'Close':p.kind==='customer'?'Edit job details':'Edit details'}</button></div>`;
   // the details form opens right under its button (it used to open far down the page, out of sight)
   if(view.editing==='p'){
     h+=`<form class="panel" data-form="editp">
@@ -1036,7 +1036,7 @@ function renderProject(){
   if(p.kind==='customer'&&jobClocksOn())h+=renderClock(id,p);
   if(p.kind==='customer'){
     const hasInfo=(c.name||'').trim()||(c.phone||'').trim();
-    h+=`<section><div class="between"><h2>Customer info</h2><div class="row">${custOfJob(p)&&view.editing!=='c'?`<button class="btn ghost sm" data-act="opencust" data-cid="${esc(custOfJob(p).id)}">All their jobs</button>`:''}${phonesOk&&hasInfo&&view.editing!=='c'?`<button class="btn sm" data-act="editc">Edit</button>`:''}</div></div>`;
+    h+=`<section><div class="between"><h2>Customer info</h2><div class="row">${custOfJob(p)&&view.editing!=='c'?`<button class="btn ghost sm" data-act="opencust" data-cid="${esc(custOfJob(p).id)}">All their jobs</button>`:''}${phonesOk&&hasInfo&&view.editing!=='c'?`<button class="btn sm" data-act="editc">Edit customer</button>`:''}</div></div>`;
     if(jobLabel(p))h+=`<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;gap:12px;border-color:var(--tan)">
         <div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="eyebrow">Job number</span><span class="mono" style="font-size:28px;font-weight:500;line-height:1.1;user-select:all">${esc(jobLabel(p))}</span><span class="note">Write this on tags for the machine and its parts.</span></div>
         <button class="btn sm" data-act="copyjob" style="flex:none">Copy</button></div>`;
