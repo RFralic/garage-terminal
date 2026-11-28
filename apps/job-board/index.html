@@ -652,6 +652,15 @@ const fmtTime=t=>{if(!t||!/^\d{1,2}:\d{2}/.test(t))return'';const [h,mi]=t.split
 const custJobList=()=>Object.entries(projects).filter(([,p])=>p.kind==='customer');
 const dropsOn=k=>custJobList().filter(([,p])=>(p.customer||{}).dropOff===k).length;
 /* promised and not finished: 'over' (past the date), 'risk' (parts not in by then), or '' */
+/* How a customer job comes in and goes back. customer.inBy: 'drop' (they bring it, the default) or 'collect'
+   (we pick it up from them); customer.ret: 'pickup' (they pick it up, the default) or 'deliver' (we take it back).
+   The day and time fields are the same either way (dropOff/dropTime, pickup/pickupTime). */
+const collects=p=>((p&&p.customer)||{}).inBy==='collect';
+const delivers=p=>((p&&p.customer)||{}).ret==='deliver';
+const statusLabel=p=>p.status==='Ready for pickup'&&delivers(p)?'Ready for delivery':p.status;
+const custAddr=p=>{const c=typeof custOfJob==='function'&&custOfJob(p);return phonesOk&&c&&c.address?c.address:''};
+const inSelect=v=>`<label class="f">How it comes in<select name="inBy"><option value="drop" ${v!=='collect'?'selected':''}>Customer drops it off</option><option value="collect" ${v==='collect'?'selected':''}>We pick it up</option></select></label>`;
+const retSelect=v=>`<label class="f">How it goes back<select name="ret"><option value="pickup" ${v!=='deliver'?'selected':''}>Customer picks it up</option><option value="deliver" ${v==='deliver'?'selected':''}>We deliver it</option></select></label>`;
 function promiseState(p){const c=p.customer||{};if(!c.promised||p.status==='Done'||p.status==='Ready for pickup')return'';if(c.promised<today())return'over';
   return allParts(p).some(x=>x.status==='To order'||(x.status==='Ordered'&&(!x.expected||x.expected>=c.promised)))?'risk':''}
 function dayItems(k){const out=[];custJobList().forEach(([id,p])=>{const c=p.customer||{};
@@ -670,15 +679,15 @@ function renderSchedule(){const td=today(),day=view.day||td,ws=weekOf(day),days=
   const items=dayItems(day),L=+shop.dayLimit||0,drops=dropsOn(day);
   h+=`<section><div class="between"><h2>${esc(dayDate(day).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}))}</h2><span class="small muted">${L?`${drops} of ${L} drop-offs`:`${drops} drop-off${drops===1?'':'s'}`}</span></div>`;
   const row=({t,id,p,time})=>{const c=p.customer||{},who=c.name||'Customer',ps=promiseState(p);
-    const head=t==='drop'?`Drop-off · ${esc(who)}`:t==='pick'?`Pickup · ${esc(who)}`:`Promised · ${esc(jobLabel(p)||'')} ${esc(p.title||'')}`;
-    const sub=t==='prom'?esc([who,p.status].filter(Boolean).join(' · ')):esc([jobLabel(p),p.machine||p.title,t==='drop'?c.complaint:(jobTotal(p)?money(jobTotal(p)):'')].filter(Boolean).join(' · '));
-    const pill=t==='drop'?(p.status==='Not started'?'<span class="chip">Expected</span>':'<span class="chip st-progress">In</span>'):t==='pick'?'<span class="chip st-pickup">Out</span>':ps==='over'?'<span class="chip warnchip">Overdue</span>':ps==='risk'?'<span class="chip warnchip">At risk</span>':'<span class="chip">Due</span>';
+    const head=t==='drop'?(collects(p)?`Pick up from ${esc(who)}`:`Drop-off · ${esc(who)}`):t==='pick'?(delivers(p)?`Deliver to ${esc(who)}`:`Pickup · ${esc(who)}`):`Promised · ${esc(jobLabel(p)||'')} ${esc(p.title||'')}`;
+    const sub=t==='prom'?esc([who,p.status].filter(Boolean).join(' · ')):esc([jobLabel(p),p.machine||p.title,(t==='drop'&&collects(p))||(t==='pick'&&delivers(p))?custAddr(p):'',t==='drop'?c.complaint:(jobTotal(p)?money(jobTotal(p)):'')].filter(Boolean).join(' · '));
+    const pill=t==='drop'?(p.status==='Not started'?'<span class="chip">Expected</span>':'<span class="chip st-progress">In</span>'):t==='pick'?(delivers(p)?'<span class="chip st-pickup">Delivery</span>':'<span class="chip st-pickup">Out</span>'):ps==='over'?'<span class="chip warnchip">Overdue</span>':ps==='risk'?'<span class="chip warnchip">At risk</span>':'<span class="chip">Due</span>';
     return `<button class="item schedrow ${t}" data-act="open" data-pid="${id}"><span class="time mono">${t==='prom'?'due':esc(fmtTime(time)||'—')}</span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left"><b>${head}</b><span class="small muted">${sub}</span></span>${pill}</button>`};
   h+=items.length?`<div class="list">${items.map(row).join('')}</div>`:`<div class="empty">Nothing booked${day===td?' today':''}. <button class="btn sm" data-act="book" style="margin-top:6px">+ Book a drop-off</button></div>`;
   h+='</section>';
   if(day===td){const over=custJobList().filter(([,p])=>promiseState(p)==='over'),ready=custJobList().filter(([,p])=>p.status==='Ready for pickup'&&!(p.customer||{}).pickup);
     if(over.length)h+=`<section><h2>Overdue</h2><div class="list">${over.map(([id,p])=>row({t:'prom',id,p,time:''})).join('')}</div></section>`;
-    if(ready.length)h+=`<section><h2>Ready, no pickup set</h2><div class="list">${ready.map(([id,p])=>`<button class="item schedrow" data-act="open" data-pid="${id}"><span class="time mono">—</span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left"><b>${esc((p.customer||{}).name||'Customer')} · ${esc(jobLabel(p))}</b><span class="small muted">${esc(p.machine||p.title||'')}</span></span><span class="chip st-pickup">Ready</span></button>`).join('')}</div></section>`}
+    if(ready.length)h+=`<section><h2>Ready, no pickup or delivery day set</h2><div class="list">${ready.map(([id,p])=>`<button class="item schedrow" data-act="open" data-pid="${id}"><span class="time mono">—</span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left"><b>${esc((p.customer||{}).name||'Customer')} · ${esc(jobLabel(p))}</b><span class="small muted">${esc(p.machine||p.title||'')}</span></span><span class="chip st-pickup">Ready</span></button>`).join('')}</div></section>`}
   return h}
 
 /* ---------- Customer machines ----------
@@ -818,10 +827,15 @@ function renderList(){
   if(!custOn&&view.tab==='customer')view.tab='all';
   const all=Object.entries(projects).filter(visible).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));
   const q=view.q.trim().toLowerCase();
-  const match=([id,p])=>{if(view.tab!=='all'&&p.kind!==view.tab)return false;if(assignOn()&&view.who==='me'&&p.assignee!==myPid)return false;if(assignOn()&&view.who==='none'&&p.assignee)return false;if(!q)return true;
+  /* Done customer jobs are filed under their customer (Customers → Customer list) and leave the job list;
+     a search still finds them, and "Show done jobs" brings them back for a look */
+  const archived=([,p])=>p.kind==='customer'&&p.status==='Done';
+  const doneN=all.filter(archived).length;
+  const match=([id,p])=>{if(view.tab!=='all'&&p.kind!==view.tab)return false;if(!q&&!view.showDone&&archived([id,p]))return false;if(assignOn()&&view.who==='me'&&p.assignee!==myPid)return false;if(assignOn()&&view.who==='none'&&p.assignee)return false;if(!q)return true;
     const hay=[jobLabel(p),p.jobNo,p.title,p.machine,p.logbook,p.notes,p.customer&&p.customer.name,p.custNotes,...(p.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier]),...(p.tasks||[]).flatMap(t=>[t.title,t.notes,...(t.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier])])].join(' ').toLowerCase();return hay.includes(q)};
   const shown=all.filter(match);
-  const c={all:all.length,mine:all.filter(x=>x[1].kind==='mine').length,customer:all.filter(x=>x[1].kind==='customer').length};
+  const live=view.showDone?all:all.filter(x=>!archived(x));
+  const c={all:live.length,mine:live.filter(x=>x[1].kind==='mine').length,customer:live.filter(x=>x[1].kind==='customer').length};
   const toOrder=all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='To order').length,0);
   const ordProj=all.filter(([,p])=>allParts(p).some(x=>x.status==='To order'));
   const lateN=(()=>{const td=today();return all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='Ordered'&&x.expected&&x.expected<td).length,0)})();
@@ -855,8 +869,9 @@ function renderList(){
       <div class="row"><div class="bar"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n}</span></div>
       <span class="small"><span class="muted">Next:</span> ${next?esc(next.title):(pr.n?'All tasks done':'Add the first task')}</span>${invFor(p)&&inv?(()=>{const ps=allParts(p).filter(x=>x.num);if(!ps.length)return '';const n=ps.filter(x=>{const r=invLookup(x);return r&&r.found}).length;return `<span class="small" style="color:${n?'var(--ok)':'var(--muted)'}">${n} of ${ps.length} part${ps.length===1?'':'s'} in inventory</span>`})():''}</div>
       ${pricesOk&&p.kind==='mine'&&partsCost(p).count?`<span class="small"><span class="muted">Parts so far:</span> <span class="price">${money(partsCost(p).total)}</span></span>`:''}
-      <div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${assignOn()&&p.assignee?avatar(p.assignee)+' ':''}${esc(p.status)}${running(p)?' <span style="color:var(--ok)">· ● on the clock</span>':''}</span><span>${to?to+' to order':od?od+' ordered':parts.length?'Parts in':'No parts yet'}</span></div>
+      <div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${assignOn()&&p.assignee?avatar(p.assignee)+' ':''}${esc(statusLabel(p))}${running(p)?' <span style="color:var(--ok)">· ● on the clock</span>':''}</span><span>${to?to+' to order':od?od+' ordered':parts.length?'Parts in':'No parts yet'}</span></div>
     </button>`}).join('');
+  if(custOn&&doneN&&!q&&view.tab!=='mine')h+=`<div class="between small" style="padding:4px 2px"><span class="muted">${view.showDone?`Showing ${doneN} done job${doneN===1?'':'s'}`:`${doneN} done job${doneN===1?' is':'s are'} filed under ${doneN===1?'its customer':'their customers'}`}</span><button class="btn ghost sm" data-act="showdone">${view.showDone?'Hide done jobs':'Show done jobs'}</button></div>`;
   return h;
 }
 
@@ -907,8 +922,11 @@ function renderCustomer(){
         <div class="row"><label style="flex:1"><span class="sr">Machine for ${esc(jobLabel(p)||'this job')}</span><select name="mid">${(()=>{const hit=nameMatch(c.id,p.machine);return cmOptions(c.id,hit)+`<option value="__new" ${hit?'':'selected'}>New machine: "${esc(p.machine)}"</option>`})()}</select></label><button class="btn sm" type="submit">Link</button></div></form>`).join('')}</div>`;
     h+=`</section>`;}
   h+=`<section><div class="between"><h2>Jobs</h2><button class="btn primary sm" data-act="newforcust">+ New job</button></div>`;
-  h+=js.length?js.map(([id,p])=>`<button class="card" data-act="open" data-pid="${id}"><div class="plate customer"><b>${esc(projName(p))}</b><span class="mono" style="font-size:14px;letter-spacing:0">${esc(jobLabel(p)||'')}</span></div>
-      <div class="body">${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}<div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(p.status)}</span><span class="price">${jobTotal(p)?money(jobTotal(p)):''}</span></div></div></button>`).join('')
+  const jcard=([id,p])=>`<button class="card" data-act="open" data-pid="${id}"><div class="plate customer"><b>${esc(projName(p))}</b><span class="mono" style="font-size:14px;letter-spacing:0">${esc(jobLabel(p)||'')}</span></div>
+      <div class="body">${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}<div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(statusLabel(p))}</span><span class="price">${pricesOk&&jobTotal(p)?money(jobTotal(p)):''}</span></div></div></button>`;
+  const jOpen=js.filter(([,p])=>p.status!=='Done'),jDone=js.filter(([,p])=>p.status==='Done');
+  h+=js.length?(jOpen.length?jOpen.map(jcard).join(''):`<div class="empty">No open jobs for ${esc(c.name||'this customer')}.</div>`)
+    +(jDone.length?`<h3 class="small muted" style="margin:10px 0 0;text-transform:uppercase;letter-spacing:.08em">Done jobs · ${jDone.length}</h3>`+jDone.map(jcard).join(''):'')
     +`<div class="between small"><span class="muted">${js.length} job${js.length===1?'':'s'}</span><span>${pricesOk?`Total billed: <span class="price">${money(total)}</span>`:''}</span></div>`
     :`<div class="empty">No jobs for ${esc(c.name||'this customer')} yet.</div>`;
   return h+'</section>';
@@ -933,6 +951,7 @@ function renderNew(){
     <label class="f">${view.mid?'Machine (if not the one above)':'Machine'}<input type="text" name="machine" maxlength="120" placeholder="Make, model, serial"></label>
     <div class="grid2"><label class="f">Drop-off day<input type="date" name="drop" data-input="dropday" value="${esc(view.day||(view.book?today():''))}"></label><label class="f">Time<input type="time" name="dropTime" step="900"></label></div>
     <span class="note" id="n-limit" aria-live="polite">${view.day||view.book?limitNote(view.day||today()):''}</span>
+    <div class="grid2">${inSelect('')}${retSelect('')}</div>
     <label class="f">Promised by<input type="date" name="promised"></label>
     <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px"></textarea></label>`}
     <button class="btn primary" type="submit">Create project</button>
@@ -954,7 +973,8 @@ function renderProject(){
       `${custOn&&custOfJob(p)&&(custMachines(custOfJob(p).id).length||p.logbookId)?`<label class="f">Customer's machine<select name="mid"><option value="">(not linked)</option>${cmOptions(custOfJob(p).id,p.logbookId)}</select></label>`:''}
       <div class="grid2"><label class="f">Drop-off day<input type="date" name="drop" value="${esc(c.dropOff)}"></label><label class="f">Time<input type="time" name="dropTime" step="900" value="${esc(c.dropTime||'')}"></label></div>
       <label class="f">Promised by<input type="date" name="promised" value="${esc(c.promised)}"></label>
-      <div class="grid2"><label class="f">Pickup day<input type="date" name="pickup" value="${esc(c.pickup||'')}"></label><label class="f">Time<input type="time" name="pickupTime" step="900" value="${esc(c.pickupTime||'')}"></label></div>
+      <div class="grid2">${inSelect(c.inBy)}${retSelect(c.ret)}</div>
+      <div class="grid2"><label class="f">Pickup or delivery day<input type="date" name="pickup" value="${esc(c.pickup||'')}"></label><label class="f">Time<input type="time" name="pickupTime" step="900" value="${esc(c.pickupTime||'')}"></label></div>
       <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px">${esc(c.complaint)}</textarea></label>`}
       <button class="btn primary" type="submit">Save details</button>
       ${view.confirm==='delp'?`<div class="confirm"><span>Delete this project and all its tasks?</span><button type="button" class="btn danger sm" data-act="delp-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:(deleteOk?`<button type="button" class="btn danger" data-act="delp">Delete project</button>`:'')}
@@ -984,9 +1004,10 @@ function renderProject(){
       ${(p.machine||'').trim()?'':`<label class="f">New machine's name<input type="text" name="newname" maxlength="120" placeholder="e.g. Craftsman YT3000"></label>`}
       <label class="f">What is it? (new machine)${typeSelect()}</label>
       <div class="grid2"><button class="btn primary" type="submit">Link</button><button class="btn" type="button" data-act="linkm">Cancel</button></div></form>`}
-  if(p.kind==='customer'&&p.status==='Ready for pickup'&&!c.pickup)h+=`<form class="panel lshint" data-form="pickup"><b>When are they picking it up?</b>
-    <div class="grid2"><label class="f">Pickup day<input type="date" name="pickup" value="${today()}"></label><label class="f">Time<input type="time" name="pickupTime" step="900"></label></div>
-    <button class="btn primary" type="submit">Set pickup</button><span class="note">It shows on the Schedule and the shop app's Home.</span></form>`;
+  if(p.kind==='customer'&&p.status==='Ready for pickup'&&!c.pickup)h+=`<form class="panel lshint" data-form="pickup"><b>When is it going back?</b>
+    ${retSelect(c.ret)}
+    <div class="grid2"><label class="f">Day<input type="date" name="pickup" value="${today()}"></label><label class="f">Time<input type="time" name="pickupTime" step="900"></label></div>
+    <button class="btn primary" type="submit">Set the day</button><span class="note">It shows on the Schedule and the shop app's Home${custAddr(p)?`. Delivery address: ${esc(custAddr(p))}`:''}.</span></form>`;
   if(p.kind==='customer'&&p.logbookId)h+=lastTimeBox(p.logbookId,id,p.createdAt||0);
   if(p.kind==='customer'&&jobClocksOn())h+=renderClock(id,p);
   if(p.kind==='customer'){
@@ -1361,6 +1382,7 @@ app.addEventListener('click',async e=>{
   else if(a==='editc'){view.editing='c';render();const el=document.getElementById('c-name');if(el)el.focus()}
   else if(a==='cancelc'){view.editing=null;render()}
   else if(a==='cview'){view.cview=b.dataset.v;render()}
+  else if(a==='showdone'){view.showDone=!view.showDone;render()}
   else if(a==='who'){view.who=b.dataset.v;render()}
   else if(a==='pickday'){view.day=b.dataset.day;render()}
   else if(a==='wk'){view.day=addDay(view.day||today(),+b.dataset.n||0);render()}
@@ -1430,20 +1452,20 @@ app.addEventListener('click',async e=>{
 app.addEventListener('submit',e=>{
   const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));const k=f.dataset.form;const p=projects[view.pid];
   if(k==='new'){const kindNew=(custOn&&view.kind==='customer')||hideMine?'customer':'mine';if(!d.title.trim()&&kindNew!=='customer')return;const id=uid();const np=blankProject(kindNew);np.title=d.title.trim();np.machine=(d.machine||'').trim();if(np.kind==='mine')applyLogbook(np,d.logbookSel||'');
-    if(np.kind==='customer'){np.customer={name:(d.cname||'').trim(),phone:(d.cphone||'').trim(),dropOff:d.drop||'',dropTime:d.dropTime||'',pickup:'',pickupTime:'',promised:d.promised||'',complaint:(d.complaint||'').trim()};np.jobNo=nextJobNo();toast('Job '+fmtJob(np.jobNo)+' created');
+    if(np.kind==='customer'){np.customer={name:(d.cname||'').trim(),phone:(d.cphone||'').trim(),dropOff:d.drop||'',dropTime:d.dropTime||'',inBy:d.inBy==='collect'?'collect':'drop',ret:d.ret==='deliver'?'deliver':'pickup',pickup:'',pickupTime:'',promised:d.promised||'',complaint:(d.complaint||'').trim()};np.jobNo=nextJobNo();toast('Job '+fmtJob(np.jobNo)+' created');
       const picked=custById(d.cid);if(picked){np.customer.id=picked.id;if(!picked.phone&&np.customer.phone)picked.phone=np.customer.phone;if(!np.customer.name)np.customer.name=picked.name;saveCustomers()}else if(linkJob(np))saveCustomers();
       if(d.mid){const m=machineById(d.mid);if(m&&m.owner&&np.customer.id&&m.owner.id===np.customer.id)linkToMachine(np,m.id)}}
     projects[id]=np;save(id);if(view.book&&np.kind==='customer'&&bookFromShop){bookFromShop=false;const day=np.customer.dropOff||today();
       /* save now (not after save()'s short wait), then tell the shop app, so nothing can interrupt the save */
       clearTimeout(timers['s'+id]);timers['s'+id]=null;(db?db.doc('projects/'+id).set(JSON.parse(JSON.stringify(np))):Promise.resolve()).catch(()=>save(id)).finally(()=>{try{window.parent.postMessage({gt:'booked',day},location.origin)}catch(x){}})}if(view.book&&np.kind==='customer')go({name:'list',tab:'customer',cview:'sched',day:np.customer.dropOff||today()});else go({name:'project',pid:id})}
-  else if(k==='pickup'){if(!p||!d.pickup)return;p.customer={...(p.customer||{}),pickup:d.pickup,pickupTime:d.pickupTime||''};save(view.pid);toast('Pickup set');render()}
+  else if(k==='pickup'){if(!p||!d.pickup)return;p.customer={...(p.customer||{}),ret:d.ret==='deliver'?'deliver':'pickup',pickup:d.pickup,pickupTime:d.pickupTime||''};save(view.pid);toast(d.ret==='deliver'?'Delivery set':'Pickup set');render()}
   else if(k==='takeoff'){const list=new FormData(f).getAll('x').map(v=>{const [tid,xid]=String(v).split('|');return{tid:tid||'',xid}});if(!list.length){view.shelfOff=view.pid;render();return}takeOff(f.dataset.pid,list)}
   else if(k==='addcm'){const cu=custById(view.cid);if(!cu||!(d.name||'').trim())return;newCustMachine(cu,d.name,d.type);view.editing=null;toast((d.name||'').trim()+' added to '+(cu.name||'the customer')+"'s machines");render()}
   else if(k==='linkm'){const lp=projects[f.dataset.pid],cu=custOfJob(lp);if(!lp||!cu)return;let mid=d.mid;
     if(mid==='__new'||!mid){const name=String(lp.machine||d.newname||'').trim();if(!name){toast("Type the machine's name");return}mid=newCustMachine(cu,name,d.type||'Other')}
     linkToMachine(lp,mid);save(f.dataset.pid);if(view.editing==='linkm')view.editing=null;toast('Linked to '+((machineById(mid)||{}).name||'the machine'));render()}
   else if(k==='editp'){const was=p.kind;p.title=d.title.trim()||(p.kind==='customer'||d.kind==='customer'?'':p.title);p.machine=(d.machine||'').trim();p.customer=p.customer||{name:'',phone:'',dropOff:'',promised:'',complaint:''};
-    if(was==='mine')applyLogbook(p,d.logbookSel||'');else{p.customer={...p.customer,dropOff:d.drop||'',dropTime:d.dropTime||'',pickup:d.pickup||'',pickupTime:d.pickupTime||'',promised:d.promised||'',complaint:(d.complaint||'').trim()};
+    if(was==='mine')applyLogbook(p,d.logbookSel||'');else{p.customer={...p.customer,dropOff:d.drop||'',dropTime:d.dropTime||'',inBy:d.inBy==='collect'?'collect':'drop',ret:d.ret==='deliver'?'deliver':'pickup',pickup:d.pickup||'',pickupTime:d.pickupTime||'',promised:d.promised||'',complaint:(d.complaint||'').trim()};
       if(d.mid!==undefined){if(d.mid)linkToMachine(p,d.mid);else{p.logbookId='';p.logbook=''}}}
     if(d.kind==='mine'||d.kind==='customer')p.kind=d.kind;
     if(p.kind==='customer'&&!p.jobNo)p.jobNo=nextJobNo();

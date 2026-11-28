@@ -360,10 +360,11 @@ function renderSchedule() {
   const items = schedItems(day), dn = drops(day);
   const tm = (t) => { if (!/^\d{1,2}:\d{2}/.test(t || '')) return ''; const [h, mi] = t.split(':').map(Number); return `${(h % 12) || 12}:${String(mi).padStart(2, '0')}${h < 12 ? 'a' : 'p'}`; };
   const row = ({ t, p, time }) => { const c = p.customer || {}, who = c.name || 'Customer';
-    const head = t === 'drop' ? `${esc(who)} drops off` : t === 'pick' ? `${esc(who)} picks up` : `Promised: ${esc(String(p.title || '').trim() || jobNo(p) || 'Job')}`;
+    // customer.inBy 'collect' = we pick it up from them; customer.ret 'deliver' = we take it back (Job_Board)
+    const head = t === 'drop' ? (c.inBy === 'collect' ? `Pick up from ${esc(who)}` : `${esc(who)} drops off`) : t === 'pick' ? (c.ret === 'deliver' ? `Deliver to ${esc(who)}` : `${esc(who)} picks up`) : `Promised: ${esc(String(p.title || '').trim() || jobNo(p) || 'Job')}`;
     const sub = esc([jobNo(p), t === 'prom' ? who : (p.machine || p.title), t === 'drop' ? c.complaint : p.status].filter(Boolean).join(' · '));
     const pill = t === 'drop' ? (p.status === 'Not started' || !p.status ? '<span class="sh-pill steel">Expected</span>' : '<span class="sh-pill ok">In</span>')
-      : t === 'pick' ? '<span class="sh-pill ok">Out</span>' : (day < today ? '<span class="sh-pill over">Overdue</span>' : '<span class="sh-pill warn">Due</span>');
+      : t === 'pick' ? (c.ret === 'deliver' ? '<span class="sh-pill ok">Delivery</span>' : '<span class="sh-pill ok">Out</span>') : (day < today ? '<span class="sh-pill over">Overdue</span>' : '<span class="sh-pill warn">Due</span>');
     return `<button type="button" class="sh-card sh-sched ${t === 'pick' ? 'pick' : ''}" data-openjob="${esc(p.id)}"><span class="sh-tm">${t === 'prom' ? 'due' : esc(tm(time) || '—')}</span><span style="flex:1;min-width:0"><b>${head}</b><span class="sh-sub">${sub}</span></span>${pill}</button>`; };
   const limitTxt = dayLimit ? `${dn} of ${dayLimit} drop-offs` : `${dn} drop-off${dn === 1 ? '' : 's'}`;
   box.innerHTML = `<div class="sh-pad sh-schedpage">
@@ -712,8 +713,8 @@ function renderHome() {
   const picksOn = (k) => projects.filter((p) => p && p.kind === 'customer' && p.customer && p.customer.pickup === k && p.status !== 'Done');
   const tm = (t) => { if (!/^\d{1,2}:\d{2}/.test(t || '')) return ''; const [h, mi] = t.split(':').map(Number); return `${(h % 12) || 12}:${String(mi).padStart(2, '0')}${h < 12 ? 'a' : 'p'}`; };
   const todayRows = [
-    ...dropsOn(today).map((p) => ({ t: p.customer.dropTime || '', html: `<b>${esc(p.customer.name || 'Customer')} drops off</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title].filter(Boolean).join(' · '))}</span>`, pick: false })),
-    ...picksOn(today).map((p) => ({ t: p.customer.pickupTime || '', html: `<b>${esc(p.customer.name || 'Customer')} picks up</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title, p.status === 'Ready for pickup' ? 'ready' : p.status].filter(Boolean).join(' · '))}</span>`, pick: true })),
+    ...dropsOn(today).map((p) => ({ t: p.customer.dropTime || '', html: `<b>${p.customer.inBy === 'collect' ? 'Pick up from ' + esc(p.customer.name || 'customer') : esc(p.customer.name || 'Customer') + ' drops off'}</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title].filter(Boolean).join(' · '))}</span>`, pick: false })),
+    ...picksOn(today).map((p) => ({ t: p.customer.pickupTime || '', html: `<b>${p.customer.ret === 'deliver' ? 'Deliver to ' + esc(p.customer.name || 'customer') : esc(p.customer.name || 'Customer') + ' picks up'}</b><span class="sh-sub">${esc([jobNo(p), p.machine || p.title, p.status === 'Ready for pickup' ? 'ready' : p.status].filter(Boolean).join(' · '))}</span>`, pick: true })),
   ].sort((a, b) => (a.t || '99').localeCompare(b.t || '99'));
   const wk = (() => { const d = new Date(today + 'T12:00:00'); const off = d.getDay(); return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(today, i - off)); })();
   const weekN = wk.reduce((n, k) => n + dropsOn(k).length + picksOn(k).length, 0);
