@@ -910,7 +910,7 @@ function renderCustomerList(q){
 function renderCustomer(){
   const c=custById(view.cid);if(!c)return `<div class="top"><button class="btn ghost" data-act="custlist">← Customers</button></div><div class="empty">That customer was removed.</div>`;
   const js=jobsOf(c);const total=js.reduce((n,[,p])=>n+jobTotal(p),0);
-  let h=`<div class="top"><button class="btn ghost" data-act="custlist">← Customers</button>${view.editing==='cust'||!phonesOk?'':`<button class="btn sm" data-act="editcust">Edit</button>`}</div>`;
+  let h=`<div class="top"><button class="btn ghost" data-act="custlist">← Customers</button>${view.editing==='cust'||!phonesOk?'':`<button class="btn sm" data-act="editcust">Edit customer</button>`}</div>`;
   if(view.editing==='cust'){
     h+=`<form class="panel" data-form="cust">
       <label class="f">Name<input type="text" name="name" maxlength="80" value="${esc(c.name)}" required></label>
@@ -926,10 +926,20 @@ function renderCustomer(){
       ${phonesOk&&c.phone?`<a class="btn sm" href="tel:${esc(digitsOf(c.phone))}" style="align-self:flex-start">📞 ${esc(c.phone)}</a>`:''}
       ${phonesOk&&c.email?`<a class="small" href="mailto:${esc(c.email)}">${esc(c.email)}</a>`:''}${phonesOk&&c.address?`<span class="small">${esc(c.address)}</span>`:''}
       ${c.notes?`<span class="small muted" style="white-space:pre-wrap">${esc(c.notes)}</span>`:''}
-      ${!c.phone&&!c.email&&!c.address&&!c.notes?`<span class="small muted">No contact details yet. Tap Edit to add them.</span>`:''}</div></div>`;
+      ${!c.phone&&!c.email&&!c.address&&!c.notes?`<span class="small muted">No contact details yet. Tap Edit customer to add them.</span>`:''}
+      ${js.length?`<div class="foot" style="border-top:1px solid var(--line);padding-top:8px"><span class="small muted">${js.length} job${js.length===1?'':'s'}</span><span class="small">${pricesOk?`Total billed: <span class="price">${money(total)}</span>`:''}</span></div>`:''}</div></div>`;
   }
-  {const cms=custMachines(c.id);const toLink=js.filter(([,p])=>!p.logbookId&&(p.machine||'').trim());
-    h+=`<section><div class="between"><h2>Machines</h2><button class="btn sm" data-act="addcm">${view.editing==='addcm'?'Close':'+ Add a machine'}</button></div>`;
+  // Open jobs | Done | Machines tabs under the customer card (view.ctab, remembered while on this customer)
+  const jOpen=js.filter(([,p])=>p.status!=='Done'),jDone=js.filter(([,p])=>p.status==='Done');
+  const cms=custMachines(c.id),toLink=js.filter(([,p])=>!p.logbookId&&(p.machine||'').trim());
+  const ct=['open','done','machines'].includes(view.ctab)?view.ctab:'open';
+  const tb=(t,l,n)=>`<button type="button" data-act="ctab" data-t="${t}" aria-pressed="${ct===t}" style="white-space:nowrap;font-size:13px;letter-spacing:.04em">${l}${n?` <span class="mono" style="opacity:.75">${n}</span>`:''}</button>`;
+  h+=`<div class="grid2"><button type="button" class="btn primary" data-act="newforcust">+ New job</button><button type="button" class="btn primary" data-act="addcm" aria-expanded="${view.editing==='addcm'}">+ Add a machine</button></div>`;
+  h+=`<div class="seg" role="group" aria-label="Show" style="margin-top:4px">${tb('open','Open',jOpen.length)}${tb('done','Done',jDone.length)}${tb('machines','Machines',cms.length)}</div>`;
+  if(toLink.length&&ct!=='machines')h+=`<button type="button" class="linkbtn small" data-act="ctab" data-t="machines" style="color:var(--warn);align-self:flex-start">${toLink.length} older job${toLink.length===1?'':'s'} to link to a machine →</button>`;
+  if(ct==='machines'){
+  {
+    h+=`<section>`;
     if(view.editing==='addcm')h+=`<form class="panel" data-form="addcm">
       <label class="f">Machine<input id="cm-name" type="text" name="name" required maxlength="120" placeholder="e.g. Craftsman YT3000"></label>
       <label class="f">What is it?${typeSelect()}</label>
@@ -943,14 +953,14 @@ function renderCustomer(){
       ${toLink.map(([id,p])=>`<form class="linkrow" data-form="linkm" data-pid="${id}"><span class="small"><b>${esc(jobLabel(p)||p.title||'Job')}</b> says "${esc(p.machine)}"</span>
         <div class="row"><label style="flex:1"><span class="sr">Machine for ${esc(jobLabel(p)||'this job')}</span><select name="mid">${(()=>{const hit=nameMatch(c.id,p.machine);return cmOptions(c.id,hit)+`<option value="__new" ${hit?'':'selected'}>New machine: "${esc(p.machine)}"</option>`})()}</select></label><button class="btn sm" type="submit">Link</button></div></form>`).join('')}</div>`;
     h+=`</section>`;}
-  h+=`<section><div class="between"><h2>Jobs</h2><button class="btn primary sm" data-act="newforcust">+ New job</button></div>`;
+    return h;
+  }
+  h+=`<section>`;
   const jcard=([id,p])=>`<button class="card" data-act="open" data-pid="${id}"><div class="plate customer"><b>${esc(projName(p))}</b><span class="mono" style="font-size:14px;letter-spacing:0">${esc(jobLabel(p)||'')}</span></div>
       <div class="body">${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}<div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(statusLabel(p))}</span><span class="price">${pricesOk&&jobTotal(p)?money(jobTotal(p)):''}</span></div></div></button>`;
-  const jOpen=js.filter(([,p])=>p.status!=='Done'),jDone=js.filter(([,p])=>p.status==='Done');
-  h+=js.length?(jOpen.length?jOpen.map(jcard).join(''):`<div class="empty">No open jobs for ${esc(c.name||'this customer')}.</div>`)
-    +(jDone.length?`<h3 class="small muted" style="margin:10px 0 0;text-transform:uppercase;letter-spacing:.08em">Done jobs · ${jDone.length}</h3>`+jDone.map(jcard).join(''):'')
-    +`<div class="between small"><span class="muted">${js.length} job${js.length===1?'':'s'}</span><span>${pricesOk?`Total billed: <span class="price">${money(total)}</span>`:''}</span></div>`
-    :`<div class="empty">No jobs for ${esc(c.name||'this customer')} yet.</div>`;
+  const list=ct==='done'?jDone:jOpen;
+  h+=list.length?list.map(jcard).join('')
+    :`<div class="empty">${ct==='done'?`No done jobs for ${esc(c.name||'this customer')} yet.`:js.length?`No open jobs for ${esc(c.name||'this customer')}. Tap + New job to check a machine in.`:`No jobs for ${esc(c.name||'this customer')} yet.`}</div>`;
   return h+'</section>';
 }
 function renderNew(){
@@ -1443,11 +1453,12 @@ app.addEventListener('click',async e=>{
   else if(a==='pickday'){view.day=b.dataset.day;render()}
   else if(a==='wk'){view.day=addDay(view.day||today(),+b.dataset.n||0);render()}
   else if(a==='book')go({name:'new',kind:'customer',day:view.day||today(),book:true,cid:null,mid:null})
-  else if(a==='opencust')go({name:'customer',cid:b.dataset.cid});
+  else if(a==='opencust')go({name:'customer',cid:b.dataset.cid,ctab:'open'});
+  else if(a==='ctab'){view.ctab=b.dataset.t;view.editing=null;render()}
   else if(a==='custlist')go({name:'list',tab:'customer',cview:'people'});
-  else if(a==='newcust'){const c=newCustomer('','');saveCustomers();go({name:'customer',cid:c.id,editing:'cust'})}
+  else if(a==='newcust'){const c=newCustomer('','');saveCustomers();go({name:'customer',cid:c.id,editing:'cust',ctab:'open'})}
   else if(a==='editcust'){view.editing='cust';view.confirm=null;render()}
-  else if(a==='addcm'){view.editing=view.editing==='addcm'?null:'addcm';render();const el=document.getElementById('cm-name');if(el)el.focus()}
+  else if(a==='addcm'){view.editing=view.editing==='addcm'?null:'addcm';if(view.name==='customer'&&view.editing)view.ctab='machines';render();const el=document.getElementById('cm-name');if(el)el.focus()}
   else if(a==='linkm'){view.editing=view.editing==='linkm'?null:'linkm';render()}
   else if(a==='canceledit'){const c=custById(view.cid);if(c&&!c.name&&!c.phone&&!jobsOf(c).length){customers=customers.filter(x=>x!==c);saveCustomers();go({name:'list',tab:'customer',cview:'people'})}else{view.editing=null;view.confirm=null;render()}}
   else if(a==='delcust'){view.confirm='delcust';render()}
