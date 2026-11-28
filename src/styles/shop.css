@@ -235,3 +235,14 @@ button.sh-icon { background: none; cursor: pointer; padding: 0; }
 .sh-delform label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .sh-delform input, .sh-delform select { min-height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: 16px var(--f-body); min-width: 0; }
 .sh-delform button { grid-column: 1 / -1; }
+
+/* a switch row's description sits on its own line under the bold title (Clocks, Pickup and delivery…) */
+.sh-setrow .sh-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; font-weight: 400; }
+/* "What shop mode turns on": closed by default, an arrow opens the full list */
+.sh-more { border-top: 1px solid var(--line); padding-top: 8px; }
+.sh-more summary { list-style: none; cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; font: 600 14px var(--f-body); color: var(--accent); }
+.sh-more summary::-webkit-details-marker { display: none; }
+.sh-more summary::before { content: ""; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform .15s; flex: none; }
+.sh-more[open] summary::before { transform: rotate(45deg); }
+.sh-more summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { .sh-more summary::before { transition: none; } }

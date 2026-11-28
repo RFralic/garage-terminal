@@ -911,8 +911,9 @@ function renderSettings() {
         <button type="button" class="sh-switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-labelledby="h-shopmode" data-shopmode><span></span></button>
       </div>
       <p class="sh-setnow">${on ? 'On: set up for working on other people\'s machines.' : 'Off: just your own machines, projects, parts and tools.'}</p>
-      <div class="sh-setlist">
-        <b>Shop mode turns on</b>
+      <details class="sh-more">
+        <summary>What shop mode turns on</summary>
+        <div class="sh-setlist">
         <ul>
           <li><b>Customer jobs</b> in Jobs, with job numbers, promised dates and Ready for pickup</li>
           <li>The <b>customer list</b>: name, phone, address and every job they've had</li>
@@ -920,11 +921,12 @@ function renderSettings() {
           <li><b>Labor clock</b> and labor rate on jobs</li>
           <li><b>Shop info</b>: your shop's name, address and phone on invoices</li>
           <li><b>Inventory check on customer jobs</b>: which of their parts are on your shelf</li>
-          <li><b>Scheduling</b>: drop-offs and pickups on a week view in Job_Board, and Today + This week on Home</li>
+          <li><b>Scheduling</b>: the Schedule tab, drop-offs and pickups in Job_Board, and Today + This week on Home</li>
           <li><b>Coming up</b> on Home: promised dates and pickups for the next 7 days</li>
         </ul>
-      </div>
-      <p class="sh-foot">Turning it off hides customer jobs; nothing is deleted, and they come back when you turn it on. Saved on this device, and the same switch as Customer jobs in Job_Board's ⚙ Settings. The Morning Brief has its own "Include Job_Board customer jobs" box.</p>
+        </div>
+        <p class="sh-foot">Turning it off hides customer jobs; nothing is deleted, and they come back when you turn it on. Saved on this device, and the same switch as Customer jobs in Job_Board's ⚙ Settings. The Morning Brief has its own "Include Job_Board customer jobs" box.</p>
+      </details>
     </section>`) + `
     ${teamSection()}
     ${clocksSection()}
