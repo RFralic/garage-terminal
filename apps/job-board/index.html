@@ -66,7 +66,7 @@ a{color:var(--steel)}
 .between{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:52px}
 header.app{display:flex;flex-direction:column;gap:12px;padding-bottom:14px;border-bottom:3px solid var(--ink)}
-input[type=text],input[type=search],input[type=url],input[type=tel],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;min-width:0;min-height:44px;padding:0 12px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+input[type=text],input[type=search],input[type=url],input[type=tel],input[type=email],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;min-width:0;min-height:44px;padding:0 12px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
 textarea{padding:10px 12px;min-height:110px;resize:vertical;line-height:1.45}
 label.f{display:flex;flex-direction:column;gap:4px;font-family:var(--f-display);font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 label.f input,label.f select,label.f textarea{font-family:var(--f-body);font-size:15px;letter-spacing:0;text-transform:none;color:var(--ink)}
@@ -219,6 +219,7 @@ a.btn{text-decoration:none}
 #print.receipt .rc-w{overflow-wrap:anywhere}
 #print.receipt .rc-ind{padding-left:2ch}
 #print.receipt .rc-tail{height:18mm}
+.newcust{border:1px solid var(--line);border-radius:8px;padding:10px 12px 12px;margin:0;display:flex;flex-direction:column;gap:12px;min-width:0}.newcust[hidden]{display:none}.newcust legend{padding:0 6px;font-family:var(--f-display);font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:13px;color:var(--steel)}
 .linkbtn{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 /* shop mode (inside garageterminal.com/shop): the app shows its own title, tabs and site bar */
 .shop [data-shophide],.shop .gt-bar{display:none!important}
@@ -976,7 +977,14 @@ function renderNew(){
     ${k==='mine'?`<label class="f">Machine<input type="text" name="machine" maxlength="120" placeholder="Make, model, serial"></label>`:''}
     ${k==='mine'?logbookSelect(view.mid?{logbookId:view.mid}:undefined):
     `${customers.length?`<label class="f">Customer<select name="cid" data-input="pickcust"><option value="">New customer</option>${[...customers].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).map(c=>`<option value="${esc(c.id)}" ${view.cid===c.id?'selected':''}>${esc(c.name||'No name')}${phonesOk&&c.phone?' · '+esc(c.phone):''}</option>`).join('')}</select></label>`:''}
-    <div class="grid2"><label class="f">${customers.length?'Name':'Customer'}<input type="text" name="cname" id="n-cname" maxlength="80" value="${esc((custById(view.cid)||{}).name||'')}"></label><label class="f" ${phonesOk?'':'hidden'}>Phone<input type="${phonesOk?'tel':'hidden'}" name="cphone" id="n-cphone" maxlength="40" value="${esc((custById(view.cid)||{}).phone||'')}"></label></div>
+    <div id="n-custsum" class="note" ${custById(view.cid)?'':'hidden'}>${custSummary(custById(view.cid))}</div>
+    <fieldset id="n-newcust" class="newcust" ${custById(view.cid)?'hidden':''}><legend>${customers.length?'New customer':'Customer'}</legend>
+      <div class="grid2"><label class="f">Name<input type="text" name="cname" id="n-cname" maxlength="80" autocomplete="off"></label><label class="f" ${phonesOk?'':'hidden'}>Phone<input type="${phonesOk?'tel':'hidden'}" name="cphone" id="n-cphone" maxlength="40" inputmode="tel" autocomplete="off"></label></div>
+      ${phonesOk?`<label class="f">Email<input type="email" name="cemail" maxlength="100" autocomplete="off"></label>
+      <label class="f">Address<input type="text" name="caddr" maxlength="160" autocomplete="off" placeholder="Street, town (for pickup and delivery)"></label>`:''}
+      <label class="f">Notes about the customer<textarea name="cnotes" maxlength="2000" style="min-height:60px" placeholder="Gate code, pays cash, prefers texts…"></textarea></label>
+      <span class="note">They're added to your customer list.</span>
+    </fieldset>
     ${true?(()=>{const cid=view.cid||(machineById(view.mid)&&machineById(view.mid).owner&&machineById(view.mid).owner.id)||'';const has=custMachines(cid).length;
       return `<label class="f" id="n-midwrap" ${has?'':'hidden'}>Customer's machine<select name="mid" id="n-mid"><option value="">Not listed (type it below)</option>${cmOptions(cid,view.mid||'')}</select></label>
       ${view.mid?lastTimeBox(view.mid,null,null):''}`})():''}
@@ -1346,6 +1354,8 @@ function buildReceiptHtml(p,kind){
 var RCPT={'58':{label:'58 mm (2 1/4 in) · small and handheld printers',print:48,fs:8.5},'76':{label:'76 mm (3 in) · kitchen and impact printers',print:66,fs:9},'80':{label:'80 mm (3 1/8 in) · most common',print:72,fs:9.5},'112':{label:'112 mm (4 3/8 in) · wide printers',print:104,fs:10.5}};
 function rcptW(){return RCPT[shop.receiptWidth]?shop.receiptWidth:'80'}
 // an inline link that opens Settings at one field (e.g. the shop address), with ← Back to the job
+// one line about the picked customer on the new job form (their details live on their page)
+function custSummary(c){if(!c)return '';const bits=[`<b>${esc(c.name||'No name')}</b>`];if(phonesOk){if(c.phone)bits.push(esc(c.phone));if(c.address)bits.push(esc(c.address))}return bits.join(' · ')+'<br>Their details are already saved; change them on their page.'}
 function setLink(field,text){return `<button type="button" class="linkbtn" data-act="gosettings" data-focus="${field}">${text}</button>`}
 function printReceipt(p,kind){
   const el=document.getElementById('print');const w=rcptW(),r=RCPT[w];
@@ -1521,7 +1531,8 @@ app.addEventListener('submit',e=>{
   const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));const k=f.dataset.form;const p=projects[view.pid];
   if(k==='new'){const kindNew=(custOn&&view.kind==='customer')||hideMine?'customer':'mine';if(!d.title.trim()&&kindNew!=='customer')return;const id=uid();const np=blankProject(kindNew);np.title=d.title.trim();np.machine=(d.machine||'').trim();if(np.kind==='mine')applyLogbook(np,d.logbookSel||'');
     if(np.kind==='customer'){np.customer={name:(d.cname||'').trim(),phone:(d.cphone||'').trim(),dropOff:d.drop||'',dropTime:d.dropTime||'',inBy:d.inBy==='collect'?'collect':'drop',ret:d.ret==='deliver'?'deliver':'pickup',pickup:'',pickupTime:'',promised:d.promised||'',complaint:(d.complaint||'').trim()};np.jobNo=nextJobNo();toast('Job '+fmtJob(np.jobNo)+' created');
-      const picked=custById(d.cid);if(picked){np.customer.id=picked.id;if(!picked.phone&&np.customer.phone)picked.phone=np.customer.phone;if(!np.customer.name)np.customer.name=picked.name;saveCustomers()}else if(linkJob(np))saveCustomers();
+      const picked=custById(d.cid);if(picked){np.customer.id=picked.id;np.customer.name=picked.name||'';np.customer.phone=picked.phone||''}
+      else{linkJob(np);const cu=custOfJob(np);if(cu){const add=(k,v)=>{v=String(v||'').trim();if(v&&!cu[k])cu[k]=v};add('email',d.cemail);add('address',d.caddr);add('notes',d.cnotes)}saveCustomers()}
       if(d.mid){const m=machineById(d.mid);if(m&&m.owner&&np.customer.id&&m.owner.id===np.customer.id)linkToMachine(np,m.id)}}
     projects[id]=np;save(id);if(view.book&&np.kind==='customer'&&bookFromShop){bookFromShop=false;const day=np.customer.dropOff||today();
       /* save now (not after save()'s short wait), then tell the shop app, so nothing can interrupt the save */
@@ -1570,7 +1581,7 @@ app.addEventListener('input',e=>{
   else if(k==='tnotes'){const t=p.tasks.find(x=>x.id===view.tid);t.notes=el.value;save(view.pid)}
 });
 app.addEventListener('change',e=>{const sel=e.target.closest('[data-daysel]');if(!sel)return;const f=sel.closest('form');const l=f&&f.querySelector(`[data-daylbl="${sel.dataset.daysel}"]`);if(l)l.textContent=sel.dataset.daysel==='in'?inDayLbl(sel.value):backDayLbl(sel.value)});
-app.addEventListener('change',e=>{const el=e.target;if(el.dataset.input==='dropday'){const n=document.getElementById('n-limit');if(n)n.innerHTML=el.value?limitNote(el.value):'';return}if(el.dataset.input==='pickcust'){const c=custById(el.value);view.cid=el.value||null;view.mid=null;const n=document.getElementById('n-cname'),ph=document.getElementById('n-cphone');if(n)n.value=c?c.name:'';if(ph)ph.value=c?c.phone:'';
+app.addEventListener('change',e=>{const el=e.target;if(el.dataset.input==='dropday'){const n=document.getElementById('n-limit');if(n)n.innerHTML=el.value?limitNote(el.value):'';return}if(el.dataset.input==='pickcust'){const c=custById(el.value);view.cid=el.value||null;view.mid=null;const nc=document.getElementById('n-newcust'),sum=document.getElementById('n-custsum');if(nc)nc.hidden=!!c;if(sum){sum.hidden=!c;sum.innerHTML=custSummary(c)}if(!c){const n=document.getElementById('n-cname');if(n)n.focus()}
     const w=document.getElementById('n-midwrap'),sm=document.getElementById('n-mid');if(w&&sm){sm.innerHTML='<option value="">Not listed (type it below)</option>'+cmOptions(view.cid,'');w.hidden=!custMachines(view.cid).length}return}
   if(el.dataset.input==='status'){projects[view.pid].status=el.value;save(view.pid);render()}
   else if(el.dataset.input==='assignee'){const p=projects[view.pid];if(el.value)p.assignee=el.value;else delete p.assignee;save(view.pid);toast(el.value?'Assigned to '+((personOf(el.value)||{}).name||'them'):'Not assigned');render()}
