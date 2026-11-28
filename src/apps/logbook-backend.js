@@ -16,6 +16,8 @@
 //                    settings/{x}   -> logbook/{uid}/trackerSettings/{x}  (counter, shop)
 //                    records        -> logbook/{uid}/records (inventory check)
 //                    shop/info      -> shops/{owner}: the team, for Assigned to / Done by
+//   settings(uid)  Logbook's own settings docs, read/write:
+//                    doc(x)         -> logbook/{uid}/trackerSettings/{x}  (suppliers)
 //
 // Only the member can read or write their own records (see the LOGBOOK section
 // of firestore.rules). The pages turn on the offline cache
@@ -125,6 +127,18 @@ function forUser(uid) {
   };
 }
 
+/** Logbook's own settings docs (logbook/{uid}/trackerSettings/{x}), e.g. suppliers: {list:[...]}. */
+function settings(uid) {
+  const col = userCol(uid, 'trackerSettings');
+  const snap = (s) => ({ id: s.id, exists: s.exists(), data: () => s.data() });
+  return {
+    doc: (b) => ({
+      set: (data) => setDoc(doc(col, safeId(b)), data),
+      onSnapshot: (next, err) => onSnapshot(doc(col, safeId(b)), (s) => next(snap(s)), err),
+    }),
+  };
+}
+
 // ---------- sign-in ---------------------------------------------------------------
 
 // Finish a phone sign-in that redirected to Google and back to this page.
@@ -145,4 +159,5 @@ window.fbResolve({
   records,
   receipts,
   forUser,
+  settings,
 });

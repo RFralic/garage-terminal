@@ -437,7 +437,8 @@ service cloud.firestore {
     // sysop. Docs are in the apps' own format (src/apps/logbook-backend.js):
     //   logbook/{uid}/records/{id}          engines, vehicles, parts (inventory)
     //   logbook/{uid}/projects/{id}         Project Tracker projects and jobs
-    //   logbook/{uid}/trackerSettings/{id}  Project Tracker counter and shop info
+    //   logbook/{uid}/trackerSettings/{id}  Project Tracker counter and shop info; also the
+    //                                        Logbook's own supplier list (trackerSettings/suppliers)
     //   logbook/{uid}/receipts/{id}         a receipt photo or PDF on a part (one file per doc)
     // ---------- shared shop: employees (Garage Terminal shop app) ------------
     // A shop is an owner's Logbook + Job_Board data (logbook/{owner}/...). With Employees
@@ -453,7 +454,7 @@ service cloud.firestore {
     //   everyone   read records, projects and trackerSettings (not 'team'); work jobs
     //              (projects), add machines, log services, take parts off the shelf
     //              (qty only), job numbers and the customer list
-    //   inventory  add, change and delete parts and receipts
+    //   inventory  add, change and delete parts and receipts; manage the supplier list
     //   settings   change shop info (trackerSettings/shop)
     //   deleteJobs delete jobs (each role's permissions are set by the owner in the shop app)
     // Prices and phone numbers live inside the jobs, so hiding them from a role is done
@@ -483,7 +484,8 @@ service cloud.firestore {
               || (resource == null && request.resource.data.kind != 'part')
               || (resource != null && resource.data.kind != 'part' && request.resource.data.kind != 'part')
               || (resource != null && resource.data.kind == 'part' && onlyQty())))
-        || (part == 'trackerSettings' && (docId in ['counter', 'customers'] || (docId == 'shop' && memberPerm(o, 'settings'))));
+        || (part == 'trackerSettings' && (docId in ['counter', 'customers'] || (docId == 'shop' && memberPerm(o, 'settings'))
+              || (docId == 'suppliers' && memberPerm(o, 'inventory'))));
     }
     function memberDelete(o, part) {
       return (part == 'projects' && memberPerm(o, 'deleteJobs') && (!hideMine(o) || resource.data.get('kind', 'mine') == 'customer'))
