@@ -85,6 +85,7 @@ label.f input,label.f select,label.f textarea{font-family:var(--f-body);font-siz
 .bar{flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--accent)}
 .bar.big{height:8px}
+.delset:not(:has(input[name=delivery]:checked)) .delopt,.delset:not(:has(input[name=delivery]:checked)) .delfee,.delset:not(:has(input[name=delivFees]:checked)) .delfee{display:none!important}
 .st-progress{color:var(--warn)}.st-waiting{color:var(--accent)}.st-done{color:var(--ok)}.st-notstarted{color:var(--muted)}.st-pickup{color:var(--ok)}
 .list{border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .item{display:flex;align-items:center;gap:4px;background:var(--surface);border-bottom:1px solid var(--line)}
@@ -637,7 +638,7 @@ function linkJob(p){if(!p||p.kind!=='customer')return false;const c=p.customer||
   const cu=findCustomer(c.name,c.phone)||newCustomer(c.name,c.phone);if(!cu.phone&&c.phone)cu.phone=c.phone;c.id=cu.id;return true}
 function buildCustomers(){if(customersBuilt||!customersLoaded||!projectsLoaded||!db)return;customersBuilt=true;
   Object.entries(projects).forEach(([id,p])=>{if(p.kind==='customer'&&!custById(p.customer&&p.customer.id)&&linkJob(p))save(id)});saveCustomers()}
-const jobTotal=p=>partsCost(p).total+laborCost(p).total;
+const jobTotal=p=>partsCost(p).total+laborCost(p).total+deliveryFee(p).total;
 
 /* ---------- Schedule (customer jobs) ----------
    On each job's customer: dropOff (day) + dropTime ("HH:MM"), pickup (day) + pickupTime, promised (day).
@@ -652,6 +653,33 @@ const fmtTime=t=>{if(!t||!/^\d{1,2}:\d{2}/.test(t))return'';const [h,mi]=t.split
 const custJobList=()=>Object.entries(projects).filter(([,p])=>p.kind==='customer');
 const dropsOn=k=>custJobList().filter(([,p])=>(p.customer||{}).dropOff===k).length;
 /* promised and not finished: 'over' (past the date), 'risk' (parts not in by then), or '' */
+/* How a customer job comes in and goes back. customer.inBy: 'drop' (they bring it, the default) or 'collect'
+   (we pick it up from them); customer.ret: 'pickup' (they pick it up, the default) or 'deliver' (we take it back).
+   The day and time fields are the same either way (dropOff/dropTime, pickup/pickupTime). */
+/* Settings → Pickup and delivery (shop.delivery, off by default) shows these choices; Delivery fees
+   (shop.delivFees) charges per mile: shop.delRate $/mile, delMin minimum per trip, delFree free within
+   (miles), delRound true = charge there and back. The job keeps customer.miles (one way) and, if typed,
+   customer.delFee (a charge set by hand). */
+const deliveryOn=()=>custOn&&shop.delivery===true;
+const feesOn=()=>deliveryOn()&&shop.delivFees===true;
+const collects=p=>deliveryOn()&&((p&&p.customer)||{}).inBy==='collect';
+const delivers=p=>deliveryOn()&&((p&&p.customer)||{}).ret==='deliver';
+const tripsOf=p=>(collects(p)?1:0)+(delivers(p)?1:0);
+function deliveryFee(p){const c=(p&&p.customer)||{},trips=tripsOf(p);
+  if(!feesOn()||!trips)return{has:false,total:0,trips:0};
+  const what=trips===2?'Pickup and delivery':delivers(p)?'Delivery':'Pickup';
+  const mi=+c.miles>0?+c.miles:0,rt=shop.delRound!==false;
+  if(c.delFee!==undefined&&c.delFee!==''&&isFinite(+c.delFee))return{has:+c.delFee>0,total:Math.round(+c.delFee*100)/100,trips,miles:mi,manual:true,desc:what+(mi?` · ${numStr(mi)} mi`:'')};
+  if(!mi)return{has:false,total:0,trips,miles:0,desc:what};
+  const free=+shop.delFree>0?+shop.delFree:0,rate=+shop.delRate>0?+shop.delRate:0,min=+shop.delMin>0?+shop.delMin:0;
+  const billable=Math.max(0,mi-free);let per=billable*(rt?2:1)*rate,minHit=false;if(billable>0&&per<min){per=min;minHit=true}
+  const total=Math.round(per*trips*100)/100;
+  return{has:total>0,total,trips,miles:mi,rate,rt,free,billable,minHit,desc:`${what} · ${numStr(mi)} mi${rt?' each way':''}`}}
+const mapsHref=p=>{const c=custOfJob(p);const to=(c&&c.address)||'';return 'https://www.google.com/maps/dir/?api=1'+(shop.address?'&origin='+encodeURIComponent(shop.address):'')+(to?'&destination='+encodeURIComponent(to):'')+'&travelmode=driving'};
+const statusLabel=p=>p.status==='Ready for pickup'&&delivers(p)?'Ready for delivery':p.status;
+const custAddr=p=>{const c=typeof custOfJob==='function'&&custOfJob(p);return phonesOk&&c&&c.address?c.address:''};
+const inSelect=v=>!deliveryOn()?'':`<label class="f">How it comes in<select name="inBy"><option value="drop" ${v!=='collect'?'selected':''}>Customer drops it off</option><option value="collect" ${v==='collect'?'selected':''}>We pick it up</option></select></label>`;
+const retSelect=v=>!deliveryOn()?'':`<label class="f">How it goes back<select name="ret"><option value="pickup" ${v!=='deliver'?'selected':''}>Customer picks it up</option><option value="deliver" ${v==='deliver'?'selected':''}>We deliver it</option></select></label>`;
 function promiseState(p){const c=p.customer||{};if(!c.promised||p.status==='Done'||p.status==='Ready for pickup')return'';if(c.promised<today())return'over';
   return allParts(p).some(x=>x.status==='To order'||(x.status==='Ordered'&&(!x.expected||x.expected>=c.promised)))?'risk':''}
 function dayItems(k){const out=[];custJobList().forEach(([id,p])=>{const c=p.customer||{};
@@ -670,15 +698,15 @@ function renderSchedule(){const td=today(),day=view.day||td,ws=weekOf(day),days=
   const items=dayItems(day),L=+shop.dayLimit||0,drops=dropsOn(day);
   h+=`<section><div class="between"><h2>${esc(dayDate(day).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}))}</h2><span class="small muted">${L?`${drops} of ${L} drop-offs`:`${drops} drop-off${drops===1?'':'s'}`}</span></div>`;
   const row=({t,id,p,time})=>{const c=p.customer||{},who=c.name||'Customer',ps=promiseState(p);
-    const head=t==='drop'?`Drop-off · ${esc(who)}`:t==='pick'?`Pickup · ${esc(who)}`:`Promised · ${esc(jobLabel(p)||'')} ${esc(p.title||'')}`;
-    const sub=t==='prom'?esc([who,p.status].filter(Boolean).join(' · ')):esc([jobLabel(p),p.machine||p.title,t==='drop'?c.complaint:(jobTotal(p)?money(jobTotal(p)):'')].filter(Boolean).join(' · '));
-    const pill=t==='drop'?(p.status==='Not started'?'<span class="chip">Expected</span>':'<span class="chip st-progress">In</span>'):t==='pick'?'<span class="chip st-pickup">Out</span>':ps==='over'?'<span class="chip warnchip">Overdue</span>':ps==='risk'?'<span class="chip warnchip">At risk</span>':'<span class="chip">Due</span>';
+    const head=t==='drop'?(collects(p)?`Pick up from ${esc(who)}`:`Drop-off · ${esc(who)}`):t==='pick'?(delivers(p)?`Deliver to ${esc(who)}`:`Pickup · ${esc(who)}`):`Promised · ${esc(jobLabel(p)||'')} ${esc(p.title||'')}`;
+    const sub=t==='prom'?esc([who,p.status].filter(Boolean).join(' · ')):esc([jobLabel(p),p.machine||p.title,(t==='drop'&&collects(p))||(t==='pick'&&delivers(p))?custAddr(p):'',t==='drop'?c.complaint:(jobTotal(p)?money(jobTotal(p)):'')].filter(Boolean).join(' · '));
+    const pill=t==='drop'?(p.status==='Not started'?'<span class="chip">Expected</span>':'<span class="chip st-progress">In</span>'):t==='pick'?(delivers(p)?'<span class="chip st-pickup">Delivery</span>':'<span class="chip st-pickup">Out</span>'):ps==='over'?'<span class="chip warnchip">Overdue</span>':ps==='risk'?'<span class="chip warnchip">At risk</span>':'<span class="chip">Due</span>';
     return `<button class="item schedrow ${t}" data-act="open" data-pid="${id}"><span class="time mono">${t==='prom'?'due':esc(fmtTime(time)||'—')}</span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left"><b>${head}</b><span class="small muted">${sub}</span></span>${pill}</button>`};
   h+=items.length?`<div class="list">${items.map(row).join('')}</div>`:`<div class="empty">Nothing booked${day===td?' today':''}. <button class="btn sm" data-act="book" style="margin-top:6px">+ Book a drop-off</button></div>`;
   h+='</section>';
   if(day===td){const over=custJobList().filter(([,p])=>promiseState(p)==='over'),ready=custJobList().filter(([,p])=>p.status==='Ready for pickup'&&!(p.customer||{}).pickup);
     if(over.length)h+=`<section><h2>Overdue</h2><div class="list">${over.map(([id,p])=>row({t:'prom',id,p,time:''})).join('')}</div></section>`;
-    if(ready.length)h+=`<section><h2>Ready, no pickup set</h2><div class="list">${ready.map(([id,p])=>`<button class="item schedrow" data-act="open" data-pid="${id}"><span class="time mono">—</span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left"><b>${esc((p.customer||{}).name||'Customer')} · ${esc(jobLabel(p))}</b><span class="small muted">${esc(p.machine||p.title||'')}</span></span><span class="chip st-pickup">Ready</span></button>`).join('')}</div></section>`}
+    if(ready.length)h+=`<section><h2>Ready, no pickup or delivery day set</h2><div class="list">${ready.map(([id,p])=>`<button class="item schedrow" data-act="open" data-pid="${id}"><span class="time mono">—</span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left"><b>${esc((p.customer||{}).name||'Customer')} · ${esc(jobLabel(p))}</b><span class="small muted">${esc(p.machine||p.title||'')}</span></span><span class="chip st-pickup">Ready</span></button>`).join('')}</div></section>`}
   return h}
 
 /* ---------- Customer machines ----------
@@ -818,10 +846,15 @@ function renderList(){
   if(!custOn&&view.tab==='customer')view.tab='all';
   const all=Object.entries(projects).filter(visible).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));
   const q=view.q.trim().toLowerCase();
-  const match=([id,p])=>{if(view.tab!=='all'&&p.kind!==view.tab)return false;if(assignOn()&&view.who==='me'&&p.assignee!==myPid)return false;if(assignOn()&&view.who==='none'&&p.assignee)return false;if(!q)return true;
+  /* Done customer jobs are filed under their customer (Customers → Customer list) and leave the job list;
+     a search still finds them, and "Show done jobs" brings them back for a look */
+  const archived=([,p])=>p.kind==='customer'&&p.status==='Done';
+  const doneN=all.filter(archived).length;
+  const match=([id,p])=>{if(view.tab!=='all'&&p.kind!==view.tab)return false;if(!q&&!view.showDone&&archived([id,p]))return false;if(assignOn()&&view.who==='me'&&p.assignee!==myPid)return false;if(assignOn()&&view.who==='none'&&p.assignee)return false;if(!q)return true;
     const hay=[jobLabel(p),p.jobNo,p.title,p.machine,p.logbook,p.notes,p.customer&&p.customer.name,p.custNotes,...(p.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier]),...(p.tasks||[]).flatMap(t=>[t.title,t.notes,...(t.parts||[]).flatMap(x=>[x.name,x.brand,x.num,x.supplier])])].join(' ').toLowerCase();return hay.includes(q)};
   const shown=all.filter(match);
-  const c={all:all.length,mine:all.filter(x=>x[1].kind==='mine').length,customer:all.filter(x=>x[1].kind==='customer').length};
+  const live=view.showDone?all:all.filter(x=>!archived(x));
+  const c={all:live.length,mine:live.filter(x=>x[1].kind==='mine').length,customer:live.filter(x=>x[1].kind==='customer').length};
   const toOrder=all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='To order').length,0);
   const ordProj=all.filter(([,p])=>allParts(p).some(x=>x.status==='To order'));
   const lateN=(()=>{const td=today();return all.reduce((n,[,p])=>n+allParts(p).filter(x=>x.status==='Ordered'&&x.expected&&x.expected<td).length,0)})();
@@ -855,8 +888,9 @@ function renderList(){
       <div class="row"><div class="bar"><i style="width:${pr.pct}%"></i></div><span class="mono small">${pr.d} / ${pr.n}</span></div>
       <span class="small"><span class="muted">Next:</span> ${next?esc(next.title):(pr.n?'All tasks done':'Add the first task')}</span>${invFor(p)&&inv?(()=>{const ps=allParts(p).filter(x=>x.num);if(!ps.length)return '';const n=ps.filter(x=>{const r=invLookup(x);return r&&r.found}).length;return `<span class="small" style="color:${n?'var(--ok)':'var(--muted)'}">${n} of ${ps.length} part${ps.length===1?'':'s'} in inventory</span>`})():''}</div>
       ${pricesOk&&p.kind==='mine'&&partsCost(p).count?`<span class="small"><span class="muted">Parts so far:</span> <span class="price">${money(partsCost(p).total)}</span></span>`:''}
-      <div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${assignOn()&&p.assignee?avatar(p.assignee)+' ':''}${esc(p.status)}${running(p)?' <span style="color:var(--ok)">· ● on the clock</span>':''}</span><span>${to?to+' to order':od?od+' ordered':parts.length?'Parts in':'No parts yet'}</span></div>
+      <div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${assignOn()&&p.assignee?avatar(p.assignee)+' ':''}${esc(statusLabel(p))}${running(p)?' <span style="color:var(--ok)">· ● on the clock</span>':''}</span><span>${to?to+' to order':od?od+' ordered':parts.length?'Parts in':'No parts yet'}</span></div>
     </button>`}).join('');
+  if(custOn&&doneN&&!q&&view.tab!=='mine')h+=`<div class="between small" style="padding:4px 2px"><span class="muted">${view.showDone?`Showing ${doneN} done job${doneN===1?'':'s'}`:`${doneN} done job${doneN===1?' is':'s are'} filed under ${doneN===1?'its customer':'their customers'}`}</span><button class="btn ghost sm" data-act="showdone">${view.showDone?'Hide done jobs':'Show done jobs'}</button></div>`;
   return h;
 }
 
@@ -907,8 +941,11 @@ function renderCustomer(){
         <div class="row"><label style="flex:1"><span class="sr">Machine for ${esc(jobLabel(p)||'this job')}</span><select name="mid">${(()=>{const hit=nameMatch(c.id,p.machine);return cmOptions(c.id,hit)+`<option value="__new" ${hit?'':'selected'}>New machine: "${esc(p.machine)}"</option>`})()}</select></label><button class="btn sm" type="submit">Link</button></div></form>`).join('')}</div>`;
     h+=`</section>`;}
   h+=`<section><div class="between"><h2>Jobs</h2><button class="btn primary sm" data-act="newforcust">+ New job</button></div>`;
-  h+=js.length?js.map(([id,p])=>`<button class="card" data-act="open" data-pid="${id}"><div class="plate customer"><b>${esc(projName(p))}</b><span class="mono" style="font-size:14px;letter-spacing:0">${esc(jobLabel(p)||'')}</span></div>
-      <div class="body">${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}<div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(p.status)}</span><span class="price">${jobTotal(p)?money(jobTotal(p)):''}</span></div></div></button>`).join('')
+  const jcard=([id,p])=>`<button class="card" data-act="open" data-pid="${id}"><div class="plate customer"><b>${esc(projName(p))}</b><span class="mono" style="font-size:14px;letter-spacing:0">${esc(jobLabel(p)||'')}</span></div>
+      <div class="body">${p.machine?`<span class="small muted">${esc(p.machine)}</span>`:''}<div class="foot"><span class="${ST_CLASS[p.status]||''}" style="font-weight:600">${esc(statusLabel(p))}</span><span class="price">${pricesOk&&jobTotal(p)?money(jobTotal(p)):''}</span></div></div></button>`;
+  const jOpen=js.filter(([,p])=>p.status!=='Done'),jDone=js.filter(([,p])=>p.status==='Done');
+  h+=js.length?(jOpen.length?jOpen.map(jcard).join(''):`<div class="empty">No open jobs for ${esc(c.name||'this customer')}.</div>`)
+    +(jDone.length?`<h3 class="small muted" style="margin:10px 0 0;text-transform:uppercase;letter-spacing:.08em">Done jobs · ${jDone.length}</h3>`+jDone.map(jcard).join(''):'')
     +`<div class="between small"><span class="muted">${js.length} job${js.length===1?'':'s'}</span><span>${pricesOk?`Total billed: <span class="price">${money(total)}</span>`:''}</span></div>`
     :`<div class="empty">No jobs for ${esc(c.name||'this customer')} yet.</div>`;
   return h+'</section>';
@@ -933,6 +970,7 @@ function renderNew(){
     <label class="f">${view.mid?'Machine (if not the one above)':'Machine'}<input type="text" name="machine" maxlength="120" placeholder="Make, model, serial"></label>
     <div class="grid2"><label class="f">Drop-off day<input type="date" name="drop" data-input="dropday" value="${esc(view.day||(view.book?today():''))}"></label><label class="f">Time<input type="time" name="dropTime" step="900"></label></div>
     <span class="note" id="n-limit" aria-live="polite">${view.day||view.book?limitNote(view.day||today()):''}</span>
+    <div class="grid2">${inSelect('')}${retSelect('')}</div>
     <label class="f">Promised by<input type="date" name="promised"></label>
     <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px"></textarea></label>`}
     <button class="btn primary" type="submit">Create project</button>
@@ -954,7 +992,8 @@ function renderProject(){
       `${custOn&&custOfJob(p)&&(custMachines(custOfJob(p).id).length||p.logbookId)?`<label class="f">Customer's machine<select name="mid"><option value="">(not linked)</option>${cmOptions(custOfJob(p).id,p.logbookId)}</select></label>`:''}
       <div class="grid2"><label class="f">Drop-off day<input type="date" name="drop" value="${esc(c.dropOff)}"></label><label class="f">Time<input type="time" name="dropTime" step="900" value="${esc(c.dropTime||'')}"></label></div>
       <label class="f">Promised by<input type="date" name="promised" value="${esc(c.promised)}"></label>
-      <div class="grid2"><label class="f">Pickup day<input type="date" name="pickup" value="${esc(c.pickup||'')}"></label><label class="f">Time<input type="time" name="pickupTime" step="900" value="${esc(c.pickupTime||'')}"></label></div>
+      <div class="grid2">${inSelect(c.inBy)}${retSelect(c.ret)}</div>
+      <div class="grid2"><label class="f">${deliveryOn()?'Pickup or delivery day':'Pickup day'}<input type="date" name="pickup" value="${esc(c.pickup||'')}"></label><label class="f">Time<input type="time" name="pickupTime" step="900" value="${esc(c.pickupTime||'')}"></label></div>
       <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px">${esc(c.complaint)}</textarea></label>`}
       <button class="btn primary" type="submit">Save details</button>
       ${view.confirm==='delp'?`<div class="confirm"><span>Delete this project and all its tasks?</span><button type="button" class="btn danger sm" data-act="delp-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:(deleteOk?`<button type="button" class="btn danger" data-act="delp">Delete project</button>`:'')}
@@ -984,9 +1023,10 @@ function renderProject(){
       ${(p.machine||'').trim()?'':`<label class="f">New machine's name<input type="text" name="newname" maxlength="120" placeholder="e.g. Craftsman YT3000"></label>`}
       <label class="f">What is it? (new machine)${typeSelect()}</label>
       <div class="grid2"><button class="btn primary" type="submit">Link</button><button class="btn" type="button" data-act="linkm">Cancel</button></div></form>`}
-  if(p.kind==='customer'&&p.status==='Ready for pickup'&&!c.pickup)h+=`<form class="panel lshint" data-form="pickup"><b>When are they picking it up?</b>
-    <div class="grid2"><label class="f">Pickup day<input type="date" name="pickup" value="${today()}"></label><label class="f">Time<input type="time" name="pickupTime" step="900"></label></div>
-    <button class="btn primary" type="submit">Set pickup</button><span class="note">It shows on the Schedule and the shop app's Home.</span></form>`;
+  if(p.kind==='customer'&&p.status==='Ready for pickup'&&!c.pickup)h+=`<form class="panel lshint" data-form="pickup"><b>${deliveryOn()?'When is it going back?':'When are they picking it up?'}</b>
+    ${retSelect(c.ret)}
+    <div class="grid2"><label class="f">Day<input type="date" name="pickup" value="${today()}"></label><label class="f">Time<input type="time" name="pickupTime" step="900"></label></div>
+    <button class="btn primary" type="submit">Set the day</button><span class="note">It shows on the Schedule and the shop app's Home${deliveryOn()&&custAddr(p)?`. Delivery address: ${esc(custAddr(p))}`:''}.</span></form>`;
   if(p.kind==='customer'&&p.logbookId)h+=lastTimeBox(p.logbookId,id,p.createdAt||0);
   if(p.kind==='customer'&&jobClocksOn())h+=renderClock(id,p);
   if(p.kind==='customer'){
@@ -1054,7 +1094,20 @@ function renderLabor(p){const l=p.labor||{};const lc=laborCost(p);const pc=parts
     ${approveOn()&&waitMs(p)?`<span class="small" style="color:var(--warn)">${fmtDur(waitMs(p))} of clocked time is waiting for approval and isn't counted.</span>`:''}
     <span class="small muted">${lc.has?`${numStr(lc.hours)} hr × ${money(lc.rate)}/hr. `:'Leave hours empty and labor won\'t show on the invoice. '}${shop.rate?'':'Set a default rate under Shop info.'}</span>
   </div>
-  <div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;border-color:var(--tan)"><div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Job total</span><span class="mono" style="font-size:24px">${money(pc.total+lc.total)}</span></div><span class="small muted" style="text-align:right">Parts ${money(pc.total)}${lc.has?`<br>Labor ${money(lc.total)}`:''}</span></div>`}
+  ${renderDelivery(p)}
+  <div class="panel" style="flex-direction:row;justify-content:space-between;align-items:center;border-color:var(--tan)"><div style="display:flex;flex-direction:column;gap:2px"><span class="eyebrow">Job total</span><span class="mono" style="font-size:24px">${money(pc.total+lc.total+deliveryFee(p).total)}</span></div><span class="small muted" style="text-align:right">Parts ${money(pc.total)}${lc.has?`<br>Labor ${money(lc.total)}`:''}${deliveryFee(p).has?`<br>${deliveryFee(p).trips===2?'Pickup + delivery':delivers(p)?'Delivery':'Pickup'} ${money(deliveryFee(p).total)}`:''}</span></div>`}
+/* The job's Delivery panel (Delivery fees on, and the job is picked up and/or delivered by the shop) */
+function renderDelivery(p){if(!feesOn()||!tripsOf(p))return'';const c=p.customer||{},df=deliveryFee(p),cu=custOfJob(p);
+  const mi=c.miles!==undefined&&c.miles!==''?c.miles:((cu&&cu.miles)||'');
+  const how=df.manual?'Set by hand.':!df.miles?`Type the miles one way. ${shop.delRate?`${money(+shop.delRate)}/mile${shop.delRound!==false?', there and back':''}${+shop.delMin>0?`, ${money(+shop.delMin)} minimum`:''}${+shop.delFree>0?`, free within ${numStr(+shop.delFree)} mi`:''}.`:'Set the rate per mile in Settings.'}`
+    :df.billable<=0?`Within ${numStr(df.free)} mi: no charge.`:df.minHit?`Minimum ${money(+shop.delMin)}${df.trips===2?' × 2 trips':''}.`:`${numStr(df.billable)} mi${df.rt?' × 2':''}${df.trips===2?' × 2 trips':''} × ${money(df.rate)}/mi.`;
+  return `<div class="panel" style="gap:10px;border-color:var(--tan)">
+    <div class="between" style="align-items:baseline"><span class="eyebrow">${df.trips===2?'Pickup and delivery':delivers(p)?'Delivery':'Pickup'}</span><span class="mono" style="font-size:18px">${df.has?money(df.total):'<span class="muted small">none</span>'}</span></div>
+    <a class="btn sm" href="${esc(mapsHref(p))}" target="_blank" rel="noopener" style="align-self:flex-start">📍 Check the distance in Maps</a>
+    ${!shop.address?'<span class="small" style="color:var(--warn)">Add your shop address in Settings so Maps starts from the shop.</span>':''}${!(cu&&cu.address)?'<span class="small" style="color:var(--warn)">This customer has no address yet; type it in Maps, or add it on their page.</span>':''}
+    <div class="grid2"><label class="f">Miles (one way)<input type="number" min="0" step="0.1" inputmode="decimal" class="mono" value="${esc(mi)}" placeholder="0" data-deliv="miles"></label>
+    <label class="f">Charge by hand (optional)<input type="number" min="0" step="0.01" inputmode="decimal" class="mono" value="${esc(c.delFee!==undefined?c.delFee:'')}" placeholder="worked out" data-deliv="delFee"></label></div>
+    <span class="small muted">${how} On the invoice as "${esc(df.desc||'Delivery')}".</span></div>`}
 function shopForm(){return `<form class="panel" data-form="shop">
       <p class="small muted" style="margin:0">Printed at the top of every invoice and report. You only fill this in once.</p>
       <label class="f">Shop name<input id="s-name" type="text" name="name" maxlength="80" value="${esc(shop.name)}" placeholder="e.g. Ryan's Small Engine Repair"></label>
@@ -1064,6 +1117,16 @@ function shopForm(){return `<form class="panel" data-form="shop">
       <label class="f">Note at the bottom of invoices (optional)<input type="text" name="footer" maxlength="200" value="${esc(shop.footer)}" placeholder="e.g. Thank you! Payment due on pickup."></label>
       <label class="f">Receipt paper width (for Print receipt)<select name="receiptWidth"><option value="80" ${shop.receiptWidth!=='58'?'selected':''}>80 mm (3 1/8 in, most common)</option><option value="58" ${shop.receiptWidth==='58'?'selected':''}>58 mm (2 1/4 in)</option></select></label>
       ${custOn?`<label class="f">Daily drop-off limit (optional)<input type="number" name="dayLimit" min="1" max="99" step="1" inputmode="numeric" class="mono" value="${esc(shop.dayLimit||'')}" placeholder="e.g. 4"></label><span class="note">Booking a drop-off warns when a day already has this many. It never blocks.</span>`:''}
+      ${custOn?`<fieldset class="delset" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;margin:0">
+        <legend class="small" style="padding:0 4px">Pickup and delivery</legend>
+        <label class="row" style="gap:8px"><input type="checkbox" name="delivery" ${shop.delivery?'checked':''}> Pickup and delivery</label>
+        <span class="note">Jobs get "How it comes in" (they drop it off, or you pick it up) and "How it goes back" (they pick it up, or you deliver it). Shows on the Schedule.</span>
+        <label class="row delopt" style="gap:8px"><input type="checkbox" name="delivFees" ${shop.delivFees?'checked':''}> Delivery fees (charge per mile)</label>
+        <div class="delfee" style="display:flex;flex-direction:column;gap:8px">
+          <div class="grid2"><label class="f">Rate, $ per mile<input type="number" name="delRate" min="0" step="0.01" inputmode="decimal" class="mono" value="${esc(shop.delRate||'')}" placeholder="e.g. 1.50"></label><label class="f">Minimum per trip, $<input type="number" name="delMin" min="0" step="0.01" inputmode="decimal" class="mono" value="${esc(shop.delMin||'')}" placeholder="e.g. 15"></label></div>
+          <div class="grid2"><label class="f">Free within (miles)<input type="number" name="delFree" min="0" step="0.5" inputmode="decimal" class="mono" value="${esc(shop.delFree||'')}" placeholder="0"></label><label class="f">Miles charged<select name="delRound"><option value="rt" ${shop.delRound!==false?'selected':''}>There and back</option><option value="one" ${shop.delRound===false?'selected':''}>One way</option></select></label></div>
+          <span class="note">Each pickup or delivery is a trip. The job's Delivery panel works out the charge from its miles, and it goes on the invoice as its own line.</span></div>
+      </fieldset>`:''}
       <button class="btn primary" type="submit">Save shop info</button>
     </form>`}
 function renderShopInfo(){
@@ -1186,8 +1249,9 @@ function buildPdf(p,kind){
     ensure(80);
     doc.setFontSize(11);doc.setTextColor(60);txt('Parts',cols.each,y,{align:'right'});txt(money(pc.total),cols.amt,y,{align:'right'});y+=16;
     if(lc.has){txt('Labor',cols.each,y,{align:'right'});txt(money(lc.total),cols.amt,y,{align:'right'});y+=16}
+    const df=deliveryFee(p);if(df.has){txt(pdfText(df.desc),cols.each,y,{align:'right'});txt(money(df.total),cols.amt,y,{align:'right'});y+=16}
     y-=8;line(cols.qty-30,y,R,y,1.2,40);y+=20;
-    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(20);txt('TOTAL',cols.each,y,{align:'right'});txt(money(pc.total+lc.total),cols.amt,y,{align:'right'});y+=20;
+    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(20);txt('TOTAL',cols.each,y,{align:'right'});txt(money(pc.total+lc.total+df.total),cols.amt,y,{align:'right'});y+=20;
     if(pc.missing){doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(150);txt(pc.missing+' part'+(pc.missing>1?'s have':' has')+' no price and '+(pc.missing>1?'are':'is')+' not included.',R,y,{align:'right'});y+=14}
   }
   if(custNotes(p)){y+=18;ensure(40);doc.setFontSize(9);doc.setTextColor(120);doc.setFont('helvetica','bold');txt('NOTES',M,y);y+=14;doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(20);
@@ -1225,7 +1289,7 @@ function buildPrintHtml(p,kind){
     h+=`<table><tr><th>Part</th><th>Brand / part #</th><th class="r">Qty</th><th class="r">Price each</th><th class="r">Amount</th></tr>
       ${parts.length?parts.map(x=>{const q=x.qty||1;return `<tr><td>${esc(x.name)}</td><td>${esc(idText(x)||'-')}</td><td class="r">${esc(isFluid(x)?qtyText(x):numStr(q))}</td><td class="r">${hasPrice(x)?esc(money(x.price)+(isFluid(x)?'/'+x.unit:'')):'-'}</td><td class="r">${hasPrice(x)?esc(money(x.price*q)):'-'}</td></tr>`}).join(''):'<tr><td colspan="5">No parts on this job.</td></tr>'}</table>`;
     if(lc.has)h+=`<table><tr><th>Labor</th><th class="r">Hours</th><th class="r">Rate</th><th class="r">Amount</th></tr><tr><td>${esc(lc.desc||'Labor')}</td><td class="r">${esc(numStr(lc.hours))}</td><td class="r">${esc(money(lc.rate))}/hr</td><td class="r">${esc(money(lc.total))}</td></tr></table>`;
-    h+=`<table class="tot"><tr><td class="r">Parts</td><td class="r">${esc(money(pc.total))}</td></tr>${lc.has?`<tr><td class="r">Labor</td><td class="r">${esc(money(lc.total))}</td></tr>`:''}<tr class="big"><td class="r">TOTAL</td><td class="r">${esc(money(pc.total+lc.total))}</td></tr></table>`;
+    h+=`<table class="tot"><tr><td class="r">Parts</td><td class="r">${esc(money(pc.total))}</td></tr>${lc.has?`<tr><td class="r">Labor</td><td class="r">${esc(money(lc.total))}</td></tr>`:''}${deliveryFee(p).has?`<tr><td class="r">${esc(deliveryFee(p).desc)}</td><td class="r">${esc(money(deliveryFee(p).total))}</td></tr>`:''}<tr class="big"><td class="r">TOTAL</td><td class="r">${esc(money(pc.total+lc.total+deliveryFee(p).total))}</td></tr></table>`;
     if(pc.missing)h+=`<div class="sub" style="text-align:right">${pc.missing} part${pc.missing>1?'s have':' has'} no price and ${pc.missing>1?'are':'is'} not included.</div>`;
   }
   if(custNotes(p))h+=`<div class="lab">Notes</div><div style="white-space:pre-wrap">${esc(custNotes(p))}</div>`;
@@ -1254,7 +1318,8 @@ function buildReceiptHtml(p,kind){
     h+=parts.length?parts.map(x=>{const q=x.qty||1;const each=hasPrice(x)?money(x.price)+(isFluid(x)?'/'+x.unit:''):'no price';
       return `<div class="rc-w">${esc(x.name)}</div>${idText(x)?`<div class="rc-ind rc-w">${esc(idText(x))}</div>`:''}${row(`<span class="rc-ind">${esc(isFluid(x)?qtyText(x):numStr(q))} x ${esc(each)}</span>`,hasPrice(x)?esc(money(x.price*q)):'-')}`}).join(''):'<div>No parts on this job.</div>';
     if(lc.has)h+=hr+`<div class="rc-w">Labor${lc.desc?': '+esc(lc.desc):''}</div>`+row(`<span class="rc-ind">${esc(numStr(lc.hours))} hr x ${esc(money(lc.rate))}</span>`,esc(money(lc.total)));
-    h+=hr+row('Parts',esc(money(pc.total)))+(lc.has?row('Labor',esc(money(lc.total))):'')+row('TOTAL',esc(money(pc.total+lc.total)),'rc-big');
+    const df=deliveryFee(p);if(df.has)h+=hr+`<div class="rc-w">${esc(df.desc)}</div>`+row('',esc(money(df.total)));
+    h+=hr+row('Parts',esc(money(pc.total)))+(lc.has?row('Labor',esc(money(lc.total))):'')+(df.has?row(df.trips===2?'Pickup + delivery':delivers(p)?'Delivery':'Pickup',esc(money(df.total))):'')+row('TOTAL',esc(money(pc.total+lc.total+df.total)),'rc-big');
     if(pc.missing)h+=`<div class="rc-w">${pc.missing} part${pc.missing>1?'s have':' has'} no price and ${pc.missing>1?'are':'is'} not included.</div>`;
     h+=`${custNotes(p)?hr+`<div class="rc-b">Notes</div><div class="rc-w" style="white-space:pre-wrap">${esc(custNotes(p))}</div>`:''}`+hr+`<div class="rc-c rc-w">${esc(shop.footer||'Thank you for your business.')}</div>`;
   }
@@ -1361,6 +1426,7 @@ app.addEventListener('click',async e=>{
   else if(a==='editc'){view.editing='c';render();const el=document.getElementById('c-name');if(el)el.focus()}
   else if(a==='cancelc'){view.editing=null;render()}
   else if(a==='cview'){view.cview=b.dataset.v;render()}
+  else if(a==='showdone'){view.showDone=!view.showDone;render()}
   else if(a==='who'){view.who=b.dataset.v;render()}
   else if(a==='pickday'){view.day=b.dataset.day;render()}
   else if(a==='wk'){view.day=addDay(view.day||today(),+b.dataset.n||0);render()}
@@ -1430,20 +1496,20 @@ app.addEventListener('click',async e=>{
 app.addEventListener('submit',e=>{
   const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));const k=f.dataset.form;const p=projects[view.pid];
   if(k==='new'){const kindNew=(custOn&&view.kind==='customer')||hideMine?'customer':'mine';if(!d.title.trim()&&kindNew!=='customer')return;const id=uid();const np=blankProject(kindNew);np.title=d.title.trim();np.machine=(d.machine||'').trim();if(np.kind==='mine')applyLogbook(np,d.logbookSel||'');
-    if(np.kind==='customer'){np.customer={name:(d.cname||'').trim(),phone:(d.cphone||'').trim(),dropOff:d.drop||'',dropTime:d.dropTime||'',pickup:'',pickupTime:'',promised:d.promised||'',complaint:(d.complaint||'').trim()};np.jobNo=nextJobNo();toast('Job '+fmtJob(np.jobNo)+' created');
+    if(np.kind==='customer'){np.customer={name:(d.cname||'').trim(),phone:(d.cphone||'').trim(),dropOff:d.drop||'',dropTime:d.dropTime||'',inBy:d.inBy==='collect'?'collect':'drop',ret:d.ret==='deliver'?'deliver':'pickup',pickup:'',pickupTime:'',promised:d.promised||'',complaint:(d.complaint||'').trim()};np.jobNo=nextJobNo();toast('Job '+fmtJob(np.jobNo)+' created');
       const picked=custById(d.cid);if(picked){np.customer.id=picked.id;if(!picked.phone&&np.customer.phone)picked.phone=np.customer.phone;if(!np.customer.name)np.customer.name=picked.name;saveCustomers()}else if(linkJob(np))saveCustomers();
       if(d.mid){const m=machineById(d.mid);if(m&&m.owner&&np.customer.id&&m.owner.id===np.customer.id)linkToMachine(np,m.id)}}
     projects[id]=np;save(id);if(view.book&&np.kind==='customer'&&bookFromShop){bookFromShop=false;const day=np.customer.dropOff||today();
       /* save now (not after save()'s short wait), then tell the shop app, so nothing can interrupt the save */
       clearTimeout(timers['s'+id]);timers['s'+id]=null;(db?db.doc('projects/'+id).set(JSON.parse(JSON.stringify(np))):Promise.resolve()).catch(()=>save(id)).finally(()=>{try{window.parent.postMessage({gt:'booked',day},location.origin)}catch(x){}})}if(view.book&&np.kind==='customer')go({name:'list',tab:'customer',cview:'sched',day:np.customer.dropOff||today()});else go({name:'project',pid:id})}
-  else if(k==='pickup'){if(!p||!d.pickup)return;p.customer={...(p.customer||{}),pickup:d.pickup,pickupTime:d.pickupTime||''};save(view.pid);toast('Pickup set');render()}
+  else if(k==='pickup'){if(!p||!d.pickup)return;p.customer={...(p.customer||{}),ret:d.ret===undefined?((p.customer||{}).ret||'pickup'):d.ret==='deliver'?'deliver':'pickup',pickup:d.pickup,pickupTime:d.pickupTime||''};save(view.pid);toast(d.ret==='deliver'?'Delivery set':'Pickup set');render()}
   else if(k==='takeoff'){const list=new FormData(f).getAll('x').map(v=>{const [tid,xid]=String(v).split('|');return{tid:tid||'',xid}});if(!list.length){view.shelfOff=view.pid;render();return}takeOff(f.dataset.pid,list)}
   else if(k==='addcm'){const cu=custById(view.cid);if(!cu||!(d.name||'').trim())return;newCustMachine(cu,d.name,d.type);view.editing=null;toast((d.name||'').trim()+' added to '+(cu.name||'the customer')+"'s machines");render()}
   else if(k==='linkm'){const lp=projects[f.dataset.pid],cu=custOfJob(lp);if(!lp||!cu)return;let mid=d.mid;
     if(mid==='__new'||!mid){const name=String(lp.machine||d.newname||'').trim();if(!name){toast("Type the machine's name");return}mid=newCustMachine(cu,name,d.type||'Other')}
     linkToMachine(lp,mid);save(f.dataset.pid);if(view.editing==='linkm')view.editing=null;toast('Linked to '+((machineById(mid)||{}).name||'the machine'));render()}
   else if(k==='editp'){const was=p.kind;p.title=d.title.trim()||(p.kind==='customer'||d.kind==='customer'?'':p.title);p.machine=(d.machine||'').trim();p.customer=p.customer||{name:'',phone:'',dropOff:'',promised:'',complaint:''};
-    if(was==='mine')applyLogbook(p,d.logbookSel||'');else{p.customer={...p.customer,dropOff:d.drop||'',dropTime:d.dropTime||'',pickup:d.pickup||'',pickupTime:d.pickupTime||'',promised:d.promised||'',complaint:(d.complaint||'').trim()};
+    if(was==='mine')applyLogbook(p,d.logbookSel||'');else{p.customer={...p.customer,dropOff:d.drop||'',dropTime:d.dropTime||'',inBy:d.inBy===undefined?(p.customer.inBy||'drop'):d.inBy==='collect'?'collect':'drop',ret:d.ret===undefined?(p.customer.ret||'pickup'):d.ret==='deliver'?'deliver':'pickup',pickup:d.pickup||'',pickupTime:d.pickupTime||'',promised:d.promised||'',complaint:(d.complaint||'').trim()};
       if(d.mid!==undefined){if(d.mid)linkToMachine(p,d.mid);else{p.logbookId='';p.logbook=''}}}
     if(d.kind==='mine'||d.kind==='customer')p.kind=d.kind;
     if(p.kind==='customer'&&!p.jobNo)p.jobNo=nextJobNo();
@@ -1460,7 +1526,7 @@ app.addEventListener('submit',e=>{
     if(approveOn()&&!canApprove()){e.ok=false;delete e.okBy;delete e.okAt;delete e.rejected}
     p.time={log:[...timeLog(p)]};view.editTime=null;save(view.pid);toast('Time saved');render()}
   else if(k==='cust'){const c=custById(view.cid);if(!c)return;Object.assign(c,{name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),notes:(d.notes||'').trim()});saveCustomers();view.editing=null;toast('Customer saved');render()}
-  else if(k==='shop'){shop={name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),footer:(d.footer||'').trim(),rate:d.rate!==''&&isFinite(+d.rate)&&+d.rate>0?Math.round(+d.rate*100)/100:'',receiptWidth:d.receiptWidth==='58'?'58':'80',dayLimit:+d.dayLimit>0?Math.min(99,Math.round(+d.dayLimit)):''};
+  else if(k==='shop'){shop={name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),footer:(d.footer||'').trim(),rate:d.rate!==''&&isFinite(+d.rate)&&+d.rate>0?Math.round(+d.rate*100)/100:'',receiptWidth:d.receiptWidth==='58'?'58':'80',dayLimit:+d.dayLimit>0?Math.min(99,Math.round(+d.dayLimit)):'',...(custOn?{delivery:d.delivery==='on',delivFees:d.delivery==='on'&&d.delivFees==='on',delRate:+d.delRate>0?Math.round(+d.delRate*100)/100:'',delMin:+d.delMin>0?Math.round(+d.delMin*100)/100:'',delFree:+d.delFree>0?Math.round(+d.delFree*10)/10:'',delRound:d.delRound!=='one'}:{delivery:shop.delivery,delivFees:shop.delivFees,delRate:shop.delRate,delMin:shop.delMin,delFree:shop.delFree,delRound:shop.delRound})};
     if(db)db.doc('settings/shop').set({...shop}).catch(()=>toast('Could not save shop info'));view.editing=null;toast('Shop info saved');if(view.name==='shopinfo')go({name:'list'});else render()}
   else if(k==='editc'){p.customer={...(p.customer||{}),name:(d.cname||'').trim(),phone:(d.cphone||'').trim()};{const cu=custOfJob(p);if(cu){if(p.customer.name)cu.name=p.customer.name;cu.phone=p.customer.phone;saveCustomers()}else if(linkJob(p))saveCustomers()}save(view.pid);view.editing=null;toast('Customer info saved');render()}
   else if(k==='addtask'){const t=(d.title||'').trim();if(!t)return;p.tasks.push({id:uid(),title:t,done:false,notes:'',parts:[],links:[]});save(view.pid);render();const el=document.getElementById('newtask');if(el)el.focus()}
@@ -1487,6 +1553,10 @@ app.addEventListener('change',e=>{const el=e.target;if(el.dataset.input==='dropd
   else if(el.dataset.exp){const {x}=findPart(el.dataset.pid,el.dataset.tid,el.dataset.xid);if(x){if(el.value)x.expected=el.value;else delete x.expected;save(el.dataset.pid);el.blur();render()}}});
 
 app.addEventListener('change',e=>{const fi=e.target.closest('[data-importfile]');if(fi){const file=fi.files&&fi.files[0];if(!file)return;if(file.size>20e6){toast('That file is too big to be a Project Tracker backup');return}file.text().then(importBackup).catch(()=>toast('Could not read that file'));fi.value='';return}
+  const dv=e.target.closest('[data-deliv]');if(dv){const p=projects[view.pid];if(!p)return;const k=dv.dataset.deliv,v=parseFloat(dv.value);p.customer={...(p.customer||{})};
+    if(isFinite(v)&&v>=0&&dv.value!=='')p.customer[k]=Math.round(v*100)/100;else delete p.customer[k];
+    if(k==='miles'&&p.customer.miles){const cu=custOfJob(p);if(cu&&cu.miles!==p.customer.miles){cu.miles=p.customer.miles;saveCustomers()}} /* the customer remembers it for next time */
+    save(view.pid);dv.blur();render();return}
   const lb=e.target.closest('[data-labor]');if(lb){const p=projects[view.pid];if(!p)return;const k=lb.dataset.labor;p.labor={...(p.labor||{})};
     if(k==='desc')p.labor.desc=lb.value.trim();else{const v=parseFloat(lb.value);if(isFinite(v)&&v>0)p.labor[k]=Math.round(v*100)/100;else delete p.labor[k]}
     if(k==='hours'&&p.labor.hours&&p.labor.rate===undefined&&shop.rate)p.labor.rate=+shop.rate;
@@ -1501,7 +1571,7 @@ function stopAll(){unsubs.forEach(u=>{try{u()}catch(e){}});unsubs=[]}
 function connect(u){
   stopAll();user=u;signedOut=false;db=FB.forUser(u.uid);
   projects={};ready=false;inv=null;machines=[];machinesLoaded=false;machineRecs={};counterLast=0;counterLoaded=false;projectsLoaded=false;backfilled=false;render();
-  unsubs.push(db.doc('settings/shop').onSnapshot(s=>{if(s.exists){const v=s.data()||{};shop={name:v.name||'',phone:v.phone||'',email:v.email||'',address:v.address||'',footer:v.footer||'',rate:v.rate||'',receiptWidth:v.receiptWidth==='58'?'58':'80',dayLimit:+v.dayLimit>0?Math.round(+v.dayLimit):''};if(view.editing!=='shop'&&view.name!=='shopinfo')render()}},()=>{}));
+  unsubs.push(db.doc('settings/shop').onSnapshot(s=>{if(s.exists){const v=s.data()||{};shop={name:v.name||'',phone:v.phone||'',email:v.email||'',address:v.address||'',footer:v.footer||'',rate:v.rate||'',receiptWidth:v.receiptWidth==='58'?'58':'80',dayLimit:+v.dayLimit>0?Math.round(+v.dayLimit):'',delivery:v.delivery===true,delivFees:v.delivFees===true,delRate:+v.delRate>0?+v.delRate:'',delMin:+v.delMin>0?+v.delMin:'',delFree:+v.delFree>0?+v.delFree:'',delRound:v.delRound!==false};if(view.editing!=='shop'&&view.name!=='shopinfo')render()}},()=>{}));
   unsubs.push(db.doc('settings/customers').onSnapshot(s=>{const v=s.exists?(s.data()||{}):null;customers=v&&Array.isArray(v.list)?v.list.filter(c=>c&&c.id):[];customersBuilt=customersBuilt||!!(v&&v.built);customersLoaded=true;buildCustomers();handleDeep();if(ready)render()},()=>{customersLoaded=true}));
   try{unsubs.push(db.doc('shop/info').onSnapshot(s=>{const v=s.exists?(s.data()||{}):{};shopTeam={on:v.on===true,people:Array.isArray(v.people)?v.people.filter(x=>x&&x.id&&x.name):[],options:v.options&&typeof v.options==='object'?v.options:{}};if(ready)render()},()=>{}))}catch(e){/* this page's own backend has no shop doc: employees stay off */}
   unsubs.push(db.doc('settings/counter').onSnapshot(s=>{const v=s.exists?Number((s.data()||{}).lastJobNo)||0:0;counterLast=Math.max(counterLast,v);counterLoaded=true;backfillJobNos()},()=>{counterLoaded=true;backfillJobNos()}));
