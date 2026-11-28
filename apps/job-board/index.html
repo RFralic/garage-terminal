@@ -208,10 +208,9 @@ a.btn{text-decoration:none}
 #print li.done::after{content:"✓";position:absolute;left:1px;top:-1px;font-size:11pt}
 #print .foot{text-align:center;color:#555;margin-top:28px}
 @page{size:letter;margin:0.6in}
-/* receipt (thermal printer): one narrow black-on-white column. Width set from Shop info (80 or 58 mm paper).
+/* receipt (thermal printer): one narrow black-on-white column. Width and font size set from Shop info (RCPT: 58, 76, 80 or 112 mm paper).
    Own rc- class names so the app's .row / .wrap styles don't leak in. */
 #print.receipt{width:72mm;margin:0;padding:0 1mm;font-family:"Courier New",Courier,monospace;font-size:9.5pt;line-height:1.3;color:#000}
-#print.receipt.w58{width:48mm;font-size:8.5pt}
 #print.receipt div,#print.receipt span{margin:0;padding:0;max-width:none;gap:0;min-height:0}
 #print.receipt .rc-c{text-align:center}#print.receipt .rc-b{font-weight:700}#print.receipt .rc-big{font-size:12pt;font-weight:700}
 #print.receipt .rc-hr{border-top:1px dashed #000;margin:5px 0}
@@ -1120,7 +1119,7 @@ function shopForm(){return `<form class="panel" data-form="shop">
       <label class="f">Address (optional)<input type="text" name="address" maxlength="160" value="${esc(shop.address)}"></label>
       <label class="f">Default labor rate, $ per hour (optional)<input type="number" name="rate" min="0" step="0.01" inputmode="decimal" class="mono" value="${esc(shop.rate)}" placeholder="e.g. 65.00"></label>
       <label class="f">Note at the bottom of invoices (optional)<input type="text" name="footer" maxlength="200" value="${esc(shop.footer)}" placeholder="e.g. Thank you! Payment due on pickup."></label>
-      <label class="f">Receipt paper width (for Print receipt)<select name="receiptWidth"><option value="80" ${shop.receiptWidth!=='58'?'selected':''}>80 mm (3 1/8 in, most common)</option><option value="58" ${shop.receiptWidth==='58'?'selected':''}>58 mm (2 1/4 in)</option></select></label>
+      <label class="f">Receipt paper width (for Print receipt)<select name="receiptWidth">${Object.entries(RCPT).map(([k,r])=>`<option value="${k}" ${rcptW()===k?'selected':''}>${r.label}</option>`).join('')}</select></label>
       ${custOn?`<label class="f">Daily drop-off limit (optional)<input type="number" name="dayLimit" min="1" max="99" step="1" inputmode="numeric" class="mono" value="${esc(shop.dayLimit||'')}" placeholder="e.g. 4"></label><span class="note">Booking a drop-off warns when a day already has this many. It never blocks.</span>`:''}
       ${custOn?`<fieldset class="delset" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;margin:0">
         <legend class="small" style="padding:0 4px">Pickup and delivery</legend>
@@ -1187,10 +1186,10 @@ function renderDocs(p){
       <button class="btn" data-act="pdf" data-kind="report">Work report (PDF)</button>
       <button class="btn" data-act="print" data-kind="invoice">Print invoice</button>
       <button class="btn" data-act="print" data-kind="report">Print work report</button>
-      <button class="btn ghost" data-act="receipt" data-kind="invoice">Invoice receipt</button>
-      <button class="btn ghost" data-act="receipt" data-kind="report">Work report receipt</button>
+      <button class="btn" data-act="receipt" data-kind="invoice">Invoice receipt</button>
+      <button class="btn" data-act="receipt" data-kind="report">Work report receipt</button>
     </div>
-    <span class="small muted">Receipts are for a thermal receipt printer (${shop.receiptWidth==='58'?'58':'80'} mm paper; change it in Shop info). In the print dialog, set margins to None and scale to 100% if it comes out shrunk or cut off.</span>
+    <span class="small muted">Receipts are for a thermal receipt printer (${rcptW()} mm paper; change it in Shop info). In the print dialog, set margins to None and scale to 100% if it comes out shrunk or cut off.</span>
     <span class="small muted">Invoice: parts${laborCost(p).has?', labor':''} and the total${pc.missing?` <span style="color:var(--warn)">(${pc.missing} part${pc.missing>1?'s':''} still without a price)</span>`:''}. Work report: the complaint, ${done} completed task${done===1?'':'s'} and parts used, no prices. Both end with your notes for the customer. Save the PDF to send it, or Print to print it straight away.</span>
     ${!shop.name?`<span class="small" style="color:var(--warn)">Add your shop info first so your name prints at the top.</span>`:''}
   </div></section>`;
@@ -1330,12 +1329,15 @@ function buildReceiptHtml(p,kind){
   }
   return h+'<div class="rc-tail"></div>';
 }
+// Standard receipt paper widths. print = the printable width (the printer's head leaves a margin on each side); fs = font size in pt.
+var RCPT={'58':{label:'58 mm (2 1/4 in) · small and handheld printers',print:48,fs:8.5},'76':{label:'76 mm (3 in) · kitchen and impact printers',print:66,fs:9},'80':{label:'80 mm (3 1/8 in) · most common',print:72,fs:9.5},'112':{label:'112 mm (4 3/8 in) · wide printers',print:104,fs:10.5}};
+function rcptW(){return RCPT[shop.receiptWidth]?shop.receiptWidth:'80'}
 function printReceipt(p,kind){
-  const el=document.getElementById('print');const w=shop.receiptWidth==='58'?'58':'80';
-  el.className='receipt'+(w==='58'?' w58':'');el.innerHTML=buildReceiptHtml(p,kind);
+  const el=document.getElementById('print');const w=rcptW(),r=RCPT[w];
+  el.className='receipt';el.style.width=r.print+'mm';el.style.fontSize=r.fs+'pt';el.innerHTML=buildReceiptHtml(p,kind);
   const pg=document.createElement('style');pg.id='receiptPage';pg.textContent=`@page{size:${w}mm auto;margin:0}`;document.head.appendChild(pg);
   document.body.classList.add('printing');
-  const done=()=>{document.body.classList.remove('printing');el.innerHTML='';el.className='';pg.remove();window.removeEventListener('afterprint',done)};
+  const done=()=>{document.body.classList.remove('printing');el.innerHTML='';el.className='';el.style.width='';el.style.fontSize='';pg.remove();window.removeEventListener('afterprint',done)};
   window.addEventListener('afterprint',done);window.print();
 }
 function printDoc(p,kind){
@@ -1531,7 +1533,7 @@ app.addEventListener('submit',e=>{
     if(approveOn()&&!canApprove()){e.ok=false;delete e.okBy;delete e.okAt;delete e.rejected}
     p.time={log:[...timeLog(p)]};view.editTime=null;save(view.pid);toast('Time saved');render()}
   else if(k==='cust'){const c=custById(view.cid);if(!c)return;Object.assign(c,{name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),notes:(d.notes||'').trim()});saveCustomers();view.editing=null;toast('Customer saved');render()}
-  else if(k==='shop'){shop={name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),footer:(d.footer||'').trim(),rate:d.rate!==''&&isFinite(+d.rate)&&+d.rate>0?Math.round(+d.rate*100)/100:'',receiptWidth:d.receiptWidth==='58'?'58':'80',dayLimit:+d.dayLimit>0?Math.min(99,Math.round(+d.dayLimit)):'',...(custOn?{delivery:d.delivery==='on',delivFees:d.delivery==='on'&&d.delivFees==='on',delRate:+d.delRate>0?Math.round(+d.delRate*100)/100:'',delMin:+d.delMin>0?Math.round(+d.delMin*100)/100:'',delFree:+d.delFree>0?Math.round(+d.delFree*10)/10:'',delRound:d.delRound!=='one'}:{delivery:shop.delivery,delivFees:shop.delivFees,delRate:shop.delRate,delMin:shop.delMin,delFree:shop.delFree,delRound:shop.delRound})};
+  else if(k==='shop'){shop={name:(d.name||'').trim(),phone:(d.phone||'').trim(),email:(d.email||'').trim(),address:(d.address||'').trim(),footer:(d.footer||'').trim(),rate:d.rate!==''&&isFinite(+d.rate)&&+d.rate>0?Math.round(+d.rate*100)/100:'',receiptWidth:RCPT[d.receiptWidth]?d.receiptWidth:'80',dayLimit:+d.dayLimit>0?Math.min(99,Math.round(+d.dayLimit)):'',...(custOn?{delivery:d.delivery==='on',delivFees:d.delivery==='on'&&d.delivFees==='on',delRate:+d.delRate>0?Math.round(+d.delRate*100)/100:'',delMin:+d.delMin>0?Math.round(+d.delMin*100)/100:'',delFree:+d.delFree>0?Math.round(+d.delFree*10)/10:'',delRound:d.delRound!=='one'}:{delivery:shop.delivery,delivFees:shop.delivFees,delRate:shop.delRate,delMin:shop.delMin,delFree:shop.delFree,delRound:shop.delRound})};
     if(db)db.doc('settings/shop').set({...shop}).catch(()=>toast('Could not save shop info'));view.editing=null;toast('Shop info saved');if(view.name==='shopinfo')go({name:'list'});else render()}
   else if(k==='editc'){p.customer={...(p.customer||{}),name:(d.cname||'').trim(),phone:(d.cphone||'').trim()};{const cu=custOfJob(p);if(cu){if(p.customer.name)cu.name=p.customer.name;cu.phone=p.customer.phone;saveCustomers()}else if(linkJob(p))saveCustomers()}save(view.pid);view.editing=null;toast('Customer info saved');render()}
   else if(k==='addtask'){const t=(d.title||'').trim();if(!t)return;p.tasks.push({id:uid(),title:t,done:false,notes:'',parts:[],links:[]});save(view.pid);render();const el=document.getElementById('newtask');if(el)el.focus()}
@@ -1577,7 +1579,7 @@ function stopAll(){unsubs.forEach(u=>{try{u()}catch(e){}});unsubs=[]}
 function connect(u){
   stopAll();user=u;signedOut=false;db=FB.forUser(u.uid);
   projects={};ready=false;inv=null;machines=[];machinesLoaded=false;machineRecs={};counterLast=0;counterLoaded=false;projectsLoaded=false;backfilled=false;render();
-  unsubs.push(db.doc('settings/shop').onSnapshot(s=>{if(s.exists){const v=s.data()||{};shop={name:v.name||'',phone:v.phone||'',email:v.email||'',address:v.address||'',footer:v.footer||'',rate:v.rate||'',receiptWidth:v.receiptWidth==='58'?'58':'80',dayLimit:+v.dayLimit>0?Math.round(+v.dayLimit):'',delivery:v.delivery===true,delivFees:v.delivFees===true,delRate:+v.delRate>0?+v.delRate:'',delMin:+v.delMin>0?+v.delMin:'',delFree:+v.delFree>0?+v.delFree:'',delRound:v.delRound!==false};if(view.editing!=='shop'&&view.name!=='shopinfo')render()}},()=>{}));
+  unsubs.push(db.doc('settings/shop').onSnapshot(s=>{if(s.exists){const v=s.data()||{};shop={name:v.name||'',phone:v.phone||'',email:v.email||'',address:v.address||'',footer:v.footer||'',rate:v.rate||'',receiptWidth:RCPT[v.receiptWidth]?v.receiptWidth:'80',dayLimit:+v.dayLimit>0?Math.round(+v.dayLimit):'',delivery:v.delivery===true,delivFees:v.delivFees===true,delRate:+v.delRate>0?+v.delRate:'',delMin:+v.delMin>0?+v.delMin:'',delFree:+v.delFree>0?+v.delFree:'',delRound:v.delRound!==false};if(view.editing!=='shop'&&view.name!=='shopinfo')render()}},()=>{}));
   unsubs.push(db.doc('settings/customers').onSnapshot(s=>{const v=s.exists?(s.data()||{}):null;customers=v&&Array.isArray(v.list)?v.list.filter(c=>c&&c.id):[];customersBuilt=customersBuilt||!!(v&&v.built);customersLoaded=true;buildCustomers();handleDeep();if(ready)render()},()=>{customersLoaded=true}));
   try{unsubs.push(db.doc('shop/info').onSnapshot(s=>{const v=s.exists?(s.data()||{}):{};shopTeam={on:v.on===true,people:Array.isArray(v.people)?v.people.filter(x=>x&&x.id&&x.name):[],options:v.options&&typeof v.options==='object'?v.options:{}};if(ready)render()},()=>{}))}catch(e){/* this page's own backend has no shop doc: employees stay off */}
   unsubs.push(db.doc('settings/counter').onSnapshot(s=>{const v=s.exists?Number((s.data()||{}).lastJobNo)||0:0;counterLast=Math.max(counterLast,v);counterLoaded=true;backfillJobNos()},()=>{counterLoaded=true;backfillJobNos()}));
