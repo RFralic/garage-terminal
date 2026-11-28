@@ -66,7 +66,7 @@ a{color:var(--steel)}
 .between{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:52px}
 header.app{display:flex;flex-direction:column;gap:12px;padding-bottom:14px;border-bottom:3px solid var(--ink)}
-input[type=text],input[type=search],input[type=url],input[type=tel],input[type=date],input[type=number],select,textarea{width:100%;min-width:0;min-height:44px;padding:0 12px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+input[type=text],input[type=search],input[type=url],input[type=tel],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;min-width:0;min-height:44px;padding:0 12px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
 textarea{padding:10px 12px;min-height:110px;resize:vertical;line-height:1.45}
 label.f{display:flex;flex-direction:column;gap:4px;font-family:var(--f-display);font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 label.f input,label.f select,label.f textarea{font-family:var(--f-body);font-size:15px;letter-spacing:0;text-transform:none;color:var(--ink)}
@@ -678,8 +678,11 @@ function deliveryFee(p){const c=(p&&p.customer)||{},trips=tripsOf(p);
 const mapsHref=p=>{const c=custOfJob(p);const to=(c&&c.address)||'';return 'https://www.google.com/maps/dir/?api=1'+(shop.address?'&origin='+encodeURIComponent(shop.address):'')+(to?'&destination='+encodeURIComponent(to):'')+'&travelmode=driving'};
 const statusLabel=p=>p.status==='Ready for pickup'&&delivers(p)?'Ready for delivery':p.status;
 const custAddr=p=>{const c=typeof custOfJob==='function'&&custOfJob(p);return phonesOk&&c&&c.address?c.address:''};
-const inSelect=v=>!deliveryOn()?'':`<label class="f">How it comes in<select name="inBy"><option value="drop" ${v!=='collect'?'selected':''}>Customer drops it off</option><option value="collect" ${v==='collect'?'selected':''}>We pick it up</option></select></label>`;
-const retSelect=v=>!deliveryOn()?'':`<label class="f">How it goes back<select name="ret"><option value="pickup" ${v!=='deliver'?'selected':''}>Customer picks it up</option><option value="deliver" ${v==='deliver'?'selected':''}>We deliver it</option></select></label>`;
+/* Day labels that follow the choices (updated live by the change handler: data-daylbl) */
+const inDayLbl=v=>deliveryOn()&&v==='collect'?'Day we pick it up':'Drop-off day';
+const backDayLbl=v=>deliveryOn()&&v==='deliver'?'Delivery day':'Pickup day';
+const inSelect=v=>!deliveryOn()?'':`<label class="f">How it comes in<select name="inBy" data-daysel="in"><option value="drop" ${v!=='collect'?'selected':''}>Customer drops it off</option><option value="collect" ${v==='collect'?'selected':''}>We pick it up</option></select></label>`;
+const retSelect=v=>!deliveryOn()?'':`<label class="f">How it goes back<select name="ret" data-daysel="back"><option value="pickup" ${v!=='deliver'?'selected':''}>Customer picks it up</option><option value="deliver" ${v==='deliver'?'selected':''}>We deliver it</option></select></label>`;
 function promiseState(p){const c=p.customer||{};if(!c.promised||p.status==='Done'||p.status==='Ready for pickup')return'';if(c.promised<today())return'over';
   return allParts(p).some(x=>x.status==='To order'||(x.status==='Ordered'&&(!x.expected||x.expected>=c.promised)))?'risk':''}
 function dayItems(k){const out=[];custJobList().forEach(([id,p])=>{const c=p.customer||{};
@@ -968,10 +971,11 @@ function renderNew(){
       return `<label class="f" id="n-midwrap" ${has?'':'hidden'}>Customer's machine<select name="mid" id="n-mid"><option value="">Not listed (type it below)</option>${cmOptions(cid,view.mid||'')}</select></label>
       ${view.mid?lastTimeBox(view.mid,null,null):''}`})():''}
     <label class="f">${view.mid?'Machine (if not the one above)':'Machine'}<input type="text" name="machine" maxlength="120" placeholder="Make, model, serial"></label>
-    <div class="grid2"><label class="f">Drop-off day<input type="date" name="drop" data-input="dropday" value="${esc(view.day||(view.book?today():''))}"></label><label class="f">Time<input type="time" name="dropTime" step="900"></label></div>
+    ${inSelect('')}
+    <div class="grid2"><label class="f"><span data-daylbl="in">${inDayLbl('')}</span><input type="date" name="drop" data-input="dropday" value="${esc(view.day||(view.book?today():''))}"></label><label class="f">Time<input type="time" name="dropTime" step="900"></label></div>
     <span class="note" id="n-limit" aria-live="polite">${view.day||view.book?limitNote(view.day||today()):''}</span>
-    <div class="grid2">${inSelect('')}${retSelect('')}</div>
     <label class="f">Promised by<input type="date" name="promised"></label>
+    ${retSelect('')}
     <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px"></textarea></label>`}
     <button class="btn primary" type="submit">Create project</button>
   </form>`;
@@ -990,10 +994,11 @@ function renderProject(){
       <label class="f">Machine<input type="text" name="machine" maxlength="120" value="${esc(p.machine)}"></label>
       ${p.kind==='mine'?logbookSelect(p):
       `${custOn&&custOfJob(p)&&(custMachines(custOfJob(p).id).length||p.logbookId)?`<label class="f">Customer's machine<select name="mid"><option value="">(not linked)</option>${cmOptions(custOfJob(p).id,p.logbookId)}</select></label>`:''}
-      <div class="grid2"><label class="f">Drop-off day<input type="date" name="drop" value="${esc(c.dropOff)}"></label><label class="f">Time<input type="time" name="dropTime" step="900" value="${esc(c.dropTime||'')}"></label></div>
+      ${inSelect(c.inBy)}
+      <div class="grid2"><label class="f"><span data-daylbl="in">${inDayLbl(c.inBy)}</span><input type="date" name="drop" value="${esc(c.dropOff)}"></label><label class="f">Time<input type="time" name="dropTime" step="900" value="${esc(c.dropTime||'')}"></label></div>
       <label class="f">Promised by<input type="date" name="promised" value="${esc(c.promised)}"></label>
-      <div class="grid2">${inSelect(c.inBy)}${retSelect(c.ret)}</div>
-      <div class="grid2"><label class="f">${deliveryOn()?'Pickup or delivery day':'Pickup day'}<input type="date" name="pickup" value="${esc(c.pickup||'')}"></label><label class="f">Time<input type="time" name="pickupTime" step="900" value="${esc(c.pickupTime||'')}"></label></div>
+      ${retSelect(c.ret)}
+      <div class="grid2"><label class="f"><span data-daylbl="back">${backDayLbl(c.ret)}</span><input type="date" name="pickup" value="${esc(c.pickup||'')}"></label><label class="f">Time<input type="time" name="pickupTime" step="900" value="${esc(c.pickupTime||'')}"></label></div>
       <label class="f">Customer's complaint<textarea name="complaint" maxlength="2000" style="min-height:80px">${esc(c.complaint)}</textarea></label>`}
       <button class="btn primary" type="submit">Save details</button>
       ${view.confirm==='delp'?`<div class="confirm"><span>Delete this project and all its tasks?</span><button type="button" class="btn danger sm" data-act="delp-yes">Delete</button><button type="button" class="btn sm" data-act="cancel">Keep</button></div>`:(deleteOk?`<button type="button" class="btn danger" data-act="delp">Delete project</button>`:'')}
@@ -1025,7 +1030,7 @@ function renderProject(){
       <div class="grid2"><button class="btn primary" type="submit">Link</button><button class="btn" type="button" data-act="linkm">Cancel</button></div></form>`}
   if(p.kind==='customer'&&p.status==='Ready for pickup'&&!c.pickup)h+=`<form class="panel lshint" data-form="pickup"><b>${deliveryOn()?'When is it going back?':'When are they picking it up?'}</b>
     ${retSelect(c.ret)}
-    <div class="grid2"><label class="f">Day<input type="date" name="pickup" value="${today()}"></label><label class="f">Time<input type="time" name="pickupTime" step="900"></label></div>
+    <div class="grid2"><label class="f"><span data-daylbl="back">${backDayLbl(c.ret)}</span><input type="date" name="pickup" value="${today()}"></label><label class="f">Time<input type="time" name="pickupTime" step="900"></label></div>
     <button class="btn primary" type="submit">Set the day</button><span class="note">It shows on the Schedule and the shop app's Home${deliveryOn()&&custAddr(p)?`. Delivery address: ${esc(custAddr(p))}`:''}.</span></form>`;
   if(p.kind==='customer'&&p.logbookId)h+=lastTimeBox(p.logbookId,id,p.createdAt||0);
   if(p.kind==='customer'&&jobClocksOn())h+=renderClock(id,p);
@@ -1545,6 +1550,7 @@ app.addEventListener('input',e=>{
   else if(k==='custnotes'){p.custNotes=el.value;save(view.pid)}
   else if(k==='tnotes'){const t=p.tasks.find(x=>x.id===view.tid);t.notes=el.value;save(view.pid)}
 });
+app.addEventListener('change',e=>{const sel=e.target.closest('[data-daysel]');if(!sel)return;const f=sel.closest('form');const l=f&&f.querySelector(`[data-daylbl="${sel.dataset.daysel}"]`);if(l)l.textContent=sel.dataset.daysel==='in'?inDayLbl(sel.value):backDayLbl(sel.value)});
 app.addEventListener('change',e=>{const el=e.target;if(el.dataset.input==='dropday'){const n=document.getElementById('n-limit');if(n)n.innerHTML=el.value?limitNote(el.value):'';return}if(el.dataset.input==='pickcust'){const c=custById(el.value);view.cid=el.value||null;view.mid=null;const n=document.getElementById('n-cname'),ph=document.getElementById('n-cphone');if(n)n.value=c?c.name:'';if(ph)ph.value=c?c.phone:'';
     const w=document.getElementById('n-midwrap'),sm=document.getElementById('n-mid');if(w&&sm){sm.innerHTML='<option value="">Not listed (type it below)</option>'+cmOptions(view.cid,'');w.hidden=!custMachines(view.cid).length}return}
   if(el.dataset.input==='status'){projects[view.pid].status=el.value;save(view.pid);render()}
