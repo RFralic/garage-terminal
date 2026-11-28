@@ -14,7 +14,7 @@ const cleanUrls = {
     server.middlewares.use((req, _res, next) => {
       const [path, query = ''] = req.url.split('?');
       const q = query ? '?' + query : '';
-      if (/^\/(forum|wiki|join|mod|bbs|shop)$/.test(path)) req.url = `${path}/${q}`;
+      if (/^\/(forum|wiki|join|mod|bbs|shop|shop\/guide)$/.test(path)) req.url = `${path}/${q}`;
       else if (path === '/forum/new') req.url = `/forum/new.html${q}`;
       else if (path.startsWith('/forum/t/')) req.url = `/forum/thread.html${q}`; // same as firebase.json rewrite
       else if (['/apps/tap-drill-chart', '/apps/torque-chart', '/apps/fuel-mix', '/apps/spark-plugs', '/apps/repclock', '/apps/home-projects', '/apps/logbook', '/apps/job-board', '/apps/morning-brief', '/apps/pantry'].includes(path)) req.url = `${path}/${q}`;
@@ -48,6 +48,7 @@ export default defineConfig({
         tapDrillChart: page('apps/tap-drill-chart/index.html'),
         torqueChart: page('apps/torque-chart/index.html'),
         shop: page('shop/index.html'),
+        shopGuide: page('shop/guide/index.html'),
         fuelMix: page('apps/fuel-mix/index.html'),
         sparkPlugs: page('apps/spark-plugs/index.html'),
         repclock: page('apps/repclock/index.html'),

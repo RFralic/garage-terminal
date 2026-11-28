@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<!-- /shop/guide: step-by-step guide to the shop app with annotated screenshots (public/img/guide/*.jpg,
+     made-up demo shop). Numbers on each picture match the list next to it. Linked from the app's tour and Settings → Help. -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Garage Terminal Shop guide</title>
+<meta name="description" content="Step-by-step guide to Garage Terminal Shop for shop owners and employees: jobs, customers, schedule, parts, clocks and invoices.">
+<meta name="theme-color" content="#151a17">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#151a17;--surface:#1e2420;--surface-2:#252c27;--line:#343d37;--ink:#e7ebe6;--muted:#a3ada5;--steel:#8fb5aa;--accent:#e2753c;--on-accent:#1a0f08;--ok:#6cc48c;--warn:#e0a640;
+  --f-display:"Archivo Narrow","Arial Narrow",Arial,sans-serif;--f-body:"IBM Plex Sans",system-ui,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--f-body)}
+a{color:var(--accent)}
+.wrap{max-width:1040px;margin:0 auto;padding:0 16px 64px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font:500 12px var(--f-mono);letter-spacing:.14em;text-transform:uppercase}
+.brand img{width:36px;height:36px;border-radius:8px}
+.open{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;border-radius:12px;background:var(--accent);color:var(--on-accent);font-weight:700;text-decoration:none}
+.hero{padding:24px 0 8px}
+.eyebrow{font:500 12px var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--steel)}
+h1{margin:6px 0 10px;font:700 clamp(36px,7vw,56px)/1 var(--f-display);letter-spacing:.01em;text-wrap:balance}
+.hero p{max-width:640px;color:var(--muted);margin:0}
+nav.who{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:8px;padding:12px 0;margin:16px 0 8px;border-bottom:1px solid var(--line)}
+nav.who a{flex:1;max-width:220px;display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--line);border-radius:12px;color:var(--ink);text-decoration:none;font-weight:600}
+nav.who a:hover{border-color:var(--accent)}
+h2{margin:40px 0 4px;font:700 34px/1.1 var(--f-display);letter-spacing:.01em}
+.lede{color:var(--muted);margin:0 0 20px;max-width:680px}
+.start{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:0 0 12px;padding:0;list-style:none;counter-reset:s}
+.start li{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;counter-increment:s}
+.start li::before{content:counter(s);display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line);font:600 14px var(--f-mono);margin-bottom:8px}
+.start b{display:block;font-size:17px;margin-bottom:2px}
+.start span{color:var(--muted);font-size:15px}
+.step{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:32px;align-items:start;padding:28px 0;border-top:1px solid var(--line)}
+.shot{position:relative;border-radius:22px;overflow:hidden;border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.45);background:#0f1311}
+.shot img{display:block;width:100%;height:auto}
+.dot{position:absolute;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--on-accent);font:700 13px/26px var(--f-mono);text-align:center;box-shadow:0 0 0 3px rgba(21,26,23,.9),0 0 0 5px var(--accent)}
+.say{position:sticky;top:84px}
+.num{font:500 12px var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--steel)}
+.say h3{margin:4px 0 6px;font:700 28px/1.1 var(--f-display)}
+.say p{margin:0 0 12px;color:var(--muted)}
+.say ol{margin:0;padding:0;list-style:none;counter-reset:c;display:flex;flex-direction:column;gap:10px}
+.say li{counter-increment:c;position:relative;padding-left:40px;min-height:28px}
+.say li::before{content:counter(c);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--on-accent);font:700 14px/28px var(--f-mono);text-align:center}
+.say li .lb{display:block;font-weight:700;color:var(--ink)}
+.say li{color:var(--muted)}.say li b{color:var(--ink)}
+.tip{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:16px 0;color:var(--muted)}
+.tip b{color:var(--ink)}
+footer{border-top:1px solid var(--line);margin-top:40px;padding-top:20px;color:var(--muted);font-size:14px}
+@media (max-width:720px){.step{grid-template-columns:1fr;gap:18px}.shot{max-width:360px;margin:0 auto;width:100%}.say{position:static}h2{font-size:28px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><a class="brand" href="/"><img src="/favicon.svg" alt="" width="36" height="36">Garage Terminal</a><a class="open" href="/shop">Open the app</a></header>
+  <div class="hero">
+    <span class="eyebrow">Garage Terminal Shop · guide</span>
+    <h1>Find your way around the shop app</h1>
+    <p>Each picture has numbered spots; the list next to it says what they do. The shop in the pictures is made up. In the app, <b>Settings → Help → Take the tour</b> points at the real buttons.</p>
+  </div>
+  <nav class="who" aria-label="Guide sections"><a href="#owner">Shop owner</a><a href="#employees">Employees</a></nav>
+
+  <h2 id="owner">For the shop owner</h2>
+  <p class="lede">Set up once, then most days live on Home, Jobs and Schedule.</p>
+  <ol class="start">
+    <li><b>Open and sign in</b><span>Go to garageterminal.com/shop and sign in with Google. Add it to your home screen to use it like an app.</span></li>
+    <li><b>Turn on Shop mode</b><span>Settings (⚙) → Shop mode. It turns on customer jobs, invoices and the Schedule.</span></li>
+    <li><b>Add your shop info</b><span>Jobs → ⚙ Settings: shop name, address, phone, labor rate and receipt paper width.</span></li>
+    <li><b>Check in your first job</b><span>Jobs → + New → Customer job. Write the job number on the tag.</span></li>
+    <li><b>Add your team (optional)</b><span>Settings → Employees: add each person with their Google email and a role.</span></li>
+  </ol>
+  
+  <section class="step" id="owner-home">
+    <div class="shot"><img src="/img/guide/home.jpg" width="780" height="1688" alt="Shop app Home screen" loading="lazy"><span class="dot" style="left:4.62%;top:11.61%" aria-hidden="true">1</span><span class="dot" style="left:4.62%;top:20.85%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:35.55%" aria-hidden="true">3</span><span class="dot" style="left:4.62%;top:51.18%" aria-hidden="true">4</span><span class="dot" style="left:4.62%;top:66.35%" aria-hidden="true">5</span><span class="dot" style="left:4.62%;top:95.73%" aria-hidden="true">6</span></div>
+    <div class="say"><span class="num">OWNER 1</span><h3>Home: your shop's day</h3><p>Home is where the app opens. It shows what needs you today; tap any card to jump to it.</p><ol><li><span class="lb">Timesheet</span> Who is clocked in right now. Tap <b>Open</b> for everyone's hours (shows when the shop clock is on).</li><li><span class="lb">Counts</span> Open jobs, jobs ready for pickup, and parts to order. Tap one to go to that list.</li><li><span class="lb">Today</span> Today's drop-offs, pickups and deliveries, with times. Tap one to open the job.</li><li><span class="lb">This week</span> A dot for each booking. Tap a day to open it on the Schedule.</li><li><span class="lb">Coming up</span> Jobs promised in the next 7 days, late ones and jobs ready to go back.</li><li><span class="lb">Tabs</span> Home, Jobs, Schedule, Machines, Parts and Tools. Tap the tab you're on to go back to its start.</li></ol></div>
+  </section>
+  <section class="step" id="owner-jobs">
+    <div class="shot"><img src="/img/guide/jobs.jpg" width="780" height="1688" alt="Job_Board job list" loading="lazy"><span class="dot" style="left:75.38%;top:15.64%" aria-hidden="true">1</span><span class="dot" style="left:57.44%;top:15.64%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:24.64%" aria-hidden="true">3</span><span class="dot" style="left:68.21%;top:40.52%" aria-hidden="true">4</span><span class="dot" style="left:4.62%;top:49.76%" aria-hidden="true">5</span><span class="dot" style="left:4.62%;top:61.61%" aria-hidden="true">6</span></div>
+    <div class="say"><span class="num">OWNER 2</span><h3>Jobs: every job in one list</h3><p>The Jobs tab is Job_Board. Customer jobs and your own projects live here.</p><ol><li><span class="lb">+ New</span> Check a machine in. Customer jobs get the next job number (J-014, J-015…).</li><li><span class="lb">Shopping list</span> Parts still to order across all jobs, with a count.</li><li><span class="lb">Search</span> Find a job by customer, machine, part or note.</li><li><span class="lb">Customers</span> Your customer list: phone, address, their machines and every job they've had.</li><li><span class="lb">Filters</span> Everyone, Assigned to me, or Not assigned (with employees on).</li><li><span class="lb">A job card</span> Progress, the next task, and whether its parts are on your shelf. Tap to open.</li></ol></div>
+  </section>
+  <section class="step" id="owner-job-new">
+    <div class="shot"><img src="/img/guide/job-new.jpg" width="780" height="1688" alt="New customer job form" loading="lazy"><span class="dot" style="left:62.56%;top:23.93%" aria-hidden="true">1</span><span class="dot" style="left:4.62%;top:47.16%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:65.52%" aria-hidden="true">3</span><span class="dot" style="left:4.62%;top:83.89%" aria-hidden="true">4</span></div>
+    <div class="say"><span class="num">OWNER 3</span><h3>Checking a machine in</h3><p>Tap <b>+ New</b>, then <b>Customer job</b>.</p><ol><li><span class="lb">Customer job</span> Customer jobs get a job number, customer info, invoices and the schedule.</li><li><span class="lb">Customer</span> Pick a customer from your list, or New customer and type their name and phone.</li><li><span class="lb">Their machine</span> Pick one of their machines to keep its history, or type it in.</li><li><span class="lb">How it comes in</span> They drop it off or you pick it up, the day and time, the promised date, and how it goes back.</li></ol></div>
+  </section>
+  <section class="step" id="owner-job">
+    <div class="shot"><img src="/img/guide/job.jpg" width="780" height="1688" alt="A customer job" loading="lazy"><span class="dot" style="left:69.49%;top:10.31%" aria-hidden="true">1</span><span class="dot" style="left:37.44%;top:26.30%" aria-hidden="true">2</span><span class="dot" style="left:19.49%;top:32.58%" aria-hidden="true">3</span><span class="dot" style="left:4.62%;top:48.58%" aria-hidden="true">4</span><span class="dot" style="left:4.62%;top:57.23%" aria-hidden="true">5</span><span class="dot" style="left:4.62%;top:73.70%" aria-hidden="true">6</span></div>
+    <div class="say"><span class="num">OWNER 4</span><h3>Working a job</h3><p>Everything about one job, top to bottom.</p><ol><li><span class="lb">Edit job details</span> Change the machine, dates, times and how it comes in and goes back. (Edit customer is further down.)</li><li><span class="lb">Machine</span> Opens the machine in Machines, with every visit it's had.</li><li><span class="lb">Dates</span> Drop-off, pickup and promised dates. Late dates turn orange.</li><li><span class="lb">Status</span> Not started, In progress, Waiting on parts, Ready for pickup, Done. Done jobs file under the customer.</li><li><span class="lb">Assigned to</span> Who is working on it. Their initials show on the job card.</li><li><span class="lb">Clock in</span> Times the work on this job. The time can go straight onto the invoice as labor.</li></ol></div>
+  </section>
+  <section class="step" id="owner-job-labor">
+    <div class="shot"><img src="/img/guide/job-labor.jpg" width="780" height="1688" alt="Parts and labor on a job" loading="lazy"><span class="dot" style="left:4.62%;top:16.59%" aria-hidden="true">1</span><span class="dot" style="left:4.62%;top:40.28%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:47.75%" aria-hidden="true">3</span><span class="dot" style="left:31.03%;top:61.85%" aria-hidden="true">4</span><span class="dot" style="left:13.08%;top:70.26%" aria-hidden="true">5</span></div>
+    <div class="say"><span class="num">OWNER 5</span><h3>Parts, labor and delivery</h3><p>Further down the job, the money adds up as you go.</p><ol><li><span class="lb">Parts total</span> Every part on the job and its tasks. Parts without a price are counted for you.</li><li><span class="lb">Labor</span> What was done, hours and rate. Your default rate comes from Shop info.</li><li><span class="lb">Use clocked time</span> Fills the hours from the job clock (only approved time, if you approve time).</li><li><span class="lb">Check the distance</span> Opens Google Maps from your shop to the customer for a pickup or delivery.</li><li><span class="lb">Miles</span> Type the miles; the delivery fee works itself out from your rate in Settings.</li></ol></div>
+  </section>
+  <section class="step" id="owner-job-invoice">
+    <div class="shot"><img src="/img/guide/job-invoice.jpg" width="780" height="1688" alt="Invoice and report buttons" loading="lazy"><span class="dot" style="left:4.62%;top:19.55%" aria-hidden="true">1</span><span class="dot" style="left:20.51%;top:35.19%" aria-hidden="true">2</span><span class="dot" style="left:20.51%;top:41.71%" aria-hidden="true">3</span><span class="dot" style="left:20.51%;top:48.34%" aria-hidden="true">4</span><span class="dot" style="left:73.85%;top:6.28%" aria-hidden="true">5</span></div>
+    <div class="say"><span class="num">OWNER 6</span><h3>Invoices, reports and receipts</h3><p>At the bottom of a customer job.</p><ol><li><span class="lb">Notes for the customer</span> Prints at the end of the invoice and work report. Project notes stay private.</li><li><span class="lb">PDF</span> Save the invoice or work report as a PDF to text or email it.</li><li><span class="lb">Print</span> Print a full page straight away.</li><li><span class="lb">Receipt</span> For a receipt printer. Pick your paper width (58, 76, 80 or 112 mm) in Shop info.</li><li><span class="lb">Shop info</span> Your shop name, address, phone and labor rate. They print at the top of every invoice.</li></ol></div>
+  </section>
+  <section class="step" id="owner-schedule">
+    <div class="shot"><img src="/img/guide/schedule.jpg" width="780" height="1688" alt="Schedule tab" loading="lazy"><span class="dot" style="left:4.62%;top:13.63%" aria-hidden="true">1</span><span class="dot" style="left:4.62%;top:20.85%" aria-hidden="true">2</span><span class="dot" style="left:77.18%;top:33.18%" aria-hidden="true">3</span><span class="dot" style="left:4.62%;top:60.55%" aria-hidden="true">4</span><span class="dot" style="left:4.62%;top:69.91%" aria-hidden="true">5</span><span class="dot" style="left:4.62%;top:87.68%" aria-hidden="true">6</span></div>
+    <div class="say"><span class="num">OWNER 7</span><h3>Schedule</h3><p>Four weeks at a glance, or the whole month.</p><ol><li><span class="lb">Timesheet</span> Who is in, and everyone's hours (owners and managers).</li><li><span class="lb">4 weeks or Month</span> Weeks start on Sunday. Arrows move; Today comes back.</li><li><span class="lb">Days</span> Dots: orange = coming in, green = going back, yellow = promised. A full day is underlined.</li><li><span class="lb">Legend</span> What the dots mean. Full day follows your daily job limit in Settings.</li><li><span class="lb">The day</span> Everything booked on the picked day. Tap one to open the job.</li><li><span class="lb">+ Schedule</span> Book a new job on the picked day. It opens the new job form with that date filled in.</li></ol></div>
+  </section>
+  <section class="step" id="owner-machines">
+    <div class="shot"><img src="/img/guide/machines.jpg" width="780" height="1688" alt="Machines tab" loading="lazy"><span class="dot" style="left:60.51%;top:25.59%" aria-hidden="true">1</span><span class="dot" style="left:6.67%;top:38.51%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:56.87%" aria-hidden="true">3</span><span class="dot" style="left:6.67%;top:64.69%" aria-hidden="true">4</span><span class="dot" style="left:71.28%;top:10.07%" aria-hidden="true">5</span></div>
+    <div class="say"><span class="num">OWNER 8</span><h3>Machines</h3><p>Customers' machines and your own, with specs and history (the Logbook).</p><ol><li><span class="lb">Mine / Customers'</span> Your own machines, or customers' machines grouped by customer.</li><li><span class="lb">Customer</span> Each customer's machines together.</li><li><span class="lb">Specs</span> Engine, spark plug, oil and filters. Part numbers check your shelf.</li><li><span class="lb">In your inventory</span> How many of its part numbers you have in stock.</li><li><span class="lb">+ Add engine</span> Add a machine. Set "Whose is it?" for a customer's machine.</li></ol></div>
+  </section>
+  <section class="step" id="owner-parts">
+    <div class="shot"><img src="/img/guide/parts.jpg" width="780" height="1688" alt="Parts tab" loading="lazy"><span class="dot" style="left:73.85%;top:10.07%" aria-hidden="true">1</span><span class="dot" style="left:4.62%;top:20.14%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:48.70%" aria-hidden="true">3</span><span class="dot" style="left:10.00%;top:52.37%" aria-hidden="true">4</span><span class="dot" style="left:72.31%;top:52.37%" aria-hidden="true">5</span><span class="dot" style="left:69.49%;top:71.68%" aria-hidden="true">6</span><span class="dot" style="left:43.85%;top:76.78%" aria-hidden="true">7</span></div>
+    <div class="say"><span class="num">OWNER 9</span><h3>Parts and inventory</h3><p>Your shelf, what to reorder and what's on order.</p><ol><li><span class="lb">+ Add part</span> Add a part with brand, number, location, reorder level and price.</li><li><span class="lb">Counts</span> Parts, to reorder, on order. Tap to filter.</li><li><span class="lb">Search</span> By name, part number, barcode, other brands' numbers, or what it fits.</li><li><span class="lb">Scan</span> Scan a barcode with the camera or a Bluetooth scanner. Bulk scan for a delivery.</li><li><span class="lb">Suppliers</span> Your supplier list with lead times, for expected dates on orders.</li><li><span class="lb">− / +</span> Change the count. Parts used on jobs come off here from the job.</li><li><span class="lb">Cross-reference</span> Spark plugs link to the Spark Plug Finder for other brands' numbers.</li></ol></div>
+  </section>
+  <section class="step" id="owner-tools">
+    <div class="shot"><img src="/img/guide/tools.jpg" width="780" height="1688" alt="Tools tab" loading="lazy"><span class="dot" style="left:4.62%;top:12.32%" aria-hidden="true">1</span><span class="dot" style="left:4.62%;top:22.75%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:33.65%" aria-hidden="true">3</span><span class="dot" style="left:4.62%;top:44.43%" aria-hidden="true">4</span></div>
+    <div class="say"><span class="num">OWNER 10</span><h3>Shop tools</h3><p>Reference charts that work with no signal once opened.</p><ol><li><span class="lb">Torque Chart</span> SAE and metric bolts by grade, dry or oiled.</li><li><span class="lb">Fuel Mix</span> 2-stroke oil for any can and ratio.</li><li><span class="lb">Spark Plug Finder</span> Any plug number to NGK and other brands, or a machine to its plug and gap.</li><li><span class="lb">Tap Drill Chart</span> Drill size for any tap.</li></ol></div>
+  </section>
+  <section class="step" id="owner-settings-team">
+    <div class="shot"><img src="/img/guide/settings-team.jpg" width="780" height="1688" alt="Employees in Settings" loading="lazy"><span class="dot" style="left:75.90%;top:9.12%" aria-hidden="true">1</span><span class="dot" style="left:72.56%;top:26.30%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:46.21%" aria-hidden="true">3</span><span class="dot" style="left:4.62%;top:53.44%" aria-hidden="true">4</span><span class="dot" style="left:4.62%;top:79.38%" aria-hidden="true">5</span></div>
+    <div class="say"><span class="num">OWNER 11</span><h3>Employees and roles</h3><p>Settings (⚙, top right) → Employees. Off by default; a one-person shop doesn't need it.</p><ol><li><span class="lb">Employees</span> Turn on to add people. Everything stays on your account.</li><li><span class="lb">Status</span> Invited until they sign in and tap Join, then Joined.</li><li><span class="lb">Send the invite</span> Email or copy the invite. They sign in at garageterminal.com/shop with that Google email.</li><li><span class="lb">+ Add an employee</span> Name, Google email and role: Tech, Front counter or Manager.</li><li><span class="lb">What each role can do</span> Switch on or off prices, contact info, inventory, settings, deleting jobs and approving time per role.</li></ol></div>
+  </section>
+  <section class="step" id="owner-timesheet">
+    <div class="shot"><img src="/img/guide/timesheet.jpg" width="780" height="1688" alt="Timesheet" loading="lazy"><span class="dot" style="left:4.62%;top:18.72%" aria-hidden="true">1</span><span class="dot" style="left:4.62%;top:32.58%" aria-hidden="true">2</span><span class="dot" style="left:19.74%;top:44.67%" aria-hidden="true">3</span><span class="dot" style="left:62.56%;top:44.67%" aria-hidden="true">4</span></div>
+    <div class="say"><span class="num">OWNER 12</span><h3>Timesheet</h3><p>Home or Schedule → Timesheet. Turn the shop clock on in Settings → Clocks.</p><ol><li><span class="lb">This week / Last week</span> Sunday to Saturday.</li><li><span class="lb">Hours</span> Hours per person per day, totals and overtime. Tap a day to see or fix the times.</li><li><span class="lb">Export CSV</span> For payroll.</li><li><span class="lb">OK week</span> Approve the week. Edited days and days nobody clocked out of are flagged first.</li></ol></div>
+  </section>
+
+  <h2 id="employees">For employees</h2>
+  <p class="lede">Your shop owner adds you first. Then:</p>
+  <ol class="start">
+    <li><b>Sign in</b><span>Open garageterminal.com/shop and sign in with the Google email your shop owner used.</span></li>
+    <li><b>Tap Join</b><span>Home asks to join the shop. After that the app opens your shop's jobs, machines and parts.</span></li>
+    <li><b>Clock in</b><span>If your shop uses the shop clock, clock in on Home at the start of the day.</span></li>
+    <li><b>Work your jobs</b><span>My jobs on Home lists what's assigned to you. Tick tasks as you finish them.</span></li>
+  </ol>
+  
+  <section class="step" id="emp-emp-home">
+    <div class="shot"><img src="/img/guide/emp-home.jpg" width="780" height="1688" alt="Employee Home screen" loading="lazy"><span class="dot" style="left:4.62%;top:9.12%" aria-hidden="true">1</span><span class="dot" style="left:4.62%;top:25.00%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:35.90%" aria-hidden="true">3</span><span class="dot" style="left:4.62%;top:48.22%" aria-hidden="true">4</span></div>
+    <div class="say"><span class="num">EMP 1</span><h3>Your Home screen</h3><p>After you tap Join, the app opens your shop.</p><ol><li><span class="lb">Your shop and role</span> You see what your role allows.</li><li><span class="lb">Clock in</span> Clock in when you start the day (if your shop uses the shop clock). Job clocks unlock once you're in.</li><li><span class="lb">My hours</span> Your own timesheet.</li><li><span class="lb">My jobs</span> Jobs assigned to you, with what's left to do. Tap to open.</li></ol></div>
+  </section>
+  <section class="step" id="emp-emp-clocked">
+    <div class="shot"><img src="/img/guide/emp-clocked.jpg" width="780" height="1688" alt="Clocked in" loading="lazy"><span class="dot" style="left:20.00%;top:22.99%" aria-hidden="true">1</span><span class="dot" style="left:62.56%;top:22.99%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:37.20%" aria-hidden="true">3</span></div>
+    <div class="say"><span class="num">EMP 2</span><h3>On the clock</h3><p>The card turns green while you're clocked in.</p><ol><li><span class="lb">Start break</span> Breaks come off your hours.</li><li><span class="lb">Clock out</span> Add a note if you need to. Your job clock stops too.</li><li><span class="lb">On jobs / shop time</span> Time on jobs is billable; the rest is shop time.</li></ol></div>
+  </section>
+  <section class="step" id="emp-job">
+    <div class="shot"><img src="/img/guide/job.jpg" width="780" height="1688" alt="Working a job" loading="lazy"><span class="dot" style="left:4.62%;top:48.58%" aria-hidden="true">1</span><span class="dot" style="left:4.62%;top:57.23%" aria-hidden="true">2</span><span class="dot" style="left:4.62%;top:73.70%" aria-hidden="true">3</span></div>
+    <div class="say"><span class="num">EMP 3</span><h3>Working a job</h3><p>Open a job from My jobs or the Jobs tab.</p><ol><li><span class="lb">Status</span> Move it along: In progress, Waiting on parts, Ready for pickup.</li><li><span class="lb">Assigned to</span> Who is on it.</li><li><span class="lb">Clock in</span> Start the job clock when you work on it, stop it when you switch jobs.</li></ol></div>
+  </section>
+  <div class="tip"><b>Your own garage too.</b> Settings → Your shop → <b>Switch to my own garage</b> opens your own machines and projects while you stay on the team. Switch back the same way.</div>
+
+  <footer>Garage Terminal Shop is in beta. Questions or ideas: support@garageterminal.com · <a href="/shop">Open the app</a></footer>
+</div>
+</body>
+</html>
